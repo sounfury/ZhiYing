@@ -1,0 +1,44 @@
+# ── Python ──
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# ── Virtual env ──
+venv/
+.venv/
+env/
+
+# ── Environment ──
+.env
+*.env.local
+
+# ── Workspace (runtime data: books, ledgers, DB) ──
+workspace/
+
+# ── Sample / local EPUB binaries (do not commit) ──
+*.epub
+
+# ── Node / frontend ──
+node_modules/
+frontend/dist/
+frontend/.vite/
+*.tsbuildinfo
+
+# ── IDE ──
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# ── OS ──
+.DS_Store
+Thumbs.db
+
+# ─── misc ───
+*.log

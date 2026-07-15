@@ -1,0 +1,9 @@
+[project]
+name = "castatlas-backend"
+version = "0.1.0"
+description = "CastAtlas — 把电子书变成可导航的人物关系图（后端）"
+requires-python = ">=3.9"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["app*"]
