@@ -6,6 +6,7 @@ GET  /api/books/{book_id}/progress       -- SSE 逐章进度
 POST /api/books/{book_id}/analyze/stop   -- 停止分析
 GET  /api/books/{book_id}/cast           -- 查看人名册
 GET  /api/books/{book_id}/chapters/{cid}/result -- 单章 ledger
+GET  /api/books/{book_id}/graph          -- 汇总出图（Aggregator）
 """
 from __future__ import annotations
 
@@ -17,6 +18,7 @@ from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
 from app.config import settings
+from app.core.aggregator import BLOCKING_STATUSES, Aggregator, GraphQuery
 from app.core.orchestrator import Orchestrator, get_orchestrator
 from app.errors import AppError, ErrorCode, book_not_found
 from app.logging_config import get_logger
@@ -161,3 +163,76 @@ async def get_chapter_result(book_id: str, chapter_id: int) -> dict:
 
     ledger = await asyncio.to_thread(fs.read_ledger, book_id, chapter_id)
     return ledger.model_dump(mode="json")
+
+
+# ── GET /graph ──
+
+
+@router.get("/{book_id}/graph")
+async def get_graph(
+    book_id: str,
+    to_chapter: Optional[int] = Query(
+        None,
+        description="Chapter bound: prefix 1..N, or the only chapter when single_chapter=true",
+    ),
+    single_chapter: bool = Query(
+        False,
+        description="If true, only aggregate that one chapter (requires to_chapter)",
+    ),
+    min_appearance: int = Query(
+        2, ge=0, description="Min distinct chapters to keep a person as a node"
+    ),
+    type_filter: Optional[str] = Query(
+        None,
+        description="Comma-separated relation types to keep (e.g. 夫妻,师徒)",
+    ),
+    include_suppressed: bool = Query(
+        False,
+        description="If true, include soft tags suppressed by hard relations",
+    ),
+) -> dict:
+    """
+    确定性汇总人物关系图（无 LLM）。
+
+    - book 不存在 → 404
+    - analyzing / reconciling → 409
+    - 无 ledger / uploaded → 空图 200
+    - analyzed / reconcile_failed → 正常出图
+    - single_chapter=true 时只出 to_chapter 一章的关系（非此前累计）
+    """
+    fs = get_filestore()
+    meta = await asyncio.to_thread(fs.read_meta, book_id)
+
+    if meta.status in BLOCKING_STATUSES:
+        raise AppError(
+            ErrorCode.ANALYSIS_ALREADY_RUNNING,
+            f"Graph unavailable while status is {meta.status.value} (book={book_id})",
+            status_code=409,
+        )
+
+    if to_chapter is not None and to_chapter < 1:
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            f"to_chapter must be >= 1, got {to_chapter}",
+        )
+
+    if single_chapter and to_chapter is None:
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "single_chapter=true requires to_chapter (the chapter to isolate)",
+        )
+
+    types: Optional[list[str]] = None
+    if type_filter:
+        types = [t.strip() for t in type_filter.split(",") if t.strip()]
+
+    query = GraphQuery(
+        to_chapter=to_chapter,
+        single_chapter=single_chapter,
+        min_appearance=min_appearance,
+        type_filter=types,
+        include_suppressed=include_suppressed,
+    )
+    agg = Aggregator(book_id, fs)
+    data = await asyncio.to_thread(agg.compile, query)
+    return data.model_dump(mode="json")

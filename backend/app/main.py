@@ -107,14 +107,7 @@ def _register_remaining_routes(app: FastAPI) -> None:
             status_code=501,
         )
 
-    @app.get("/api/books/{book_id}/graph")
-    async def get_graph(book_id: str) -> dict:
-        from app.errors import AppError, ErrorCode
-        raise AppError(
-            ErrorCode.INTERNAL_ERROR,
-            "Not implemented yet",
-            status_code=501,
-        )
+    # GET /api/books/{book_id}/graph → analysis router (Aggregator)
 
     @app.put("/api/books/{book_id}/relations")
     async def update_relations(book_id: str) -> dict:

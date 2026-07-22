@@ -43,6 +43,10 @@ _SYSTEM_TEMPLATE = """\
 
 {relation_summary}
 
+## 亲属修正提示
+
+若原文出现「舅/舅公/uncle/叔/姑/父母/兄妹」等，而账本只有「相识/同场」，应考虑 relation_changes **add** 为 **表亲 / 亲子 / 兄妹 / 夫妻**（带 chapter_id + quote），不要无证据乱合并人名。
+
 ## 出口约定（submit_reconciliation 的 patch 格式）
 
   merges: [{{keep_id, drop_id, reason, evidence?}}]

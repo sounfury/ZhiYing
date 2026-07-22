@@ -1,7 +1,7 @@
 # Aggregator 设计文档（汇总出图）
 
-> 状态：设计草案（待评审）  
-> 日期：2026-07-15  
+> 状态：已实现（P0 MVP）  
+> 日期：2026-07-15 / 实现 2026-07-22  
 > 依据：`docs/ARCHITECTURE.md` §4.4 / §5.2、`docs/PRD.md` §5.5、已实现的 ledger / cast / overrides / Reconcile  
 > 范围：**确定性程序**，无 LLM；读账本 → 叠补丁 → 过滤打分 → 输出 `GraphData`
 

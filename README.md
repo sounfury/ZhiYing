@@ -7,18 +7,33 @@
 
 | 文档 | 说明 |
 |------|------|
-| [docs/PRD.md](./docs/PRD.md) | 产品需求与设计思路（当前主文档） |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 技术架构（并行/记忆、API、数据模型） |
+| [docs/PRD.md](./docs/PRD.md) | 产品需求与设计思路 |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 技术架构 |
+| [docs/aggregator-design.md](./docs/aggregator-design.md) | 汇总出图 |
 
 ## 状态
 
-设计阶段 · 尚未开工实现
+后端 P0 主路径已可用（上传 → 章分析 → Reconcile → Aggregator 出图）。  
+前端为**最小预览**（选书 / 调参 / G6 力导向图）。
 
-**P0：** Provider（LC）+ EPUB + 章/归纳 + few_long + 文字图（聚焦/过滤/导出）  
-**P1：** NLP Cast、记忆/波次、头像框  
-**P2：** 工程硬化（jail/catalog/jobs 等，按需；本机个人默认可不做）  
+## 本地跑起来
 
-> 本机个人项目；编排自研，LangChain 只做 Agent 运行时（架构 §2.1 / §2.2）。
+```bash
+# 后端
+cd backend
+source .venv/bin/activate   # 或 python -m venv .venv && pip install -r requirements.txt
+PYTHONPATH=. uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+
+# 前端（另开终端）
+cd frontend
+npm install
+npm run dev
+```
+
+浏览器打开 **http://127.0.0.1:5173/**  
+
+默认有一本演示书 `【演示】大观园人物关系样例`（workspace/demo-castatlas，可直接出图）。  
+Vite 已把 `/api` 代理到 `http://127.0.0.1:8000`。
 
 ## 名称含义
 

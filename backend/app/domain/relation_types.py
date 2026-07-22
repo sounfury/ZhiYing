@@ -142,5 +142,9 @@ def relation_summary_for_prompt() -> str:
                 "上下级": "a是上级",
             }
             suffix = f": {_HINTS.get(name, '')}".rstrip(": ")
+        elif name == "表亲":
+            suffix = ": 舅/叔/姑/姨/甥/侄/堂表等旁系；勿用「相识」敷衍"
+        elif name == "兄妹":
+            suffix = ": 兄弟姐妹"
         lines.append(f"  - {name} ({tier.value}, {direction}{suffix})")
     return "\n".join(lines)

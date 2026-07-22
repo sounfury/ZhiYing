@@ -82,6 +82,8 @@ class Orchestrator:
         self._cast_snapshot: Cast = Cast()
         self._total_chapters: int = 0
         self._done_count: int = 0
+        # 逐章失败摘要，写入 done 事件便于前端展示
+        self._chapter_errors: List[Dict[str, Any]] = []
 
     async def start(self, to_chapter: Optional[int] = None) -> dict:
         """
@@ -136,6 +138,7 @@ class Orchestrator:
             _orchestrators[self.book_id] = self
             self.stop_flag.clear()
             self._done_count = 0
+            self._chapter_errors = []
             self.finished = False
             self.final_result = None
 
@@ -191,8 +194,13 @@ class Orchestrator:
                         "total": self._total_chapters,
                         "status": "done" if result.success else "failed",
                     }
-                    if not result.success and result.warning:
-                        event_data["error"] = result.warning
+                    if not result.success:
+                        err = result.warning or "chapter agent failed without detail"
+                        event_data["error"] = err
+                        self._chapter_errors.append({
+                            "chapter_id": brief.chapter_id,
+                            "error": err,
+                        })
 
                     await self.progress_queue.put({
                         "type": "progress",
@@ -208,14 +216,19 @@ class Orchestrator:
 
                 except Exception as e:
                     self._done_count += 1
+                    err_msg = str(e)
                     logger.error(
                         "Chapter %d failed with exception: %s", brief.chapter_id, e
                     )
                     results[brief.chapter_id] = AgentResult(
                         chapter_id=brief.chapter_id,
                         success=False,
-                        warning=str(e),
+                        warning=err_msg,
                     )
+                    self._chapter_errors.append({
+                        "chapter_id": brief.chapter_id,
+                        "error": err_msg,
+                    })
                     await self.progress_queue.put({
                         "type": "progress",
                         "data": {
@@ -223,7 +236,7 @@ class Orchestrator:
                             "done": self._done_count,
                             "total": self._total_chapters,
                             "status": "failed",
-                            "error": str(e),
+                            "error": err_msg,
                         },
                     })
 
@@ -359,17 +372,13 @@ class Orchestrator:
         await asyncio.to_thread(self.filestore.write_meta, self.book_id, self._meta)
 
         # ── push done event ──
-        done_data = {
-            "chapters_done": len(chapters_done),
-            "chapters_failed": len(chapters_failed),
-            "stopped": was_stopped,
-            "reconcile_done": self._meta.analysis_progress.reconcile_done,
-        }
-        if reconcile_degraded:
-            done_data["degraded"] = True
-            done_data["phase"] = "reconcile_failed"
-        else:
-            done_data["phase"] = "analyzed"
+        done_data = self._build_done_payload(
+            chapters_done=chapters_done,
+            chapters_failed=chapters_failed,
+            was_stopped=was_stopped,
+            phase="reconcile_failed" if reconcile_degraded else "analyzed",
+            degraded=reconcile_degraded,
+        )
 
         await self.progress_queue.put({
             "type": "done",
@@ -390,6 +399,40 @@ class Orchestrator:
             self._meta.analysis_progress.reconcile_done,
         )
 
+    def _build_done_payload(
+        self,
+        *,
+        chapters_done: list[int],
+        chapters_failed: list[int],
+        was_stopped: bool,
+        phase: str,
+        degraded: bool = False,
+    ) -> dict:
+        """组装 SSE done 事件，含失败明细与最终 status。"""
+        status = self._meta.status.value if self._meta else "failed"
+        payload: dict[str, Any] = {
+            "chapters_done": len(chapters_done),
+            "chapters_failed": len(chapters_failed),
+            "chapters_done_ids": list(chapters_done),
+            "chapters_failed_ids": list(chapters_failed),
+            "stopped": was_stopped,
+            "reconcile_done": (
+                self._meta.analysis_progress.reconcile_done if self._meta else False
+            ),
+            "phase": phase,
+            "status": status,
+            "errors": list(self._chapter_errors),
+            "total": self._total_chapters,
+        }
+        if degraded:
+            payload["degraded"] = True
+        if phase == "failed" and not payload["errors"] and chapters_failed:
+            payload["errors"] = [
+                {"chapter_id": cid, "error": "chapter analysis failed (no detail)"}
+                for cid in chapters_failed
+            ]
+        return payload
+
     async def _push_done(
         self,
         chapters_done: list[int],
@@ -397,15 +440,12 @@ class Orchestrator:
         was_stopped: bool,
     ) -> None:
         """推送 done 事件（用于提早退出的路径：章阶段 stop / 零章成功）。"""
-        done_data = {
-            "chapters_done": len(chapters_done),
-            "chapters_failed": len(chapters_failed),
-            "stopped": was_stopped,
-            "reconcile_done": (
-                self._meta.analysis_progress.reconcile_done if self._meta else False
-            ),
-            "phase": "failed",
-        }
+        done_data = self._build_done_payload(
+            chapters_done=chapters_done,
+            chapters_failed=chapters_failed,
+            was_stopped=was_stopped,
+            phase="failed",
+        )
         await self.progress_queue.put({
             "type": "done",
             "data": done_data,
