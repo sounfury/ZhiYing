@@ -4,7 +4,8 @@ Orchestrator -- few_long 模式薄编排。
 流程：
   1. start(to_chapter): 校验 → 过滤章队列 → 冻结 cast → status=analyzing → 异步 _run()
   2. _run(): Semaphore 并行 run_chapter_agent → 逐章 push SSE progress → barrier
-  3. barrier 后: CastWriter 顺序 apply → finalize → 更新 meta status
+  3. barrier 后: CastWriter 顺序 apply → finalize → SuspectsGenerator → ReconcileAgent → PatchApplier
+  4. 更新 meta status (analyzed / reconcile_failed / failed)
 
 D7: SSE 逐章推送
 D8: to_chapter 简单截断
@@ -17,7 +18,10 @@ from typing import Any, Dict, List, Optional
 
 from app.agent.cast_writer import CastWriter
 from app.agent.chapter_agent import AgentResult, run_chapter_agent
+from app.agent.reconcile_agent import run_reconcile_agent
 from app.config import Settings, settings
+from app.core.patch_applier import PatchApplier
+from app.core.suspects import SuspectsGenerator
 from app.errors import analysis_already_running
 from app.logging_config import get_logger
 from app.models.book import (
@@ -95,7 +99,7 @@ class Orchestrator:
             self._meta = await asyncio.to_thread(self.filestore.read_meta, self.book_id)
 
             # ── 防重入 ──
-            if self._meta.status == BookStatus.ANALYZING:
+            if self._meta.status in (BookStatus.ANALYZING, BookStatus.RECONCILING):
                 raise analysis_already_running(self.book_id)
 
             # ── 过滤分析章队列 ──
@@ -254,20 +258,104 @@ class Orchestrator:
         # skipped 章也记入 failed（明确标注未跑）
         chapters_failed = sorted(set(chapters_failed + skipped_ids))
 
+        # ── 确定 chapters_done / chapters_failed ──
+        self._meta.analysis_progress.chapters_done = chapters_done
+        self._meta.analysis_progress.chapters_failed = chapters_failed
+        self._meta.analysis_progress.chapters_pending = []
+
         if was_stopped:
             # 被中断 → failed，不管是否有部分成功
             self._meta.status = BookStatus.FAILED
-            # 保留未跑的章在 pending（不假装跑完）
             self._meta.analysis_progress.chapters_pending = skipped_ids
-        elif not chapters_done:
-            self._meta.status = BookStatus.FAILED
-            self._meta.analysis_progress.chapters_pending = []
-        else:
-            self._meta.status = BookStatus.ANALYZED
-            self._meta.analysis_progress.chapters_pending = []
+            await asyncio.to_thread(self.filestore.write_meta, self.book_id, self._meta)
+            await self._push_done(chapters_done, chapters_failed, was_stopped)
+            return
 
-        self._meta.analysis_progress.chapters_done = chapters_done
-        self._meta.analysis_progress.chapters_failed = chapters_failed
+        if not chapters_done:
+            self._meta.status = BookStatus.FAILED
+            await asyncio.to_thread(self.filestore.write_meta, self.book_id, self._meta)
+            await self._push_done(chapters_done, chapters_failed, was_stopped)
+            return
+
+        # ── Reconcile 流程 ──
+        reconcile_failed = False
+        reconcile_degraded = False
+
+        if self.stop_flag.is_set():
+            # reconcile 阶段前被 stop → RECONCILE_FAILED
+            self._meta.status = BookStatus.RECONCILE_FAILED
+            self._meta.analysis_progress.reconcile_done = False
+            reconcile_failed = True
+            reconcile_degraded = True
+        else:
+            try:
+                # ── 生成可疑清单 ──
+                cast = await asyncio.to_thread(self.filestore.read_cast, self.book_id)
+                ledgers = await asyncio.to_thread(
+                    self.filestore.read_ledgers, self.book_id, chapters_done
+                )
+                suspects = SuspectsGenerator().generate(cast, ledgers)
+
+                # ── 是否跳过 ──
+                if suspects.is_empty and not self.cfg.force_reconcile:
+                    logger.info("No suspects found, skipping reconcile")
+                    self._meta.status = BookStatus.ANALYZED
+                    self._meta.analysis_progress.reconcile_done = True
+                else:
+                    # ── 状态 → RECONCILING ──
+                    self._meta.status = BookStatus.RECONCILING
+                    await asyncio.to_thread(self.filestore.write_meta, self.book_id, self._meta)
+                    await self.progress_queue.put({
+                        "type": "progress",
+                        "data": {"phase": "reconcile_running"},
+                    })
+
+                    # ── 运行 ReconcileAgent ──
+                    chapter_summaries = {l.chapter_id: l.summary for l in ledgers}
+                    reconcile_result = await run_reconcile_agent(
+                        self._meta, cast, suspects, chapter_summaries,
+                        self.filestore, self.cfg,
+                    )
+
+                    if self.stop_flag.is_set():
+                        self._meta.status = BookStatus.RECONCILE_FAILED
+                        self._meta.analysis_progress.reconcile_done = False
+                        reconcile_failed = True
+                        reconcile_degraded = True
+                    elif reconcile_result.success and reconcile_result.patch is not None:
+                        # ── 应用 patch ──
+                        applier = PatchApplier(self.book_id, self.filestore)
+                        apply_result = await asyncio.to_thread(applier.apply, reconcile_result.patch)
+
+                        if apply_result.errors:
+                            # patch 部分应用异常 → 仍标为 RECONCILE_FAILED
+                            logger.warning(
+                                "Patch applied with %d errors: %s",
+                                len(apply_result.errors),
+                                apply_result.errors,
+                            )
+                            self._meta.status = BookStatus.RECONCILE_FAILED
+                            self._meta.analysis_progress.reconcile_done = False
+                            reconcile_failed = True
+                            reconcile_degraded = True
+                        else:
+                            self._meta.status = BookStatus.ANALYZED
+                            self._meta.analysis_progress.reconcile_done = True
+                    else:
+                        # Agent 未提交或超时
+                        self._meta.status = BookStatus.RECONCILE_FAILED
+                        self._meta.analysis_progress.reconcile_done = False
+                        reconcile_failed = True
+                        reconcile_degraded = True
+                        logger.warning("Reconcile failed: %s", reconcile_result.warning)
+
+            except Exception as e:
+                logger.error("Reconcile phase exception: %s", e)
+                self._meta.status = BookStatus.RECONCILE_FAILED
+                self._meta.analysis_progress.reconcile_done = False
+                reconcile_failed = True
+                reconcile_degraded = True
+
         await asyncio.to_thread(self.filestore.write_meta, self.book_id, self._meta)
 
         # ── push done event ──
@@ -275,21 +363,52 @@ class Orchestrator:
             "chapters_done": len(chapters_done),
             "chapters_failed": len(chapters_failed),
             "stopped": was_stopped,
+            "reconcile_done": self._meta.analysis_progress.reconcile_done,
         }
+        if reconcile_degraded:
+            done_data["degraded"] = True
+            done_data["phase"] = "reconcile_failed"
+        else:
+            done_data["phase"] = "analyzed"
+
         await self.progress_queue.put({
             "type": "done",
             "data": done_data,
         })
 
-        # #1: 标记完成 + 存结果摘要（供后连的 SSE 客户端立即拿到 done）
+        # #1: 标记完成 + 存结果摘要
         self.finished = True
         self.final_result = done_data
 
         logger.info(
-            "Analysis complete: book=%s done=%d failed=%d skipped=%d stopped=%s",
+            "Analysis complete: book=%s done=%d failed=%d skipped=%d stopped=%s reconcile_done=%s",
             self.book_id,
             len(chapters_done),
             len(chapters_failed),
             len(skipped_ids),
             was_stopped,
+            self._meta.analysis_progress.reconcile_done,
         )
+
+    async def _push_done(
+        self,
+        chapters_done: list[int],
+        chapters_failed: list[int],
+        was_stopped: bool,
+    ) -> None:
+        """推送 done 事件（用于提早退出的路径：章阶段 stop / 零章成功）。"""
+        done_data = {
+            "chapters_done": len(chapters_done),
+            "chapters_failed": len(chapters_failed),
+            "stopped": was_stopped,
+            "reconcile_done": (
+                self._meta.analysis_progress.reconcile_done if self._meta else False
+            ),
+            "phase": "failed",
+        }
+        await self.progress_queue.put({
+            "type": "done",
+            "data": done_data,
+        })
+        self.finished = True
+        self.final_result = done_data

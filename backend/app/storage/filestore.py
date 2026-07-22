@@ -17,7 +17,7 @@ from __future__ import annotations
 import json
 import shutil
 from pathlib import Path
-from typing import Optional
+from typing import Any, Dict, List, Optional
 
 from app.config import settings
 from app.errors import book_not_found
@@ -174,6 +174,50 @@ class Filestore:
                     )
                 )
         return result
+
+    # ── Overrides ──
+
+    def relation_overrides_path(self, book_id: str) -> Path:
+        return self.overrides_dir(book_id) / "relation_overrides.json"
+
+    def read_relation_overrides(self, book_id: str) -> dict[str, list[dict]]:
+        """读取 relation_overrides.json，不存在则返回空结构。"""
+        p = self.relation_overrides_path(book_id)
+        if not p.exists():
+            return {"add": [], "remove": []}
+        return json.loads(p.read_text(encoding="utf-8"))
+
+    def write_relation_overrides(self, book_id: str, data: dict[str, list[dict]]) -> None:
+        """写入 relation_overrides.json。"""
+        self.overrides_dir(book_id).mkdir(parents=True, exist_ok=True)
+        _atomic_write(
+            self.relation_overrides_path(book_id),
+            json.dumps(data, indent=2, ensure_ascii=False),
+        )
+
+    # ── Todo List ──
+
+    def todo_list_path(self, book_id: str) -> Path:
+        return self.book_dir(book_id) / "todo_list.json"
+
+    def write_todo_list(self, book_id: str, todos: list[dict]) -> None:
+        """写入 todo_list.json。"""
+        _atomic_write(
+            self.todo_list_path(book_id),
+            json.dumps(todos, indent=2, ensure_ascii=False),
+        )
+
+    # ── Reconcile Report ──
+
+    def reconcile_report_path(self, book_id: str) -> Path:
+        return self.book_dir(book_id) / "reconcile_report.json"
+
+    def write_reconcile_report(self, book_id: str, report: dict[str, Any]) -> None:
+        """写入 reconcile_report.json。"""
+        _atomic_write(
+            self.reconcile_report_path(book_id),
+            json.dumps(report, indent=2, ensure_ascii=False),
+        )
 
     # ── 书目扫描 ──
 

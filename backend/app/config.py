@@ -32,7 +32,9 @@ class Settings(BaseSettings):
 
     # ── 分析参数 ──
     max_agent_steps: int = Field(20, alias="MAX_AGENT_STEPS")
+    max_reconcile_steps: int = Field(15, alias="MAX_RECONCILE_STEPS")
     max_parallel_chapters: int = Field(5, alias="MAX_PARALLEL_CHAPTERS")
+    force_reconcile: bool = Field(False, alias="FORCE_RECONCILE")
 
     # ── 正文注入 / 阅读窗（ARCHITECTURE §4.3.1）──
     inject_max_chars: int = Field(10_000, alias="INJECT_MAX_CHARS")

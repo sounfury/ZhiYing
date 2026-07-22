@@ -14,6 +14,7 @@ import json
 from pathlib import Path
 from typing import Dict, List, Optional
 
+from app.core.suspects import detect_cast_conflicts
 from app.logging_config import get_logger
 from app.models.cast import (
     Alias,
@@ -231,53 +232,11 @@ class CastWriter:
         """
         #8: 检测可能需人工合并的人物对。
 
-        检测规则（canonical_name 不同才报）：
-          - alias_overlap: 两人的别名集合有交集
-          - name_alias_cross: A 的正式名 = B 的某个别名（或反之）
-
-        Returns:
-            冲突列表 [{person_a_id, person_b_id, reason, aliases_overlap}]
+        检测逻辑已抽出到 core/suspects.py 的 detect_cast_conflicts 函数。
+        此处调用公共函数并转换为 dict 列表格式（写 merge_queue 用）。
         """
-        conflicts: list[dict] = []
-        persons = self.cast.persons
-
-        for i in range(len(persons)):
-            for j in range(i + 1, len(persons)):
-                a = persons[i]
-                b = persons[j]
-
-                if a.canonical_name == b.canonical_name:
-                    continue  # 同名已被 apply 合并，不会到这里
-
-                # 收集别名集合
-                a_aliases = {x.name for x in a.aliases}
-                b_aliases = {x.name for x in b.aliases}
-
-                # 规则 1: 别名集合交集
-                overlap = a_aliases & b_aliases
-                if overlap:
-                    conflicts.append({
-                        "person_a_id": a.person_id,
-                        "person_b_id": b.person_id,
-                        "reason": "alias_overlap",
-                        "aliases_overlap": sorted(overlap),
-                    })
-
-                # 规则 2: 正式名 = 对方别名（交叉匹配）
-                cross_names: list[str] = []
-                if a.canonical_name in b_aliases:
-                    cross_names.append(a.canonical_name)
-                if b.canonical_name in a_aliases:
-                    cross_names.append(b.canonical_name)
-                if cross_names:
-                    conflicts.append({
-                        "person_a_id": a.person_id,
-                        "person_b_id": b.person_id,
-                        "reason": "name_alias_cross",
-                        "aliases_overlap": sorted(set(cross_names)),
-                    })
-
-        return conflicts
+        conflicts = detect_cast_conflicts(self.cast)
+        return [c.model_dump() for c in conflicts]
 
     def _write_merge_queue(self, conflicts: List[dict]) -> None:
         """写入 merge_queue.json。"""

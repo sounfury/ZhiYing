@@ -19,7 +19,9 @@ class BookStatus(str, Enum):
     UPLOADED = "uploaded"             # 已上传，尚未分析
     CAST_PASS = "cast_pass"           # Cast Pass 完成（P1 才有）
     ANALYZING = "analyzing"           # 分析中
+    RECONCILING = "reconciling"       # 全书总校对 Agent 运行中
     ANALYZED = "analyzed"             # 分析完成
+    RECONCILE_FAILED = "reconcile_failed"  # 总校对失败（降级，仍可出图）
     FAILED = "failed"                 # 分析失败
 
 

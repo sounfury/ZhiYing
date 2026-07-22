@@ -53,7 +53,7 @@ _RELATION_DEFINITIONS: list[tuple[str, Tier, bool]] = [
     # ── mid ──
     ("主仆", Tier.MID, True),     # a→b：a 是主人
     ("上下级", Tier.MID, True),   # a→b：a 是上级
-    ("同门", Tier.MID, False),
+    ("同学", Tier.MID, False),
     ("结盟", Tier.MID, False),
     ("敌对", Tier.MID, False),
     # ── soft ──
