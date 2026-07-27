@@ -1,6 +1,6 @@
 ## Context
 
-CastAtlas 的基础设施层已就位（config、errors、relation_types SSOT、Pydantic models、Filestore、LLM Provider、EPUB Parser、books API）。本变更实现分析管线的 P0 闭环：Agent 工具 → Chapter Agent → Orchestrator（few_long）→ 分析 API。
+ZhiYing 的基础设施层已就位（config、errors、relation_types SSOT、Pydantic models、Filestore、LLM Provider、EPUB Parser、books API）。本变更实现分析管线的 P0 闭环：Agent 工具 → Chapter Agent → Orchestrator（few_long）→ 分析 API。
 
 已有基础：
 - `Relation` model 的 `model_validator` 已在反序列化层做 type 枚举校验 + 端点规范化 + 自环拒绝

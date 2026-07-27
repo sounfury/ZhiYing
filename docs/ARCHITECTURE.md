@@ -1,4 +1,4 @@
-# CastAtlas 技术架构设计
+# ZhiYing 技术架构设计
 
 | 项 | 内容 |
 |----|------|
@@ -213,7 +213,7 @@ main.py
 │   └── frontier.json      # 连续完成前缀 + cast_version
 ├── overrides/             # 人工修正（关系等）；不直接改 ledger
 ├── merge_queue.json       # 待合并队列
-└── castatlas.db           # SQLite（索引 & 状态；SSOT 分析进度）
+└── zhiying.db           # SQLite（索引 & 状态；SSOT 分析进度）
 ```
 
 ### 3.2 核心数据结构
@@ -1260,7 +1260,7 @@ SQLite 中维护:
 ## 10. 目录结构（拟定）
 
 ```
-CastAtlas/
+ZhiYing/
 ├── docs/
 │   ├── PRD.md
 │   └── ARCHITECTURE.md          ← 本文件
@@ -1328,7 +1328,7 @@ CastAtlas/
         ├── ledger/
         ├── memory/               # P1
         ├── overrides/
-        └── castatlas.db
+        └── zhiying.db
 ```
 
 **P2 若做硬化再补：** `storage/paths.py`（jail）、`catalog.py`、`core/jobs.py`、`middleware/request_id.py` 等——见 §2.2.3，**不要预建空壳。**

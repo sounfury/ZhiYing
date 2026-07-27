@@ -1,4 +1,4 @@
-/** Thin client for CastAtlas backend (via Vite proxy → :8000). */
+/** Thin client for ZhiYing backend (via Vite proxy → :8000). */
 
 export type BookMeta = {
   book_id: string

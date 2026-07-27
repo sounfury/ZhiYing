@@ -1,6 +1,6 @@
 ## Context
 
-CastAtlas 后端骨架（bootstrap-infrastructure）已落地：FastAPI 入口、配置系统、错误处理、关系枚举 SSOT、LLM Provider（LangChain ChatOpenAI）、Pydantic 模型骨架（BookMeta / Chapter / Cast / ChapterLedger / GraphData）均已就位。但所有 API 路由仍返回 501，workspace 存储层是空的 `storage/__init__.py`，`core/parser.py` 不存在。
+ZhiYing 后端骨架（bootstrap-infrastructure）已落地：FastAPI 入口、配置系统、错误处理、关系枚举 SSOT、LLM Provider（LangChain ChatOpenAI）、Pydantic 模型骨架（BookMeta / Chapter / Cast / ChapterLedger / GraphData）均已就位。但所有 API 路由仍返回 501，workspace 存储层是空的 `storage/__init__.py`，`core/parser.py` 不存在。
 
 要进入主链路「上传 EPUB → 解析章节 → 章级分析 → 出图」，必须先打通底层：EPUB 解析器和 workspace 文件存储层。这两个模块也是后续 Agent 工具（get_chapter_text / grep_in_chapter / submit_result）的直接调用对象。
 

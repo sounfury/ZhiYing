@@ -1,6 +1,6 @@
 ## Why
 
-CastAtlas 目前已完成「各章并行分析 → CastWriter 合并人名册 + rewrite 临时 id → 检测别名冲突写入 merge_queue.json」的管线，但缺少需求文档 `docs/reconcile-agent-requirements.md` 描述的**全书总校对 Agent**——在程序合并之后的最后一轮 AI 收尾，处理可疑点与有据修正。
+ZhiYing 目前已完成「各章并行分析 → CastWriter 合并人名册 + rewrite 临时 id → 检测别名冲突写入 merge_queue.json」的管线，但缺少需求文档 `docs/reconcile-agent-requirements.md` 描述的**全书总校对 Agent**——在程序合并之后的最后一轮 AI 收尾，处理可疑点与有据修正。
 
 当前 `CastWriter._detect_conflicts` 只检测人名合并候选（别名重叠 / 名-别号交叉），无法检测**关系冲突**（同一对人类型硬撞 / 有向方向相反），也没有 Agent 介入做合并裁决和有据修正。
 

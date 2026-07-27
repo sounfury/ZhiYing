@@ -1,13 +1,13 @@
 ## Why
 
-CastAtlas 目前只有设计文档（PRD + ARCHITECTURE），尚无任何代码。一期目标需要上传 EPUB → 章分析 → 出图的完整链路，第一步必须搭建后端（FastAPI）与前端（React + Vite）的工程脚手架，并落地配置系统、LLM Provider 抽象、全局异常处理、数据模型和存储层骨架，使后续功能开发有稳固的地基。
+ZhiYing 目前只有设计文档（PRD + ARCHITECTURE），尚无任何代码。一期目标需要上传 EPUB → 章分析 → 出图的完整链路，第一步必须搭建后端（FastAPI）与前端（React + Vite）的工程脚手架，并落地配置系统、LLM Provider 抽象、全局异常处理、数据模型和存储层骨架，使后续功能开发有稳固的地基。
 
 ## What Changes
 
 - **后端脚手架**：创建 `backend/` Python 项目，含 FastAPI 入口、虚拟环境管理（pip + venv + requirements.txt）、.env 配置
 - **前端脚手架**：创建 `frontend/` React + TypeScript + Vite 项目，含 Ant Design、AntV G6 依赖、基础路由和 API 封装
 - **配置系统**：基于 pydantic-settings 的 Settings 类，从 `.env` 读取 LLM、存储、分析参数
-- **全局异常处理**：统一错误码枚举（分域：COMMON / BOOK / PROVIDER / ANALYSIS / CAST / GRAPH）、CastAtlasError 异常体系、FastAPI exception_handler 统一 ErrorResponse 响应
+- **全局异常处理**：统一错误码枚举（分域：COMMON / BOOK / PROVIDER / ANALYSIS / CAST / GRAPH）、ZhiYingError 异常体系、FastAPI exception_handler 统一 ErrorResponse 响应
 - **LLM Provider**：抽象 LLMProvider ABC + OpenAICompatibleProvider 实现，base_url / api_key / model 全可配，不绑定厂商
 - **数据模型**：Pydantic v2 模型定义 BookMeta / Chapter / Cast / Person / ChapterLedger / Relation / GraphData 等
 - **存储层骨架**：aiosqlite SQLite 连接管理 + JSON filestore 文件读写

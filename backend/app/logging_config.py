@@ -35,7 +35,7 @@ def setup_logging(debug: bool = False) -> None:
     root.addHandler(handler)
 
     # 应用日志器
-    app_logger = logging.getLogger("castatlas")
+    app_logger = logging.getLogger("zhiying")
     app_logger.setLevel(level)
 
     # 第三方库降噪
@@ -47,7 +47,7 @@ def setup_logging(debug: bool = False) -> None:
 
 
 def get_logger(name: str) -> logging.Logger:
-    """获取 castatlas 命名空间下的 logger。"""
-    if not name.startswith("castatlas"):
-        name = f"castatlas.{name}"
+    """获取 zhiying 命名空间下的 logger。"""
+    if not name.startswith("zhiying"):
+        name = f"zhiying.{name}"
     return logging.getLogger(name)

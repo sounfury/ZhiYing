@@ -124,6 +124,6 @@ def register_exception_handlers(app: FastAPI) -> None:
     async def _handle_unexpected(request: Request, exc: Exception) -> JSONResponse:
         # 兜底：任何未捕获异常 → INTERNAL_ERROR
         import logging
-        logging.getLogger("castatlas").exception("Unhandled exception: %s", exc)
+        logging.getLogger("zhiying").exception("Unhandled exception: %s", exc)
         fallback = internal_error(str(exc))
         return _error_response(fallback)

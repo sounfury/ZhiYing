@@ -1,6 +1,6 @@
 ## Why
 
-CastAtlas 已有 EPUB 解析 + 数据模型 + Filestore + LLM Provider 等基础设施，但分析管线尚未实现。需要从零搭建四层（Agent 工具 → Chapter Agent → Orchestrator → API），使「上传 EPUB → 启动分析 → 查看人名册 / 章账本」的 P0 闭环可跑通。P0 聚焦 few_long 模式（全章并行 + 确定性预合并），不做 LLM Reconcile、不做 Aggregator 出图。
+ZhiYing 已有 EPUB 解析 + 数据模型 + Filestore + LLM Provider 等基础设施，但分析管线尚未实现。需要从零搭建四层（Agent 工具 → Chapter Agent → Orchestrator → API），使「上传 EPUB → 启动分析 → 查看人名册 / 章账本」的 P0 闭环可跑通。P0 聚焦 few_long 模式（全章并行 + 确定性预合并），不做 LLM Reconcile、不做 Aggregator 出图。
 
 ## What Changes
 

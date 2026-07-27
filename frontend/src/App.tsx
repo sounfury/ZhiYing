@@ -88,7 +88,7 @@ export default function App() {
       const list = await listBooks()
       setBooks(list)
       if (!bookId && list.length) {
-        const demo = list.find((b) => b.book_id === 'demo-castatlas')
+        const demo = list.find((b) => b.book_id === 'demo-zhiying')
         setBookId(demo?.book_id ?? list[0].book_id)
       }
     } catch (e) {
@@ -394,7 +394,7 @@ export default function App() {
     <div className="app">
       <header className="top">
         <div className="brand">
-          <h1>CastAtlas</h1>
+          <h1>ZhiYing</h1>
           <span className="sub">最小预览 · 人物关系图</span>
         </div>
         <div className="actions">

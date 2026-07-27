@@ -1,5 +1,5 @@
 """
-CastAtlas 后端入口。
+ZhiYing 后端入口。
 
 FastAPI app + CORS + 全局异常处理 + 日志初始化。
 路由暂为 501 骨架，后续逐步实现。
@@ -24,7 +24,7 @@ def create_app() -> FastAPI:
     setup_logging(debug=settings.debug)
 
     app = FastAPI(
-        title="CastAtlas API",
+        title="ZhiYing API",
         version="0.1.0",
         description="把电子书变成可导航的人物关系图",
     )
@@ -52,7 +52,7 @@ def create_app() -> FastAPI:
     async def _on_startup() -> None:
         settings.ensure_workspace()
         logger.info(
-            "CastAtlas started — workspace=%s debug=%s",
+            "ZhiYing started — workspace=%s debug=%s",
             settings.workspace_root,
             settings.debug,
         )
