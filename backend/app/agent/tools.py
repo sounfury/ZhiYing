@@ -7,7 +7,7 @@ Chapter Agent 工具层 -- 5 个 LangChain @tool 工具。
 D1: 临时 person_id 格式 = ch{cid}_p{n}
 D3: person_id 存在性闸门在工具层（submit_result）
 D4: read_chapter_window 固定返回格式 + 强制 limit
-D5: propose_cast_update 只缓冲，不直接写 cast.json
+D5: propose_persons 只缓冲，不直接写 cast.json
 D10: LangChain @tool 装饰器 + 闭包上下文注入
 """
 from __future__ import annotations
@@ -25,7 +25,6 @@ from app.logging_config import get_logger
 from app.models.cast import Cast
 from app.models.ledger import (
     CastPropose,
-    ChapterEvent,
     ChapterLedger,
     ChapterPerson,
     Relation,
@@ -58,9 +57,11 @@ class ChapterToolContext:
     chapter_id: int
     cast_snapshot: Cast                      # 启动时冻结的只读快照
     cast_buffer: Dict[str, CastPropose] = field(default_factory=dict)
+    relations_buffer: List[Relation] = field(default_factory=list)  # submit_relations 累积
     filestore: Optional[Filestore] = None
     submit_ledger: Optional[ChapterLedger] = None  # submit_result 写入此
     _temp_id_counter: int = 0                # 临时 id 分配计数器
+    _cached_content: Optional[str] = None    # 本章正文缓存（惰性加载）
 
     def next_temp_id(self) -> str:
         """分配下一个临时 person_id: ch{cid}_p{n}"""
@@ -72,6 +73,13 @@ class ChapterToolContext:
         snapshot_ids = {p.person_id for p in self.cast_snapshot.persons}
         buffer_ids = set(self.cast_buffer.keys())
         return snapshot_ids | buffer_ids
+
+    def get_chapter_content(self) -> str:
+        """获取本章正文（带缓存，避免每次工具调用都读盘 + 反序列化）。"""
+        if self._cached_content is None:
+            fs = self.filestore or _get_default_filestore()
+            self._cached_content = fs.read_chapter_content(self.book_id, self.chapter_id)
+        return self._cached_content
 
 
 # ── 工具工厂 ──
@@ -118,11 +126,8 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
         actual_limit = min(limit, max_limit)
 
         try:
-            # 读取当前章正文
-            fs = ctx.filestore or _get_default_filestore()
-            content = fs.read_chapter_content(ctx.book_id, ctx.chapter_id)
+            content = ctx.get_chapter_content()
         except Exception as e:
-            # #11: 工具内部异常不砸穿，返回错误 JSON
             return json.dumps(
                 {"error": f"read_chapter_content failed: {e}"},
                 ensure_ascii=False,
@@ -165,8 +170,7 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
             JSON string: list of {line_number, text}, possibly with {truncated: true}
         """
         try:
-            fs = ctx.filestore or _get_default_filestore()
-            content = fs.read_chapter_content(ctx.book_id, ctx.chapter_id)
+            content = ctx.get_chapter_content()
         except Exception as e:
             return json.dumps(
                 {"error": f"read_chapter_content failed: {e}"},
@@ -223,151 +227,130 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
         }
         return json.dumps(result, ensure_ascii=False)
 
-    # ── 4. propose_cast_update ──
+    # ── 4. propose_persons (batch) ──
 
     @tool
-    def propose_cast_update(
-        canonical_name: str,
-        aliases: Optional[List[str]] = None,
-        bio: str = "",
-        gender: str = "unknown",
-        importance: str = "minor",
+    def propose_persons(
+        persons: List[Dict],
     ) -> str:
         """
-        Propose a new person for the cast registry.
-        Returns a temporary person_id (format: ch{chapter_id}_p{n}).
+        Propose one or more new persons for the cast registry in a single call.
+        Returns a mapping from canonical_name to person_id for every person.
 
-        If the canonical_name already exists in the frozen cast snapshot,
-        returns the existing person_id (no new proposal created).
-        If the canonical_name already exists in this chapter's buffer,
-        returns the existing temp id.
+        For each person:
+        - If canonical_name already exists in the frozen cast snapshot, returns the existing person_id.
+        - If canonical_name already exists in this chapter's buffer, returns the existing temp id.
+        - Otherwise, creates a new temp id (format: ch{chapter_id}_p{n}).
 
         Args:
-            canonical_name: The primary name of the person.
-            aliases: Alternative names for this person.
-            bio: Brief biography or description.
-            gender: "male", "female", or "unknown".
-            importance: "main", "supporting", or "minor".
+            persons: List of person objects, each with:
+                - canonical_name (str, required): The primary name.
+                - aliases (list[str], optional): Alternative names.
+                - bio (str, optional): Brief description.
+                - gender (str, optional): "male", "female", or "unknown".
+                - importance (str, optional): "main", "supporting", or "minor".
 
         Returns:
-            JSON string: {person_id, status}
+            JSON string: {results: [{canonical_name, person_id, status}]}
         """
-        if aliases is None:
-            aliases = []
+        results = []
+        for p in persons:
+            canonical_name = p.get("canonical_name", "")
+            aliases = p.get("aliases") or []
+            bio = p.get("bio", "")
+            gender = p.get("gender", "unknown")
+            importance = p.get("importance", "minor")
 
-        # #6: 先查冻结快照——正式名或别名精确匹配 → 直接返回已有 id
-        existing = ctx.cast_snapshot.find_by_name(canonical_name)
-        if existing is not None:
-            return json.dumps(
-                {
+            if not canonical_name:
+                results.append({
+                    "canonical_name": "",
+                    "person_id": None,
+                    "status": "error: canonical_name is required",
+                })
+                continue
+
+            # #6: 先查冻结快照——正式名或别名精确匹配 → 直接返回已有 id
+            existing = ctx.cast_snapshot.find_by_name(canonical_name)
+            if existing is not None:
+                results.append({
+                    "canonical_name": existing.canonical_name,
                     "person_id": existing.person_id,
                     "status": "exists_in_cast",
-                    "canonical_name": existing.canonical_name,
-                },
-                ensure_ascii=False,
+                })
+                continue
+
+            # 检查重复 canonical_name（在同一章的 buffer 中）
+            found_in_buffer = False
+            for pid, propose in ctx.cast_buffer.items():
+                if propose.canonical_name == canonical_name:
+                    results.append({
+                        "canonical_name": canonical_name,
+                        "person_id": pid,
+                        "status": "exists",
+                    })
+                    found_in_buffer = True
+                    break
+            if found_in_buffer:
+                continue
+
+            # 分配临时 id
+            temp_id = ctx.next_temp_id()
+            ctx.cast_buffer[temp_id] = CastPropose(
+                canonical_name=canonical_name,
+                aliases=aliases,
+                bio=bio,
+                gender=gender,
+                importance=importance,
+                source_chapter_id=ctx.chapter_id,
             )
 
-        # 检查重复 canonical_name（在同一章的 buffer 中）
-        for pid, propose in ctx.cast_buffer.items():
-            if propose.canonical_name == canonical_name:
-                return json.dumps(
-                    {"person_id": pid, "status": "exists"},
-                    ensure_ascii=False,
-                )
+            logger.debug(
+                "Proposed person: %s -> %s (ch=%d)",
+                canonical_name,
+                temp_id,
+                ctx.chapter_id,
+            )
+            results.append({
+                "canonical_name": canonical_name,
+                "person_id": temp_id,
+                "status": "proposed",
+            })
 
-        # 分配临时 id
-        temp_id = ctx.next_temp_id()
-        ctx.cast_buffer[temp_id] = CastPropose(
-            canonical_name=canonical_name,
-            aliases=aliases,
-            bio=bio,
-            gender=gender,
-            importance=importance,
-            source_chapter_id=ctx.chapter_id,
-        )
-
-        logger.debug(
-            "Proposed person: %s -> %s (ch=%d)",
-            canonical_name,
-            temp_id,
+        logger.info(
+            "propose_persons batch: ch=%d count=%d new=%d",
             ctx.chapter_id,
+            len(results),
+            sum(1 for r in results if r["status"] == "proposed"),
         )
-        return json.dumps(
-            {"person_id": temp_id, "status": "proposed"},
-            ensure_ascii=False,
-        )
+        return json.dumps({"results": results}, ensure_ascii=False)
 
-    # ── 5. submit_result ──
+    # ── 5. submit_relations ──
 
     @tool
-    def submit_result(
-        persons: Optional[List[Dict]] = None,
-        relations: Optional[List[Dict]] = None,
-        events: Optional[List[Dict]] = None,
-        summary: str = "",
+    def submit_relations(
+        relations: List[Dict],
     ) -> str:
         """
-        Submit the analysis result for this chapter. This is the final step.
+        Submit relations for this chapter. Can be called multiple times to
+        accumulate relations in batches (e.g. after reading each text window).
+
+        Each relation will be validated. If any relation fails validation,
+        the entire batch is rejected and you must fix and resubmit.
 
         Args:
-            persons: List of {person_id, aliases_in_chapter: [str]}
-            relations: List of {person_a, person_b, type, evidence: {quote, note}}
-            events: List of {description, persons: [str]}
-            summary: Chapter summary (1-3 sentences).
+            relations: List of relation objects, each with:
+                - person_a (str): person_id of the first person
+                - person_b (str): person_id of the second person
+                - type (str): relationship type (must be in the enum)
+                - evidence (object, optional): {quote: str, note: str}
 
         Returns:
-            JSON string: {status: "submitted"} on success,
+            JSON string: {status: "ok", accepted: N, total: M} on success,
             or {status: "error", message: "..."} on validation failure.
         """
-        if persons is None:
-            persons = []
-        if relations is None:
-            relations = []
-        if events is None:
-            events = []
-
         known_ids = ctx.all_known_person_ids()
+        new_relations: list[Relation] = []
 
-        # #4: 校验 persons[] 中的 person_id
-        for p in persons:
-            pid = p.get("person_id", "")
-            if not pid:
-                return json.dumps(
-                    {
-                        "status": "error",
-                        "message": "INVALID_PERSON_ID: empty person_id in persons list",
-                    },
-                    ensure_ascii=False,
-                )
-            if pid not in known_ids:
-                return json.dumps(
-                    {
-                        "status": "error",
-                        "message": (
-                            f"INVALID_PERSON_ID: '{pid}' not found in cast or buffer. "
-                            f"Use propose_cast_update first or query_cast to check existing ids."
-                        ),
-                    },
-                    ensure_ascii=False,
-                )
-
-        # ── 校验 events[].persons 中的 person_id ──
-        for e in events:
-            for ep_id in e.get("persons", []):
-                if ep_id not in known_ids:
-                    return json.dumps(
-                        {
-                            "status": "error",
-                            "message": (
-                                f"INVALID_PERSON_ID: '{ep_id}' in event persons not found. "
-                                f"Use propose_cast_update first or query_cast to check existing ids."
-                            ),
-                        },
-                        ensure_ascii=False,
-                    )
-
-        # ── 校验 relations ──
-        validated_relations: list[Relation] = []
         for r in relations:
             person_a = r.get("person_a", "")
             person_b = r.get("person_b", "")
@@ -387,14 +370,14 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
                 )
 
             # (2) person_id 存在性闸门
-            for pid_label, pid_value in [("person_a", person_a), ("person_b", person_b)]:
+            for pid_value in [person_a, person_b]:
                 if pid_value not in known_ids:
                     return json.dumps(
                         {
                             "status": "error",
                             "message": (
                                 f"INVALID_PERSON_ID: '{pid_value}' not found. "
-                                f"Use propose_cast_update first or query_cast to check existing ids."
+                                f"Use propose_persons first or query_cast to check existing ids."
                             ),
                         },
                         ensure_ascii=False,
@@ -423,7 +406,7 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
                         "note": evidence_data.get("note", ""),
                     },
                 )
-                validated_relations.append(rel)
+                new_relations.append(rel)
             except Exception as e:
                 return json.dumps(
                     {
@@ -433,37 +416,64 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
                     ensure_ascii=False,
                 )
 
-        # ── 构造 ChapterLedger ──
-        ledger_persons = [
-            ChapterPerson(
-                person_id=p.get("person_id", ""),
-                aliases_in_chapter=p.get("aliases_in_chapter", []),
-            )
-            for p in persons
-        ]
+        ctx.relations_buffer.extend(new_relations)
+        logger.info(
+            "submit_relations: ch=%d batch=%d total=%d",
+            ctx.chapter_id,
+            len(new_relations),
+            len(ctx.relations_buffer),
+        )
+        return json.dumps(
+            {
+                "status": "ok",
+                "accepted": len(new_relations),
+                "total": len(ctx.relations_buffer),
+            },
+            ensure_ascii=False,
+        )
 
-        ledger_events = [
-            ChapterEvent(
-                description=e.get("description", ""),
-                persons=e.get("persons", []),
-            )
-            for e in events
+    # ── 6. submit_result ──
+
+    @tool
+    def submit_result(
+        summary: str = "",
+    ) -> str:
+        """
+        Finalize the chapter analysis. This is the last step — call it after
+        all relations have been submitted via submit_relations.
+
+        Args:
+            summary: Chapter summary (1-3 sentences).
+
+        Returns:
+            JSON string: {status: "submitted"} on success,
+            or {status: "error", message: "..."} on validation failure.
+        """
+        # ── 派生本章出场人物 ──
+        # = cast_buffer 中 propose 过的人 + relations 中引用到的人
+        person_ids_in_chapter: set[str] = set(ctx.cast_buffer.keys())
+        for rel in ctx.relations_buffer:
+            person_ids_in_chapter.add(rel.person_a)
+            person_ids_in_chapter.add(rel.person_b)
+
+        ledger_persons = [
+            ChapterPerson(person_id=pid, aliases_in_chapter=[])
+            for pid in sorted(person_ids_in_chapter)
         ]
 
         ctx.submit_ledger = ChapterLedger(
             chapter_id=ctx.chapter_id,
             persons=ledger_persons,
-            relations=validated_relations,
-            events=ledger_events,
+            relations=list(ctx.relations_buffer),
+            events=[],  # events 不再由模型生成
             summary=summary,
         )
 
         logger.info(
-            "submit_result success: ch=%d, persons=%d, relations=%d, events=%d",
+            "submit_result success: ch=%d, persons=%d, relations=%d",
             ctx.chapter_id,
             len(ledger_persons),
-            len(validated_relations),
-            len(ledger_events),
+            len(ctx.relations_buffer),
         )
         return json.dumps({"status": "submitted"}, ensure_ascii=False)
 
@@ -471,7 +481,8 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
         read_chapter_window,
         grep_in_chapter,
         query_cast,
-        propose_cast_update,
+        propose_persons,
+        submit_relations,
         submit_result,
     ]
 
@@ -495,10 +506,18 @@ class ReconcileToolContext:
     chapter_summaries: Dict[int, str]   # {chapter_id: summary}
     filestore: Optional[Filestore] = None
     submit_patch: Optional[ReconcilePatch] = None  # submit_reconciliation 写入
+    _content_cache: Dict[int, str] = field(default_factory=dict)  # chapter_id → content
 
     def all_person_ids(self) -> set[str]:
         """cast 中所有 person_id。"""
         return {p.person_id for p in self.cast.persons}
+
+    def get_chapter_content(self, chapter_id: int) -> str:
+        """获取指定章节正文（带缓存，多章回查时避免重复读盘）。"""
+        if chapter_id not in self._content_cache:
+            fs = self.filestore or _get_default_filestore()
+            self._content_cache[chapter_id] = fs.read_chapter_content(self.book_id, chapter_id)
+        return self._content_cache[chapter_id]
 
 
 def make_reconcile_tools(ctx: ReconcileToolContext) -> List[BaseTool]:
@@ -534,8 +553,7 @@ def make_reconcile_tools(ctx: ReconcileToolContext) -> List[BaseTool]:
         keyword = str(keyword).strip()
 
         try:
-            fs = ctx.filestore or _get_default_filestore()
-            content = fs.read_chapter_content(ctx.book_id, chapter_id)
+            content = ctx.get_chapter_content(chapter_id)
         except Exception as e:
             return json.dumps(
                 {"error": f"Cannot read chapter {chapter_id}: {e}"},
@@ -582,8 +600,7 @@ def make_reconcile_tools(ctx: ReconcileToolContext) -> List[BaseTool]:
         actual_limit = min(limit, max_limit)
 
         try:
-            fs = ctx.filestore or _get_default_filestore()
-            content = fs.read_chapter_content(ctx.book_id, chapter_id)
+            content = ctx.get_chapter_content(chapter_id)
         except Exception as e:
             return json.dumps(
                 {"error": f"Cannot read chapter {chapter_id}: {e}"},

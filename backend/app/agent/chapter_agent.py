@@ -16,6 +16,7 @@ from __future__ import annotations
 import asyncio
 import json
 import math
+import time
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional
 
@@ -60,13 +61,16 @@ def _calc_max_steps(
     计算本章 Agent 的最大步数。
 
     短章：使用 base_max_steps
-    长章：min(40, 8 + 2 * num_windows)
+    长章：min(60, 15 + 2 * num_windows)
+
+    基数 15 = 读窗后非读窗步骤的预算：
+      grep 取证 ~7 + propose_persons ~1 + submit_relations ~5 + submit_result ~1 + 余量 ~1
     """
     if char_count <= inject_max_chars:
         return base_max_steps
 
     num_windows = math.ceil(char_count / read_window_chars) if read_window_chars > 0 else 1
-    return min(40, 8 + 2 * num_windows)
+    return min(60, 15 + 2 * num_windows)
 
 
 async def run_chapter_agent(
@@ -90,6 +94,7 @@ async def run_chapter_agent(
         AgentResult: 含 ledger（临时 id）、cast_buffer、summary
     """
     cfg = cfg or settings
+    t_start = time.perf_counter()
 
     # ── 读取章节 ──
     chapter = await asyncio.to_thread(filestore.read_chapter, book_id, chapter_id)
@@ -137,12 +142,14 @@ async def run_chapter_agent(
     # ── Tool-calling loop ──
     steps_used = 0
     submitted = False
+    total_llm_ms = 0.0
+    total_tool_ms = 0.0
 
     for step in range(max_steps):
         steps_used = step + 1
-        logger.debug("Step %d/%d (ch=%d)", steps_used, max_steps, chapter_id)
 
-        # 调用模型
+        # ── LLM 调用 ──
+        t_llm = time.perf_counter()
         try:
             ai_response: AIMessage = await asyncio.to_thread(
                 llm_with_tools.invoke, messages
@@ -156,28 +163,31 @@ async def run_chapter_agent(
                 warning=f"LLM invoke failed: {e}",
                 steps_used=steps_used,
             )
+        llm_ms = (time.perf_counter() - t_llm) * 1000
+        total_llm_ms += llm_ms
 
         messages.append(ai_response)
 
         # 检查是否有 tool_calls
         tool_calls = getattr(ai_response, "tool_calls", None)
         if not tool_calls:
-            # 模型没有调用工具 = done（可能直接给了文本回复）
             logger.info(
-                "Agent exited without tool calls at step %d (ch=%d)",
+                "Agent exited without tool calls at step %d (ch=%d) llm_ms=%.0f",
                 steps_used,
                 chapter_id,
+                llm_ms,
             )
             break
 
-        # 执行每个工具调用
+        # ── 执行工具 ──
+        t_tool = time.perf_counter()
         for tc in tool_calls:
             tool_name = tc["name"]
             tool_args = tc["args"]
             tool_call_id = tc["id"]
 
             logger.debug(
-                "Tool call: %s args=%s (ch=%d)", tool_name, tool_args, chapter_id
+                "Tool call: %s (ch=%d)", tool_name, chapter_id
             )
 
             tool_fn = tool_map.get(tool_name)
@@ -186,7 +196,6 @@ async def run_chapter_agent(
                     {"error": f"Unknown tool: {tool_name}"}, ensure_ascii=False
                 )
             else:
-                # #11: 工具异常不砸穿整步，返回错误 JSON 让模型改
                 try:
                     tool_result = tool_fn.invoke(tool_args)
                 except Exception as e:
@@ -195,7 +204,6 @@ async def run_chapter_agent(
                         ensure_ascii=False,
                     )
 
-            # 检查 submit_result 是否成功
             if tool_name == "submit_result":
                 result_data = json.loads(tool_result)
                 if result_data.get("status") == "submitted":
@@ -212,6 +220,18 @@ async def run_chapter_agent(
                     tool_call_id=tool_call_id,
                 )
             )
+        tool_ms = (time.perf_counter() - t_tool) * 1000
+        total_tool_ms += tool_ms
+
+        logger.info(
+            "Step %d/%d done (ch=%d): llm_ms=%.0f tool_ms=%.0f tools=[%s]",
+            steps_used,
+            max_steps,
+            chapter_id,
+            llm_ms,
+            tool_ms,
+            ", ".join(tc["name"] for tc in tool_calls),
+        )
 
         if submitted:
             break
@@ -237,10 +257,17 @@ async def run_chapter_agent(
     # ── 落盘含临时 id 的 ledger ──
     if result.ledger is not None:
         await asyncio.to_thread(filestore.write_ledger, book_id, result.ledger)
-        logger.info(
-            "Ledger persisted (temp ids): book=%s ch=%d",
-            book_id,
-            chapter_id,
-        )
+
+    total_ms = (time.perf_counter() - t_start) * 1000
+    logger.info(
+        "Chapter agent done: ch=%d success=%s steps=%d "
+        "llm_ms=%.0f tool_ms=%.0f total_ms=%.0f",
+        chapter_id,
+        submitted,
+        steps_used,
+        total_llm_ms,
+        total_tool_ms,
+        total_ms,
+    )
 
     return result

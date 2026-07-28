@@ -14,6 +14,7 @@ Reconcile Agent 运行时 -- 全书总校对的 LangChain tool-calling loop。
 from __future__ import annotations
 
 import asyncio
+import time
 from dataclasses import dataclass
 from typing import Dict, List, Optional
 
@@ -66,6 +67,7 @@ async def run_reconcile_agent(
     """
     cfg = cfg or settings
     max_steps = cfg.max_reconcile_steps
+    t_start = time.perf_counter()
 
     logger.info(
         "Reconcile agent start: book=%s cast=%d suspects=%d steps=%d",
@@ -103,12 +105,14 @@ async def run_reconcile_agent(
     # ── Tool-calling loop ──
     steps_used = 0
     submitted = False
+    total_llm_ms = 0.0
+    total_tool_ms = 0.0
 
     for step in range(max_steps):
         steps_used = step + 1
-        logger.debug("Reconcile step %d/%d", steps_used, max_steps)
 
-        # 调用模型
+        # ── LLM 调用 ──
+        t_llm = time.perf_counter()
         try:
             ai_response: AIMessage = await asyncio.to_thread(
                 llm_with_tools.invoke, messages
@@ -120,6 +124,8 @@ async def run_reconcile_agent(
                 warning=f"LLM invoke failed: {e}",
                 steps_used=steps_used,
             )
+        llm_ms = (time.perf_counter() - t_llm) * 1000
+        total_llm_ms += llm_ms
 
         messages.append(ai_response)
 
@@ -127,18 +133,20 @@ async def run_reconcile_agent(
         tool_calls = getattr(ai_response, "tool_calls", None)
         if not tool_calls:
             logger.info(
-                "Reconcile agent exited without tool calls at step %d",
+                "Reconcile exited without tool calls at step %d llm_ms=%.0f",
                 steps_used,
+                llm_ms,
             )
             break
 
-        # 执行每个工具调用
+        # ── 执行工具 ──
+        t_tool = time.perf_counter()
         for tc in tool_calls:
             tool_name = tc["name"]
             tool_args = tc["args"]
             tool_call_id = tc["id"]
 
-            logger.debug("Tool call: %s args=%s", tool_name, tool_args)
+            logger.debug("Tool call: %s", tool_name)
 
             tool_fn = tool_map.get(tool_name)
             if tool_fn is None:
@@ -152,8 +160,6 @@ async def run_reconcile_agent(
                         e,
                     )
 
-            # 检查 submit_reconciliation 是否成功
-            # 以 ctx.submit_patch 是否被写入为准，与工具写入逻辑直接绑定
             if tool_name == "submit_reconciliation" and ctx.submit_patch is not None:
                 submitted = True
                 logger.info(
@@ -167,6 +173,17 @@ async def run_reconcile_agent(
                     tool_call_id=tool_call_id,
                 )
             )
+        tool_ms = (time.perf_counter() - t_tool) * 1000
+        total_tool_ms += tool_ms
+
+        logger.info(
+            "Reconcile step %d/%d done: llm_ms=%.0f tool_ms=%.0f tools=[%s]",
+            steps_used,
+            max_steps,
+            llm_ms,
+            tool_ms,
+            ", ".join(tc["name"] for tc in tool_calls),
+        )
 
         if submitted:
             break
@@ -182,6 +199,15 @@ async def run_reconcile_agent(
             warning=f"Did not submit within {max_steps} steps",
             steps_used=steps_used,
         )
+
+    total_ms = (time.perf_counter() - t_start) * 1000
+    logger.info(
+        "Reconcile agent done: steps=%d llm_ms=%.0f tool_ms=%.0f total_ms=%.0f",
+        steps_used,
+        total_llm_ms,
+        total_tool_ms,
+        total_ms,
+    )
 
     return ReconcileResult(
         patch=ctx.submit_patch,

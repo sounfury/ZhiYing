@@ -27,14 +27,17 @@ _SYSTEM_TEMPLATE = """\
 1. **read_chapter_window(offset, limit)** — 按字符偏移读取章节正文窗口（limit 上限 {read_window_chars} 字符）。
 2. **grep_in_chapter(keyword)** — 在本章正文中搜索关键词，返回命中行。
 3. **query_cast()** — 查询当前冻结的人名册快照（只读）。
-4. **propose_cast_update(canonical_name, aliases, bio, gender, importance)** — 提议新人物加入人名册，返回临时 person_id（格式 ch{{章号}}_p{{序号}}）。
-5. **submit_result(persons, relations, events, summary)** — 提交本章分析结果。这是最终步骤。
+4. **propose_persons(persons)** — 批量提议新人物加入人名册，返回每人对应的 person_id（格式 ch{{章号}}_p{{序号}}）。一次调用传入所有本章出场人物，无需逐个调用。
+5. **submit_relations(relations)** — 提交本章人物之间的关系。可分批多次调用累积提交。每条关系需带 person_a、person_b、type 和 evidence（quote + note）。
+6. **submit_result(summary)** — 提交本章总结并结束分析。这是最终步骤——在所有关系提交完毕后调用。
 
 ## 工具使用纪律
 
 - **先读文再分析**：如果正文未注入 prompt，必须先调用 read_chapter_window 逐窗读取全文后再分析。
 - **同一人物不重复 propose**：同一 canonical_name 再次 propose 会返回已有 id，不会创建新人物。
-- **章末一次 submit**：分析完成后调用一次 submit_result 提交全部结果。
+- **批量提议人物**：将本章所有出场人物一次性传入 propose_persons，不要逐个调用。
+- **关系可分批提交**：用 submit_relations 分批提交关系，每批不宜超过 15 条。可读完一段正文就提交该段的关系，也可以最后一次性提交全部。
+- **submit_result 是终止信号**：所有关系提交完毕后，调用一次 submit_result(summary) 结束分析。不再需要传 persons 和 relations。
 
 ## 关系类型枚举（唯一权威源）
 
@@ -61,12 +64,12 @@ _SYSTEM_TEMPLATE = """\
 4. **多标签可并存**：例如既是表亲又同场，可同时有 表亲 + 同场；hard 不会被 soft 顶替，但 soft 不能代替 hard。
 5. **拿不准直系还是旁系**：优先 **表亲**（旁系 hard），不要降级成相识。
 
-## 出口约定（submit_result 校验规则）
+## 出口约定（校验规则）
 
 1. 每条 relation 的 type 必须在上述枚举内。
-2. person_a / person_b 必须在 cast 快照或本章 propose 的新人中存在（先 propose 再 submit）。
+2. person_a / person_b 必须在 cast 快照或本章 propose 的新人中存在（先 propose 再 submit_relations）。
 3. 不允许自环（person_a == person_b）。
-4. 校验失败会返回错误字符串，修正后重新 submit。
+4. 校验失败会返回错误字符串，修正后重新 submit_relations（只需重传有问题的批次）。
 
 ## 输出语言
 
@@ -78,7 +81,7 @@ _SYSTEM_TEMPLATE = """\
 def _build_cast_summary(cast: Cast) -> str:
     """构建 cast 快照的文字摘要。"""
     if not cast.persons:
-        return "（空人名册——无预设人物，需通过 propose_cast_update 提议本章出场人物）"
+        return "（空人名册——无预设人物，需通过 propose_persons 提议本章出场人物）"
 
     lines = ["当前人名册快照（只读，分析期间不更新）："]
     for p in cast.persons:
@@ -101,11 +104,9 @@ def _build_short_chapter_prompt(chapter: Chapter, cast_summary: str) -> str:
         f"{chapter.content}\n\n"
         f"## 任务\n"
         f"请分析本章出场的人物及其关系。\n"
-        f"1. 对每个出场人物，用 propose_cast_update 提议（如果已在 cast 快照中则直接引用其 person_id）。\n"
-        f"2. 提取人物之间的关系（使用枚举内的 type）。**亲属称呼（舅/叔/父/母/兄妹等）必须写成 hard 边（亲子/兄妹/表亲/夫妻），禁止只用相识。**\n"
-        f"3. 记录本章重要事件（可选）。\n"
-        f"4. 写一句话章总结。\n"
-        f"5. 用 submit_result 提交全部结果。\n"
+        f"1. 用 propose_persons 一次性批量提议所有出场人物（如果已在 cast 快照中则直接引用其 person_id）。\n"
+        f"2. 用 submit_relations 提交本章所有关系（可分批）。**亲属称呼（舅/叔/父/母/兄妹等）必须写成 hard 边（亲子/兄妹/表亲/夫妻），禁止只用相识。**\n"
+        f"3. 用 submit_result(summary) 提交一句话章总结，结束分析。\n"
     )
 
 
@@ -130,7 +131,7 @@ def _build_long_chapter_prompt(
         f"从 offset=0 开始，每次推进 offset += {read_window_chars}，直到 has_more=false。\n"
         f"如需精确查找某人名，可使用 grep_in_chapter(keyword) 快速定位。\n\n"
         f"## 任务\n"
-        f"读完正文后：对每个出场人物 propose、提取关系、记录事件、写章总结，最后 submit_result。\n"
+        f"读完正文后：用 propose_persons 批量提议人物、用 submit_relations 提交关系（可分批）、最后用 submit_result(summary) 结束。\n"
         f"特别注意：亲属称呼（舅公/舅舅/叔叔/父母/兄妹等）须落 hard 关系（表亲/亲子/兄妹/夫妻），禁止一律写成相识。\n"
     )
 

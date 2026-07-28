@@ -108,7 +108,7 @@ class ChapterLedger(BaseModel):
 
 class CastPropose(BaseModel):
     """
-    Agent 通过 propose_cast_update 工具提议的新人/新别名。
+    Agent 通过 propose_persons 工具提议的新人/新别名。
     经 CastWriter 串行合并后写入 cast.json。
     """
     canonical_name: str

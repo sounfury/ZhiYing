@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import logging
 import sys
+from pathlib import Path
 
 
 _FMT = "[%(asctime)s] %(levelname)-7s %(name)s | %(message)s"
@@ -23,16 +24,24 @@ def setup_logging(debug: bool = False) -> None:
         return
 
     level = logging.DEBUG if debug else logging.INFO
-
-    # 根 handler → stderr
-    handler = logging.StreamHandler(sys.stderr)
-    handler.setFormatter(logging.Formatter(_FMT, _DATEFMT))
+    formatter = logging.Formatter(_FMT, _DATEFMT)
 
     root = logging.getLogger()
     root.setLevel(level)
-    # 清掉可能已有的 handler，避免重复输出
     root.handlers.clear()
-    root.addHandler(handler)
+
+    # stderr handler（终端实时可见）
+    stderr_handler = logging.StreamHandler(sys.stderr)
+    stderr_handler.setFormatter(formatter)
+    root.addHandler(stderr_handler)
+
+    # 文件 handler → backend/logs/app.log
+    # 从 logging_config.py 上溯两层到 backend/ 根
+    log_dir = Path(__file__).resolve().parent.parent / "logs"
+    log_dir.mkdir(exist_ok=True)
+    file_handler = logging.FileHandler(log_dir / "app.log", encoding="utf-8")
+    file_handler.setFormatter(formatter)
+    root.addHandler(file_handler)
 
     # 应用日志器
     app_logger = logging.getLogger("zhiying")
@@ -43,7 +52,7 @@ def setup_logging(debug: bool = False) -> None:
         logging.getLogger(noisy).setLevel(logging.WARNING)
 
     _configured = True
-    app_logger.debug("Logging initialized (level=%s)", logging.getLevelName(level))
+    app_logger.debug("Logging initialized (level=%s, file=%s)", logging.getLevelName(level), log_dir / "app.log")
 
 
 def get_logger(name: str) -> logging.Logger:
