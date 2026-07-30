@@ -9,6 +9,7 @@ Filestore — workspace 同步文件 I/O 层。
         meta.json
         chapters/chapter_001.json ...
         cast.json
+        factions.json
         ledger/chapter_001.json ...
         overrides/
 """
@@ -23,6 +24,7 @@ from app.config import settings
 from app.errors import book_not_found
 from app.models.book import BookMeta, Chapter, ChapterBrief
 from app.models.cast import Cast
+from app.models.faction import FactionBook
 from app.models.ledger import ChapterLedger
 
 
@@ -59,6 +61,9 @@ class Filestore:
 
     def cast_path(self, book_id: str) -> Path:
         return self.book_dir(book_id) / "cast.json"
+
+    def factions_path(self, book_id: str) -> Path:
+        return self.book_dir(book_id) / "factions.json"
 
     @staticmethod
     def _chapter_filename(chapter_id: int) -> str:
@@ -148,8 +153,23 @@ class Filestore:
             return Cast(version=0, persons=[])
         return Cast.model_validate_json(p.read_text(encoding="utf-8"))
 
-    # ── Ledger ──
+    # ── Factions（势力册）──
 
+    def write_factions(self, book_id: str, factions: FactionBook) -> None:
+        data = factions.model_dump_json(indent=2)
+        _atomic_write(self.factions_path(book_id), data)
+
+    def read_factions(self, book_id: str) -> FactionBook:
+        """读 factions.json；不存在或损坏都返回空势力册（出图不因此失败）。"""
+        p = self.factions_path(book_id)
+        if not p.exists():
+            return FactionBook(version=0, factions=[])
+        try:
+            return FactionBook.model_validate_json(p.read_text(encoding="utf-8"))
+        except Exception:
+            return FactionBook(version=0, factions=[])
+
+    # ── Ledger ──
     def write_ledger(self, book_id: str, ledger: ChapterLedger) -> None:
         data = ledger.model_dump_json(indent=2)
         _atomic_write(self.ledger_path(book_id, ledger.chapter_id), data)

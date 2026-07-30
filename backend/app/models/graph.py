@@ -48,6 +48,28 @@ class GraphNode(BaseModel):
     importance: str = "minor"
     appearance_count: int = 0       # 出现章数（按章计）
     bio: str = ""
+    # ── 势力归属（与关系边正交，PRD §5.7.5）──
+    faction_ids: List[str] = Field(default_factory=list)
+    # 布局落块用的主势力；无归属时为 None（前端归入「未归属」块）
+    primary_faction_id: Optional[str] = None
+    # 该归属由算法邻居传播兜底推断，而非 LLM 显式抽取
+    faction_inferred: bool = False
+
+
+class GraphFaction(BaseModel):
+    """出图用的势力块（已按切片过滤 + 环形排序）。"""
+    faction_id: str
+    name: str
+    kind: str = "other"
+    # 环形排列序：相邻块共享桥接人物更多，减少跨图长边
+    order: int = 0
+    # 主势力落在此块的可见成员（布局按此列表装填）
+    member_ids: List[str] = Field(default_factory=list)
+    # 含次要归属在内的全部可见成员
+    all_member_ids: List[str] = Field(default_factory=list)
+    inferred: bool = False
+    # 与关系结构不一致（块内无任何同伴连线）的成员，供人工复核
+    needs_review: List[str] = Field(default_factory=list)
 
 
 class FilteredPerson(BaseModel):
@@ -65,5 +87,6 @@ class GraphData(BaseModel):
     total_chapters: int
     nodes: List[GraphNode] = Field(default_factory=list)
     edges: List[GraphEdge] = Field(default_factory=list)
+    factions: List[GraphFaction] = Field(default_factory=list)
     filtered_count: int = 0
     filtered_persons: List[FilteredPerson] = Field(default_factory=list)

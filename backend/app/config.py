@@ -26,6 +26,7 @@ class Settings(BaseSettings):
     llm_api_key: str = Field("", alias="LLM_API_KEY")
     llm_model: str = Field("gpt-4o", alias="LLM_MODEL")
     llm_reconcile_model: str = Field("", alias="LLM_RECONCILE_MODEL")
+    llm_faction_model: str = Field("", alias="LLM_FACTION_MODEL")
 
     # ── Workspace ──
     workspace_root: str = Field("", alias="WORKSPACE_ROOT")
@@ -35,6 +36,13 @@ class Settings(BaseSettings):
     max_reconcile_steps: int = Field(15, alias="MAX_RECONCILE_STEPS")
     max_parallel_chapters: int = Field(5, alias="MAX_PARALLEL_CHAPTERS")
     force_reconcile: bool = Field(False, alias="FORCE_RECONCILE")
+
+    # ── 势力分区（PRD §5.7.5）──
+    max_faction_steps: int = Field(10, alias="MAX_FACTION_STEPS")
+    faction_min_blocks: int = Field(5, alias="FACTION_MIN_BLOCKS")
+    faction_max_blocks: int = Field(12, alias="FACTION_MAX_BLOCKS")
+    # 分析结束后是否自动跑势力归纳（关掉可用 POST /factions 手动补跑）
+    auto_extract_factions: bool = Field(True, alias="AUTO_EXTRACT_FACTIONS")
 
     # ── 正文注入 / 阅读窗（ARCHITECTURE §4.3.1）──
     inject_max_chars: int = Field(10_000, alias="INJECT_MAX_CHARS")
@@ -75,6 +83,11 @@ class Settings(BaseSettings):
     def reconcile_model(self) -> str:
         """Reconcile 模型：未配置时回退到主模型。"""
         return self.llm_reconcile_model or self.llm_model
+
+    @property
+    def faction_model(self) -> str:
+        """势力归纳模型：未配置时回退到 Reconcile 档。"""
+        return self.llm_faction_model or self.reconcile_model
 
     def ensure_workspace(self) -> Path:
         """确保 workspace 目录存在，返回 Path。"""

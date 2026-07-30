@@ -58,6 +58,117 @@ body,
   flex-wrap: wrap;
 }
 
+/* 人物搜索（顶栏中部） */
+.person-search {
+  position: relative;
+  flex: 1;
+  min-width: 8rem;
+  max-width: 22rem;
+}
+
+.person-search input {
+  width: 100%;
+  padding: 0.45rem 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--ink);
+}
+
+.person-search input:focus {
+  outline: none;
+  border-color: var(--accent);
+}
+
+.person-search-pop {
+  position: absolute;
+  z-index: 30;
+  top: calc(100% + 0.3rem);
+  left: 0;
+  right: 0;
+  max-height: 22rem;
+  overflow: auto;
+  padding: 0.25rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 8px 24px rgba(40, 30, 20, 0.14);
+}
+
+.person-search-empty {
+  padding: 0.5rem 0.55rem;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.person-search-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.35rem 0.45rem;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  font: inherit;
+  font-size: 0.88rem;
+  color: var(--ink);
+  text-align: left;
+  cursor: pointer;
+}
+
+.person-search-row.on {
+  background: #eef4f0;
+}
+
+.person-search-row.dim .ps-name {
+  color: var(--muted);
+}
+
+.person-search-row i {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex: none;
+}
+
+.person-search-row .ps-name {
+  flex: none;
+  font-weight: 600;
+}
+
+.person-search-row em {
+  font-style: normal;
+  font-size: 0.72rem;
+  color: var(--muted);
+  background: #f0ebe3;
+  border-radius: 4px;
+  padding: 0 0.25rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.person-search-row .ps-alias {
+  color: var(--accent-2);
+  background: #fbf1e8;
+}
+
+.person-search-row b {
+  margin-left: auto;
+  font-weight: 400;
+  font-size: 0.75rem;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  flex: none;
+}
+
+.person-search-row .ps-flag {
+  color: var(--err);
+}
+
 .btn {
   appearance: none;
   border: 1px solid var(--line);
@@ -242,7 +353,6 @@ body,
   padding: 0.5rem 1.25rem;
   font-size: 0.9rem;
 }
-
 .banner.err {
   background: #fde8e8;
   color: var(--err);
@@ -251,6 +361,137 @@ body,
 .banner.ok {
   background: #e8f5ef;
   color: var(--accent);
+}
+
+/* 势力多选筛选 */
+.controls .faction-filter {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.faction-filter-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.faction-filter-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 11rem;
+  max-width: 16rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #fff;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.faction-filter-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.faction-filter-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.faction-filter-btn i {
+  font-style: normal;
+  color: var(--muted);
+}
+
+.faction-filter-pop {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  min-width: 15rem;
+  max-height: 20rem;
+  overflow: auto;
+  padding: 0.35rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: 0 6px 20px rgba(40, 30, 20, 0.12);
+}
+
+.faction-filter-ops {
+  display: flex;
+  gap: 0.35rem;
+  padding: 0.1rem 0.2rem 0.35rem;
+  border-bottom: 1px solid var(--line);
+  margin-bottom: 0.3rem;
+}
+
+.faction-filter-ops button {
+  appearance: none;
+  border: 1px solid var(--line);
+  background: #fff;
+  border-radius: 5px;
+  padding: 0.1rem 0.45rem;
+  font: inherit;
+  font-size: 0.78rem;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.controls .faction-filter-row {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.22rem 0.25rem;
+  border-radius: 5px;
+  font-size: 0.88rem;
+  color: var(--ink);
+  text-transform: none;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+
+.controls .faction-filter-row:hover {
+  background: #f4f1ea;
+}
+
+.faction-filter-row i {
+  width: 0.6rem;
+  height: 0.6rem;
+  border-radius: 50%;
+  flex: none;
+}
+
+.faction-filter-row span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.faction-filter-row em {
+  font-style: normal;
+  font-size: 0.7rem;
+  color: var(--muted);
+  background: #f0ebe3;
+  border-radius: 4px;
+  padding: 0 0.25rem;
+}
+
+.faction-filter-row b {
+  font-weight: 400;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  min-width: 1.6rem;
+  text-align: right;
 }
 
 .main {
@@ -273,13 +514,13 @@ body,
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 480px;
+  min-height: 660px;
 }
 
 .graph-canvas {
   width: 100%;
   height: 100%;
-  min-height: 480px;
+  min-height: 660px;
 }
 
 .graph-legend {
@@ -291,7 +532,7 @@ body,
   flex-wrap: wrap;
   gap: 0.4rem 0.75rem;
   align-items: center;
-  max-width: min(92%, 36rem);
+  max-width: min(92%, 44rem);
   padding: 0.45rem 0.7rem;
   border-radius: 10px;
   border: 1px solid var(--line);
@@ -306,6 +547,14 @@ body,
   font-weight: 700;
   color: var(--accent);
   margin-right: 0.15rem;
+}
+
+.graph-legend .legend-mode {
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.05rem 0.45rem;
+  color: var(--accent-2);
+  font-size: 0.72rem;
 }
 
 .graph-legend .legend-item {
@@ -354,10 +603,46 @@ body,
   display: grid;
   place-items: center;
   height: 100%;
-  min-height: 480px;
+  min-height: 660px;
   color: var(--muted);
   padding: 2rem;
   text-align: center;
+}
+
+/* 势力归属 chips（详情侧栏） */
+.faction-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.7rem;
+  padding-top: 0.6rem;
+  border-top: 1px dashed var(--line);
+}
+
+.faction-list-title {
+  width: 100%;
+  color: var(--muted);
+  font-size: 0.75rem;
+  letter-spacing: 0.04em;
+}
+
+.faction-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 0.1rem 0.5rem;
+  font-size: 0.82rem;
+}
+
+.faction-chip em {
+  font-style: normal;
+  font-size: 0.7rem;
+  color: var(--muted);
+  background: #f4f1ea;
+  border-radius: 4px;
+  padding: 0 0.25rem;
 }
 
 .side {

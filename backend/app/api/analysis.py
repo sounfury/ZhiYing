@@ -7,6 +7,8 @@ POST /api/books/{book_id}/analyze/stop   -- 停止分析
 GET  /api/books/{book_id}/cast           -- 查看人名册
 GET  /api/books/{book_id}/chapters/{cid}/result -- 单章 ledger
 GET  /api/books/{book_id}/graph          -- 汇总出图（Aggregator）
+GET  /api/books/{book_id}/factions       -- 查看势力册
+POST /api/books/{book_id}/factions       -- 跑势力归纳（FactionWriter）
 """
 from __future__ import annotations
 
@@ -17,6 +19,7 @@ from typing import Optional
 from fastapi import APIRouter, Query
 from fastapi.responses import StreamingResponse
 
+from app.agent.faction_writer import extract_factions
 from app.config import settings
 from app.core.aggregator import BLOCKING_STATUSES, Aggregator, GraphQuery
 from app.core.orchestrator import Orchestrator, get_orchestrator
@@ -236,3 +239,59 @@ async def get_graph(
     agg = Aggregator(book_id, fs)
     data = await asyncio.to_thread(agg.compile, query)
     return data.model_dump(mode="json")
+
+
+# ── GET / POST /factions ──
+
+
+@router.get("/{book_id}/factions")
+async def get_factions(book_id: str) -> dict:
+    """返回 factions.json 内容。不存在返回空势力册。"""
+    fs = get_filestore()
+    await asyncio.to_thread(fs.read_meta, book_id)  # 书不存在 → 404
+    book = await asyncio.to_thread(fs.read_factions, book_id)
+    return book.model_dump(mode="json")
+
+
+@router.post("/{book_id}/factions")
+async def run_faction_extraction(book_id: str) -> dict:
+    """
+    跑一次势力归纳并覆盖 factions.json（同步等待，单次 LLM 会话）。
+
+    - book 不存在 → 404
+    - analyzing / reconciling → 409（人名册还在变，分块没意义）
+    - 尚无已分析章 → 400
+    - Agent 未提交 → 502，旧 factions.json 保持不动
+    """
+    fs = get_filestore()
+    meta = await asyncio.to_thread(fs.read_meta, book_id)
+
+    if meta.status in BLOCKING_STATUSES:
+        raise AppError(
+            ErrorCode.ANALYSIS_ALREADY_RUNNING,
+            f"Faction extraction unavailable while status is {meta.status.value} (book={book_id})",
+            status_code=409,
+        )
+
+    if not meta.analysis_progress.chapters_done:
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            f"No analyzed chapters yet (book={book_id}); run /analyze first",
+        )
+
+    result = await extract_factions(book_id, fs, settings)
+
+    if not result.success or result.book is None:
+        raise AppError(
+            ErrorCode.LLM_PROVIDER_ERROR,
+            f"Faction extraction failed: {result.warning}",
+            status_code=502,
+        )
+
+    return {
+        "status": "ok",
+        "version": result.book.version,
+        "factions": len(result.book.factions),
+        "members": sum(len(f.members) for f in result.book.factions),
+        "steps_used": result.steps_used,
+    }

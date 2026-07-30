@@ -43,6 +43,26 @@ export type GraphNode = {
   importance: string
   appearance_count: number
   bio: string
+  /** 全部势力归属（可多归属） */
+  faction_ids: string[]
+  /** 布局落块用的主势力；null = 未归属 */
+  primary_faction_id: string | null
+  /** 归属由邻居传播推断而来，非 LLM 显式抽取 */
+  faction_inferred: boolean
+}
+
+export type GraphFaction = {
+  faction_id: string
+  name: string
+  kind: string
+  /** 环形排列序：相邻块共享桥接人物更多 */
+  order: number
+  /** 主势力落在此块的成员（布局按此装填） */
+  member_ids: string[]
+  /** 含次要归属的全部成员 */
+  all_member_ids: string[]
+  inferred: boolean
+  needs_review: string[]
 }
 
 export type GraphData = {
@@ -51,6 +71,7 @@ export type GraphData = {
   total_chapters: number
   nodes: GraphNode[]
   edges: GraphEdge[]
+  factions: GraphFaction[]
   filtered_count: number
   filtered_persons: { person_id: string; name: string }[]
 }
@@ -151,8 +172,22 @@ export function getGraph(bookId: string, q: GraphQuery = {}): Promise<GraphData>
   return request<GraphData>(`/api/books/${bookId}/graph${qs ? `?${qs}` : ''}`)
 }
 
-export function startAnalysis(
-  bookId: string,
+export type FactionExtractResult = {
+  status: string
+  version: number
+  factions: number
+  members: number
+  steps_used: number
+}
+
+/** 跑一次势力归纳（单次 LLM 会话，几十秒级，会覆盖 factions.json） */
+export function extractFactions(bookId: string): Promise<FactionExtractResult> {
+  return request<FactionExtractResult>(`/api/books/${bookId}/factions`, {
+    method: 'POST',
+  })
+}
+
+export function startAnalysis(  bookId: string,
   toChapter?: number,
 ): Promise<AnalyzeStartResult> {
   const params = new URLSearchParams()

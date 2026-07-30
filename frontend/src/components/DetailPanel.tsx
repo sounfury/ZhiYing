@@ -1,4 +1,5 @@
 import type { GraphData, GraphEdge, GraphNode } from '../api'
+import { FACTION_KIND_LABEL, UNASSIGNED_FACTION_ID, factionColor } from '../factions'
 
 interface DetailPanelProps {
   graph: GraphData | null
@@ -19,6 +20,22 @@ export function DetailPanel({
 }: DetailPanelProps) {
   const nameOf = (pid: string) =>
     graph?.nodes.find((n) => n.person_id === pid)?.name ?? pid
+
+  /** 所属势力（主势力排首位；后端传播推断的归属会标注） */
+  const factionsOf = (node: GraphNode) => {
+    if (!graph) return []
+    const ids = new Set(node.faction_ids)
+    if (node.primary_faction_id) ids.add(node.primary_faction_id)
+    return graph.factions
+      .filter((f) => ids.has(f.faction_id))
+      .sort((a, b) =>
+        a.faction_id === node.primary_faction_id
+          ? -1
+          : b.faction_id === node.primary_faction_id
+            ? 1
+            : a.order - b.order,
+      )
+  }
 
   return (
     <aside className="side">
@@ -46,6 +63,37 @@ export function DetailPanel({
             <dt>简介</dt>
             <dd>{selectedNode.bio || '—'}</dd>
           </dl>
+          {(() => {
+            const fs = factionsOf(selectedNode)
+            if (!fs.length) return null
+            return (
+              <div className="faction-list">
+                <span className="faction-list-title">势力归属</span>
+                {fs.map((f) => (
+                  <span
+                    key={f.faction_id}
+                    className="faction-chip"
+                    style={{ borderColor: factionColor(f), color: factionColor(f) }}
+                  >
+                    {f.name}
+                    {f.faction_id !== UNASSIGNED_FACTION_ID && (
+                      <em>{FACTION_KIND_LABEL[f.kind] ?? f.kind}</em>
+                    )}
+                    {f.faction_id === selectedNode.primary_faction_id &&
+                      fs.length > 1 && <em>主</em>}
+                    {f.needs_review.includes(selectedNode.person_id) && (
+                      <em title="块内与任何同伴都无连线，归属可疑">待核</em>
+                    )}
+                  </span>
+                ))}
+                {selectedNode.faction_inferred && (
+                  <span className="hint">
+                    归属由邻居推断（原文未直接写明），可人工修正
+                  </span>
+                )}
+              </div>
+            )
+          })()}
           <div className="detail-actions">
             {egoPersonId === selectedNode.person_id ? (
               <button

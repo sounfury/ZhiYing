@@ -10,6 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
+from app.core.faction_resolver import ResolvedFactions, resolve_factions
 from app.domain.relation_types import (
     Tier,
     get_relation_meta,
@@ -171,15 +172,33 @@ class Aggregator:
         nodes.sort(key=lambda n: n.person_id)
         edges.sort(key=lambda e: (e.person_a, e.person_b))
 
+        # 势力分区（与关系边正交）：切片过滤 + 主势力落块 + 环形排序
+        resolved = resolve_factions(
+            book=self.filestore.read_factions(self.book_id),
+            visible=visible,
+            chapter_slice=set(chapter_ids),
+            edges=edges,
+        )
+        self._attach_factions(nodes, resolved)
+
         return GraphData(
             book_id=self.book_id,
             chapter_range=[range_lo, range_hi],
             total_chapters=meta.total_chapters,
             nodes=nodes,
             edges=edges,
+            factions=resolved.factions,
             filtered_count=len(filtered),
             filtered_persons=filtered,
         )
+
+    @staticmethod
+    def _attach_factions(nodes: List[GraphNode], resolved: ResolvedFactions) -> None:
+        """把归属结果写回节点（布局用 primary_faction_id，侧栏用 faction_ids）。"""
+        for n in nodes:
+            n.faction_ids = list(resolved.node_factions.get(n.person_id, ()))
+            n.primary_faction_id = resolved.primary.get(n.person_id)
+            n.faction_inferred = n.person_id in resolved.inferred
 
     # ── helpers ──
 

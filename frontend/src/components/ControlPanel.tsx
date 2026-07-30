@@ -1,4 +1,6 @@
-import type { BookMeta, ChapterBrief } from '../api'
+import type { BookMeta, ChapterBrief, GraphFaction } from '../api'
+import type { LayoutMode } from '../GraphView'
+import { FactionFilter } from './FactionFilter'
 
 interface ControlPanelProps {
   // Book selection
@@ -20,6 +22,13 @@ interface ControlPanelProps {
   includeSuppressed: boolean
   onIncludeSuppressedChange: (v: boolean) => void
 
+  // Layout
+  layoutMode: LayoutMode
+  onLayoutModeChange: (v: LayoutMode) => void
+  factions: GraphFaction[]
+  selectedFactions: string[]
+  onSelectedFactionsChange: (ids: string[]) => void
+
   // Status
   isRunning: boolean
 }
@@ -38,6 +47,11 @@ export function ControlPanel({
   onMinAppearanceChange,
   includeSuppressed,
   onIncludeSuppressedChange,
+  layoutMode,
+  onLayoutModeChange,
+  factions,
+  selectedFactions,
+  onSelectedFactionsChange,
   isRunning,
 }: ControlPanelProps) {
   return (
@@ -114,6 +128,29 @@ export function ControlPanel({
         />
         显示被压制 soft
       </label>
+
+      <label>
+        布局
+        <select
+          value={layoutMode}
+          onChange={(e) => onLayoutModeChange(e.target.value as LayoutMode)}
+          title="势力分区适合百人级大图；亲疏扇区适合聚焦后的小图"
+        >
+          <option value="faction">
+            势力分区{factions.length ? ` (${factions.length} 块)` : '（无势力册）'}
+          </option>
+          <option value="affinity">亲疏扇区</option>
+        </select>
+      </label>
+
+      {layoutMode === 'faction' && (
+        <FactionFilter
+          factions={factions}
+          selected={selectedFactions}
+          onChange={onSelectedFactionsChange}
+          disabled={isRunning}
+        />
+      )}
 
       {selectedBook && (
         <span className="meta">

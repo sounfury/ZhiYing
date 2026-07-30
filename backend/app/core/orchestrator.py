@@ -18,6 +18,7 @@ from typing import Any, Dict, List, Optional
 
 from app.agent.cast_writer import CastWriter
 from app.agent.chapter_agent import AgentResult, run_chapter_agent
+from app.agent.faction_writer import extract_factions
 from app.agent.reconcile_agent import run_reconcile_agent
 from app.config import Settings, settings
 from app.core.patch_applier import PatchApplier
@@ -371,6 +372,31 @@ class Orchestrator:
 
         await asyncio.to_thread(self.filestore.write_meta, self.book_id, self._meta)
 
+        # ── 势力归纳（PRD §5.7.5 大图默认骨架）──
+        # 加性步骤：失败只是没有势力块，不影响 analysis status
+        faction_count = 0
+        if (
+            self.cfg.auto_extract_factions
+            and chapters_done
+            and not self.stop_flag.is_set()
+        ):
+            try:
+                await self.progress_queue.put({
+                    "type": "progress",
+                    "data": {"phase": "factions_running"},
+                })
+                faction_result = await extract_factions(
+                    self.book_id, self.filestore, self.cfg
+                )
+                if faction_result.success and faction_result.book is not None:
+                    faction_count = len(faction_result.book.factions)
+                else:
+                    logger.warning(
+                        "Faction extraction failed: %s", faction_result.warning
+                    )
+            except Exception as e:
+                logger.error("Faction extraction exception: %s", e)
+
         # ── push done event ──
         done_data = self._build_done_payload(
             chapters_done=chapters_done,
@@ -379,6 +405,7 @@ class Orchestrator:
             phase="reconcile_failed" if reconcile_degraded else "analyzed",
             degraded=reconcile_degraded,
         )
+        done_data["factions"] = faction_count
 
         await self.progress_queue.put({
             "type": "done",

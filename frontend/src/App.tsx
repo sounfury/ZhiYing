@@ -1,10 +1,17 @@
 import { useCallback, useEffect, useState } from 'react'
-import { analysisChapters, uploadBook, type GraphEdge, type GraphNode } from './api'
-import { GraphView } from './GraphView'
+import {
+  analysisChapters,
+  extractFactions,
+  uploadBook,
+  type GraphEdge,
+  type GraphNode,
+} from './api'
+import { GraphView, type FocusRequest, type LayoutMode } from './GraphView'
 import { HeaderBar } from './components/HeaderBar'
 import { ControlPanel } from './components/ControlPanel'
 import { AnalysisProgress } from './components/AnalysisProgress'
 import { DetailPanel } from './components/DetailPanel'
+import type { PersonHit } from './components/PersonSearch'
 import { useBooks } from './hooks/useBooks'
 import { useChapters } from './hooks/useChapters'
 import { useGraphData } from './hooks/useGraphData'
@@ -41,10 +48,24 @@ export default function App() {
   // ── 图数据 ──
   const { graph, graphLoading, loadGraph } = useGraphData(bookId, filters, chapterLabel)
 
+  // ── 布局 ──
+  const [layoutMode, setLayoutMode] = useState<LayoutMode>('faction')
+  const [selectedFactions, setSelectedFactions] = useState<string[]>([])
+  const [factionLoading, setFactionLoading] = useState(false)
+
+  // 图重载后势力块可能变（换书 / 换章节切片）→ 剔除已失效的选择
+  useEffect(() => {
+    if (!selectedFactions.length) return
+    const alive = new Set((graph?.factions ?? []).map((f) => f.faction_id))
+    const next = selectedFactions.filter((id) => alive.has(id))
+    if (next.length !== selectedFactions.length) setSelectedFactions(next)
+  }, [graph, selectedFactions])
+
   // ── 选中状态（纯 UI） ──
   const [selectedEdge, setSelectedEdge] = useState<GraphEdge | null>(null)
   const [selectedNode, setSelectedNode] = useState<GraphNode | null>(null)
   const [egoPersonId, setEgoPersonId] = useState<string | null>(null)
+  const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null)
 
   // ── banner ──
   const [error, setError] = useState('')
@@ -78,7 +99,7 @@ export default function App() {
   // ── 首次加载自动选 demo 书 ──
   useEffect(() => {
     if (!bookId && books.length) {
-      const demo = books.find((b) => b.book_id === 'demo-zhiying')
+      const demo = books.find((b) => b.book_id === 'aa317311-a246-4900-bb6a-19a2fa820669')
       setBookId(demo?.book_id ?? books[0].book_id)
     }
   }, [books, bookId])
@@ -123,6 +144,69 @@ export default function App() {
     setSelectedEdge(null)
   }, [])
 
+  /** 抽取势力：单次 LLM 会话，几十秒级，完成后重载图 */
+  const onExtractFactions = useCallback(async () => {
+    if (!bookId) return
+    setError('')
+    setMsg('正在归纳势力块（单次 LLM 会话，约需 1 分钟）…')
+    setFactionLoading(true)
+    try {
+      const res = await extractFactions(bookId)
+      pushLog('ok', `势力归纳完成：${res.factions} 块 / ${res.members} 条归属`)
+      setLayoutMode('faction')
+      await handleLoadGraph()
+      setMsg(`势力归纳完成：${res.factions} 块 · ${res.members} 条归属`)
+    } catch (e) {
+      setMsg('')
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setFactionLoading(false)
+    }
+  }, [bookId, handleLoadGraph, pushLog])
+
+  /**
+   * 搜索命中 → 聚焦。
+   *
+   * 命中的人可能正被势力筛选 / ego 模式挡在图外，那就先把挡住他的视图约束撤掉，
+   * 否则动画会对着一个不存在的节点空转。被 min_appearance 过滤的只能给提示——
+   * 那是后端出图阶段就没给出的节点。
+   */
+  const onPickPerson = useCallback(
+    (hit: PersonHit) => {
+      setError('')
+      if (hit.filtered) {
+        setMsg(
+          `「${hit.name}」被 min_appearance=${minAppearance} 过滤了，调低阈值后可在图上看到`,
+        )
+        return
+      }
+
+      const node = graph?.nodes.find((n) => n.person_id === hit.personId)
+      if (!node) return
+
+      setEgoPersonId(null)
+      if (
+        selectedFactions.length &&
+        (!node.primary_faction_id ||
+          !selectedFactions.includes(node.primary_faction_id))
+      ) {
+        setSelectedFactions([])
+        setMsg(`「${hit.name}」不在当前筛选的势力里，已恢复全部势力块`)
+      } else {
+        setMsg('')
+      }
+
+      setSelectedEdge(null)
+      setSelectedNode(node)
+      // nonce 递增，保证同一人可以反复聚焦
+      setFocusRequest((prev) => ({
+        personId: hit.personId,
+        nonce: (prev?.nonce ?? 0) + 1,
+      }))
+    },
+    [graph, minAppearance, selectedFactions],
+  )
+
   const selectedBook = books.find((b) => b.book_id === bookId)
 
   // ── render ──
@@ -132,10 +216,14 @@ export default function App() {
         bookId={bookId}
         isRunning={isRunning}
         graphLoading={graphLoading}
+        factionLoading={factionLoading}
+        graph={graph}
+        onPickPerson={onPickPerson}
         onUpload={onUpload}
         onAnalyze={onAnalyze}
         onStop={onStop}
         onRefreshGraph={() => void handleLoadGraph()}
+        onExtractFactions={() => void onExtractFactions()}
       />
 
       <ControlPanel
@@ -152,6 +240,11 @@ export default function App() {
         onMinAppearanceChange={setMinAppearance}
         includeSuppressed={includeSuppressed}
         onIncludeSuppressedChange={setIncludeSuppressed}
+        layoutMode={layoutMode}
+        onLayoutModeChange={setLayoutMode}
+        factions={graph?.factions ?? []}
+        selectedFactions={selectedFactions}
+        onSelectedFactionsChange={setSelectedFactions}
         isRunning={isRunning}
       />
 
@@ -174,6 +267,9 @@ export default function App() {
           ) : graph ? (
             <GraphView
               data={graph}
+              layoutMode={layoutMode}
+              selectedFactions={selectedFactions}
+              focusRequest={focusRequest}
               egoPersonId={egoPersonId}
               onExitEgo={() => setEgoPersonId(null)}
               onSelectEdge={setSelectedEdge}

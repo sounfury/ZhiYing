@@ -23,10 +23,18 @@ from app.config import settings
 from app.domain.relation_types import ALL_TYPE_NAMES, is_valid_type
 from app.logging_config import get_logger
 from app.models.cast import Cast
+from app.models.faction import (
+    FORBIDDEN_FACTION_NAMES,
+    Faction,
+    FactionBook,
+    FactionKind,
+    Membership,
+)
 from app.models.ledger import (
     CastPropose,
     ChapterLedger,
     ChapterPerson,
+    Evidence,
     Relation,
 )
 from app.models.reconcile import (
@@ -843,3 +851,242 @@ def _validation_error(message: str) -> str:
         {"status": "error", "message": message},
         ensure_ascii=False,
     )
+
+
+# ── FactionWriter 工具 ──
+
+
+@dataclass
+class FactionToolContext:
+    """FactionWriter 运行时上下文。"""
+
+    book_id: str
+    cast: Cast                          # 全书人名册（只读）
+    chapter_summaries: Dict[int, str]   # {chapter_id: summary}
+    filestore: Optional[Filestore] = None
+    submit_book: Optional[FactionBook] = None  # submit_factions 写入
+    _content_cache: Dict[int, str] = field(default_factory=dict)
+
+    def all_person_ids(self) -> set[str]:
+        return {p.person_id for p in self.cast.persons}
+
+    def get_chapter_content(self, chapter_id: int) -> str:
+        if chapter_id not in self._content_cache:
+            fs = self.filestore or _get_default_filestore()
+            self._content_cache[chapter_id] = fs.read_chapter_content(
+                self.book_id, chapter_id
+            )
+        return self._content_cache[chapter_id]
+
+
+def make_faction_tools(ctx: FactionToolContext) -> List[BaseTool]:
+    """注册 3 个 FactionWriter 工具（查原文 / 查章结果 / 提交势力册）。"""
+
+    max_matches = 50
+
+    # ── 1. search_in_chapter ──
+
+    @tool
+    def search_in_chapter(chapter_id: int, keyword: str) -> str:
+        """
+        Search for a keyword in a specific chapter's text. Use it to confirm that
+        an institution / group name really appears in the book.
+
+        Args:
+            chapter_id: The chapter ID to search in.
+            keyword: The keyword to search for.
+
+        Returns:
+            JSON string: list of {line_number, text}, or {error: "..."} on failure.
+        """
+        if not keyword or not str(keyword).strip():
+            return json.dumps({"error": "keyword must not be empty"}, ensure_ascii=False)
+        keyword = str(keyword).strip()
+
+        try:
+            content = ctx.get_chapter_content(chapter_id)
+        except Exception as e:
+            return json.dumps(
+                {"error": f"Cannot read chapter {chapter_id}: {e}"},
+                ensure_ascii=False,
+            )
+
+        matches: list[dict] = []
+        for i, line in enumerate(content.split("\n"), 1):
+            if keyword in line:
+                matches.append({"line_number": i, "text": line.strip()})
+                if len(matches) >= max_matches:
+                    matches.append({"truncated": True, "max_matches": max_matches})
+                    break
+
+        return json.dumps(matches, ensure_ascii=False)
+
+    # ── 2. get_chapter_result ──
+
+    @tool
+    def get_chapter_result(chapter_id: int) -> str:
+        """
+        Get the analysis result (ledger) for a specific chapter: persons,
+        relations, events and summary. Read-only.
+
+        Args:
+            chapter_id: The chapter ID to query.
+
+        Returns:
+            JSON string of the chapter ledger, or {error: "..."} if not found.
+        """
+        try:
+            fs = ctx.filestore or _get_default_filestore()
+            return fs.read_ledger(ctx.book_id, chapter_id).model_dump_json(indent=2)
+        except Exception:
+            return json.dumps(
+                {"error": f"Chapter result not found: {chapter_id}"},
+                ensure_ascii=False,
+            )
+
+    # ── 3. submit_factions ──
+
+    @tool
+    def submit_factions(factions: List[Dict]) -> str:
+        """
+        Submit the faction book. This is the final step.
+
+        Args:
+            factions: List of {name, kind, aliases?, note?, members: [
+                {person_id, role?, chapter_ids?, confidence?, quote?}
+            ]}
+
+        Returns:
+            JSON string: {status: "submitted", factions: N, members: M} on success,
+            or {status: "error", message: "..."} on validation failure.
+        """
+        if not factions:
+            return _validation_error("factions must not be empty")
+
+        cast_ids = ctx.all_person_ids()
+        known_chapters = set(ctx.chapter_summaries.keys())
+
+        validated: list[Faction] = []
+        seen_names: set[str] = set()
+        total_members = 0
+
+        for i, raw in enumerate(factions):
+            if not isinstance(raw, dict):
+                return _validation_error(f"faction[{i}] must be an object")
+
+            name = str(raw.get("name", "")).strip()
+            if not name:
+                return _validation_error(f"faction[{i}]: name is required")
+            if name in FORBIDDEN_FACTION_NAMES:
+                return _validation_error(
+                    f"faction[{i}]: '{name}' 是关系类型，不能当势力名。"
+                    f"势力名要用学校/教会/家族/组织等专有名词。"
+                )
+            if name in seen_names:
+                return _validation_error(f"faction[{i}]: duplicate name '{name}'")
+            seen_names.add(name)
+
+            try:
+                kind = FactionKind(str(raw.get("kind", "other")).strip().lower())
+            except ValueError:
+                logger.warning(
+                    "submit_factions: unknown kind %r for %s → other",
+                    raw.get("kind"),
+                    name,
+                )
+                kind = FactionKind.OTHER
+
+            aliases = [
+                str(a).strip()
+                for a in (raw.get("aliases") or [])
+                if str(a).strip() and str(a).strip() != name
+            ]
+
+            raw_members = raw.get("members") or []
+            if not isinstance(raw_members, list) or not raw_members:
+                return _validation_error(f"faction[{i}] '{name}': members must not be empty")
+
+            members: list[Membership] = []
+            seen_pids: set[str] = set()
+            for m in raw_members:
+                if not isinstance(m, dict):
+                    return _validation_error(
+                        f"faction '{name}': each member must be an object"
+                    )
+                pid = str(m.get("person_id", "")).strip()
+                if not pid:
+                    return _validation_error(f"faction '{name}': member person_id required")
+                if pid not in cast_ids:
+                    return _validation_error(
+                        f"INVALID_PERSON_ID: '{pid}' not found in cast (faction '{name}')"
+                    )
+                if pid in seen_pids:
+                    continue  # 同块重复成员：静默去重
+                seen_pids.add(pid)
+
+                # 只保留已分析章号，防止编造章
+                chapter_ids = sorted(
+                    {
+                        int(c)
+                        for c in (m.get("chapter_ids") or [])
+                        if isinstance(c, (int, float, str))
+                        and str(c).strip().lstrip("-").isdigit()
+                        and int(c) in known_chapters
+                    }
+                )
+
+                try:
+                    confidence = float(m.get("confidence", 0.8))
+                except (TypeError, ValueError):
+                    confidence = 0.8
+                confidence = min(1.0, max(0.0, confidence))
+
+                quote = str(m.get("quote", "") or "").strip()
+                evidence: list[Evidence] = []
+                if quote:
+                    evidence.append(
+                        Evidence(
+                            chapter_id=chapter_ids[0] if chapter_ids else 0,
+                            quote=quote,
+                        )
+                    )
+
+                members.append(
+                    Membership(
+                        person_id=pid,
+                        role=str(m.get("role", "") or "").strip(),
+                        chapter_ids=chapter_ids,
+                        confidence=confidence,
+                        evidence=evidence,
+                    )
+                )
+
+            total_members += len(members)
+            validated.append(
+                Faction(
+                    faction_id=f"f{len(validated) + 1:03d}",
+                    canonical_name=name,
+                    aliases=aliases,
+                    kind=kind,
+                    note=str(raw.get("note", "") or "").strip(),
+                    members=members,
+                )
+            )
+
+        ctx.submit_book = FactionBook(version=0, factions=validated)
+
+        logger.info(
+            "submit_factions success: factions=%d members=%d",
+            len(validated),
+            total_members,
+        )
+        return json.dumps(
+            {
+                "status": "submitted",
+                "factions": len(validated),
+                "members": total_members,
+            },
+            ensure_ascii=False,
+        )
+
+    return [search_in_chapter, get_chapter_result, submit_factions]
