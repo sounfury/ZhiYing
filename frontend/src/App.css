@@ -8,6 +8,40 @@
   --accent: #2c5f4a;
   --accent-2: #c45c26;
   --err: #9b2c2c;
+
+  /* 表面：白纸 / 顶栏渐变下止点 / 画布底 / 次要卡片 */
+  --surface-1: #ffffff;
+  --surface-2: #f7f2e8;
+  --surface-canvas: #faf7f1;
+  --surface-muted: #f7f3eb;
+  /* 主色块上的文字（不是表面色，单独一个语义） */
+  --on-accent: #ffffff;
+
+  /* 暖色小色块（em 标签底、进度面板底、进度槽） */
+  --tint-warm: #f0ebe3;
+  --tint-warm-2: #eef4f0;
+  --tint-accent-2: #fbf1e8;
+  --tint-progress: #ddd5c8;
+
+  /* 状态 */
+  --ok-soft: #e8f5ef;
+  --ok-soft-strong: #e8f0eb;
+  --err-soft: #fde8e8;
+  --err-border: #e8b4b4;
+  --accent-mid: #4a8f6f;
+
+  --shadow-sm: 0 2px 10px rgba(40, 30, 20, 0.06);
+  --shadow-md: 0 6px 20px rgba(40, 30, 20, 0.12);
+  --shadow-lg: 0 8px 24px rgba(40, 30, 20, 0.14);
+
+  /* 关系档位描边色（.tag 按 tier 取色）。
+     刻意不叫 --kin/--social/--weak：GraphView 的 EDGE_COLOR 按 cluster
+     取色，是另一条轴，只是恰好共用了同几个色值，合并命名会把语义搅在一起。 */
+  --tier-base: #95a5a6;
+  --tier-hard: #c0392b;
+  --tier-mid: #2980b9;
+  --tier-soft: #7f8c8d;
+
   font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Songti SC', serif;
 }
 
@@ -24,11 +58,16 @@ body,
   color: var(--ink);
 }
 
+/**
+ * 桌面端是「不滚动的 app shell」：整页高度锁死，图自己缩去填满剩余空间。
+ * 用 dvh 而非 vh，避开移动端动态视口（地址栏收起时 vh 会算错）那个老问题。
+ * ≤900px 断点会把这里改回文档滚动，见文件末尾的媒体查询。
+ */
 .app {
   display: flex;
   flex-direction: column;
-  height: 100%;
-  min-height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
 }
 
 .top {
@@ -38,7 +77,7 @@ body,
   gap: 1rem;
   padding: 0.75rem 1.25rem;
   border-bottom: 1px solid var(--line);
-  background: linear-gradient(180deg, #fffdf8, #f7f2e8);
+  background: linear-gradient(180deg, var(--panel), var(--surface-2));
 }
 
 .brand h1 {
@@ -71,7 +110,7 @@ body,
   padding: 0.45rem 0.6rem;
   border: 1px solid var(--line);
   border-radius: 8px;
-  background: #fff;
+  background: var(--surface-1);
   font: inherit;
   font-size: 0.9rem;
   color: var(--ink);
@@ -94,7 +133,7 @@ body,
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
-  box-shadow: 0 8px 24px rgba(40, 30, 20, 0.14);
+  box-shadow: var(--shadow-lg);
 }
 
 .person-search-empty {
@@ -120,7 +159,7 @@ body,
 }
 
 .person-search-row.on {
-  background: #eef4f0;
+  background: var(--tint-warm-2);
 }
 
 .person-search-row.dim .ps-name {
@@ -143,7 +182,7 @@ body,
   font-style: normal;
   font-size: 0.72rem;
   color: var(--muted);
-  background: #f0ebe3;
+  background: var(--tint-warm);
   border-radius: 4px;
   padding: 0 0.25rem;
   overflow: hidden;
@@ -153,7 +192,7 @@ body,
 
 .person-search-row .ps-alias {
   color: var(--accent-2);
-  background: #fbf1e8;
+  background: var(--tint-accent-2);
 }
 
 .person-search-row b {
@@ -172,7 +211,7 @@ body,
 .btn {
   appearance: none;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface-1);
   color: var(--ink);
   border-radius: 8px;
   padding: 0.45rem 0.85rem;
@@ -189,23 +228,23 @@ body,
 .btn.primary {
   background: var(--accent);
   border-color: var(--accent);
-  color: #fff;
+  color: var(--on-accent);
 }
 
 .btn.danger {
-  background: #fff;
-  border-color: #e8b4b4;
+  background: var(--surface-1);
+  border-color: var(--err-border);
   color: var(--err);
 }
 
 .progress-panel {
   padding: 0.65rem 1.25rem 0.85rem;
   border-bottom: 1px solid var(--line);
-  background: #f0ebe3;
+  background: var(--tint-warm);
 }
 
 .progress-panel.live {
-  background: #e8f0eb;
+  background: var(--ok-soft-strong);
 }
 
 .progress-head {
@@ -224,7 +263,7 @@ body,
 .progress-track {
   height: 10px;
   border-radius: 999px;
-  background: #ddd5c8;
+  background: var(--tint-progress);
   overflow: hidden;
 }
 
@@ -237,7 +276,7 @@ body,
 }
 
 .progress-fill.anim {
-  background: linear-gradient(90deg, var(--accent), #4a8f6f, var(--accent));
+  background: linear-gradient(90deg, var(--accent), var(--accent-mid), var(--accent));
   background-size: 200% 100%;
   animation: shimmer 1.4s linear infinite;
 }
@@ -294,9 +333,9 @@ body,
 .controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.85rem 1.25rem;
+  gap: 0.5rem 1rem;
   align-items: end;
-  padding: 0.75rem 1.25rem;
+  padding: 0.5rem 1.25rem;
   border-bottom: 1px solid var(--line);
   background: var(--panel);
 }
@@ -329,7 +368,7 @@ body,
   border: 1px solid var(--line);
   border-radius: 6px;
   font: inherit;
-  background: #fff;
+  background: var(--surface-1);
 }
 
 .controls select {
@@ -354,12 +393,12 @@ body,
   font-size: 0.9rem;
 }
 .banner.err {
-  background: #fde8e8;
+  background: var(--err-soft);
   color: var(--err);
 }
 
 .banner.ok {
-  background: #e8f5ef;
+  background: var(--ok-soft);
   color: var(--accent);
 }
 
@@ -387,7 +426,7 @@ body,
   padding: 0.4rem 0.5rem;
   border: 1px solid var(--line);
   border-radius: 6px;
-  background: #fff;
+  background: var(--surface-1);
   font: inherit;
   font-size: 0.9rem;
   color: var(--ink);
@@ -422,7 +461,7 @@ body,
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
-  box-shadow: 0 6px 20px rgba(40, 30, 20, 0.12);
+  box-shadow: var(--shadow-md);
 }
 
 .faction-filter-ops {
@@ -436,7 +475,7 @@ body,
 .faction-filter-ops button {
   appearance: none;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface-1);
   border-radius: 5px;
   padding: 0.1rem 0.45rem;
   font: inherit;
@@ -460,7 +499,7 @@ body,
 }
 
 .controls .faction-filter-row:hover {
-  background: #f4f1ea;
+  background: var(--bg);
 }
 
 .faction-filter-row i {
@@ -481,7 +520,7 @@ body,
   font-style: normal;
   font-size: 0.7rem;
   color: var(--muted);
-  background: #f0ebe3;
+  background: var(--tint-warm);
   border-radius: 4px;
   padding: 0 0.25rem;
 }
@@ -494,11 +533,117 @@ body,
   text-align: right;
 }
 
+/* 「更多」弹层：不常动的过滤器（见 MoreFiltersMenu） */
+.controls .more-filters {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.more-filters-label {
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.more-filters-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 0.5rem;
+  min-width: 7rem;
+  max-width: 14rem;
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--surface-1);
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+/* 有参数被调离默认值时点亮，提示「这里动过」 */
+.more-filters-btn.on {
+  border-color: var(--accent-2);
+  color: var(--accent-2);
+}
+
+.more-filters-btn span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more-filters-btn i {
+  font-style: normal;
+  color: var(--muted);
+}
+
+.more-filters-pop {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  min-width: 14rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  padding: 0.6rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+  box-shadow: var(--shadow-md);
+}
+
+.more-filters-row {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.75rem;
+  color: var(--muted);
+  letter-spacing: 0.04em;
+}
+
+.more-filters-row.check {
+  flex-direction: row;
+  align-items: center;
+  gap: 0.4rem;
+  letter-spacing: 0;
+  font-size: 0.9rem;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.more-filters-row input[type='number'] {
+  padding: 0.4rem 0.5rem;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  font: inherit;
+  background: var(--surface-1);
+}
+
+/**
+ * 详情栏宽度跟着屏幕走：原来写死 300px，宽屏上就是一条缝，而边详情里放的是
+ * 原文引用（长中文句子），250px 的可用文字宽度基本没法读。
+ * 折叠刻意不加过渡动画——对 grid-template-columns 做 transition 会让
+ * ResizeObserver 在动画每一帧都触发 setSize，比直接 snap 更难看。
+ *
+ * 图那一列必须写 minmax(0, 1fr) 而不是 1fr：1fr 的自动最小值是 min-content，
+ * 图例（.graph-legend）会把它撑住不肯缩，窗口一窄整个 grid 就溢出、详情栏被
+ * .app 的 overflow:hidden 裁到屏幕外。
+ */
 .main {
   flex: 1;
   display: grid;
-  grid-template-columns: 1fr 300px;
+  grid-template-columns: minmax(0, 1fr) clamp(340px, 26vw, 520px);
   min-height: 0;
+  min-width: 0;
+}
+
+.main.side-collapsed {
+  grid-template-columns: minmax(0, 1fr) 0;
 }
 
 .canvas-wrap {
@@ -507,20 +652,19 @@ body,
   background:
     radial-gradient(circle at 20% 20%, rgba(44, 95, 74, 0.05), transparent 40%),
     radial-gradient(circle at 80% 70%, rgba(196, 92, 38, 0.05), transparent 35%),
-    #faf7f1;
+    var(--surface-canvas);
 }
 
+/* 不设 min-height：图要能跟着 .main 一起缩，否则会把整页顶出滚动条 */
 .graph-wrap {
   position: relative;
   width: 100%;
   height: 100%;
-  min-height: 660px;
 }
 
 .graph-canvas {
   width: 100%;
   height: 100%;
-  min-height: 660px;
 }
 
 .graph-legend {
@@ -537,7 +681,7 @@ body,
   border-radius: 10px;
   border: 1px solid var(--line);
   background: rgba(255, 253, 248, 0.94);
-  box-shadow: 0 2px 10px rgba(40, 30, 20, 0.06);
+  box-shadow: var(--shadow-sm);
   font-size: 0.78rem;
   color: var(--ink);
   pointer-events: none;
@@ -586,7 +730,7 @@ body,
   pointer-events: auto;
   appearance: none;
   border: 1px solid var(--line);
-  background: #fff;
+  background: var(--surface-1);
   color: var(--accent);
   border-radius: 6px;
   padding: 0.15rem 0.5rem;
@@ -603,7 +747,9 @@ body,
   display: grid;
   place-items: center;
   height: 100%;
-  min-height: 660px;
+  /* 留一个下限，否则「分析进行中…」会被压成一条；12rem 远小于任何
+     合理的内容区高度，不会再引发页面滚动 */
+  min-height: 12rem;
   color: var(--muted);
   padding: 2rem;
   text-align: center;
@@ -640,7 +786,7 @@ body,
   font-style: normal;
   font-size: 0.7rem;
   color: var(--muted);
-  background: #f4f1ea;
+  background: var(--bg);
   border-radius: 4px;
   padding: 0 0.25rem;
 }
@@ -650,6 +796,39 @@ body,
   background: var(--panel);
   padding: 1rem;
   overflow: auto;
+  min-width: 0;
+}
+
+/* 折叠：藏起来但保持挂载，React 树不动 */
+.main.side-collapsed .side {
+  overflow: hidden;
+  padding: 0;
+  border-left: none;
+}
+
+.side-toggle {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  z-index: 3;
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 1.9rem;
+  height: 1.9rem;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--surface-1);
+  color: var(--muted);
+  font: inherit;
+  font-size: 0.78rem;
+  cursor: pointer;
+  box-shadow: var(--shadow-sm);
+}
+
+.side-toggle:hover {
+  border-color: var(--accent);
+  color: var(--accent);
 }
 
 .side h2 {
@@ -673,11 +852,11 @@ body,
   border-radius: 10px;
   padding: 0.85rem;
   margin-bottom: 0.85rem;
-  background: #fff;
+  background: var(--surface-1);
 }
 
 .card.muted {
-  background: #f7f3eb;
+  background: var(--surface-muted);
 }
 
 .detail-actions {
@@ -709,21 +888,21 @@ body,
 }
 
 .tag {
-  border-left: 3px solid #95a5a6;
+  border-left: 3px solid var(--tier-base);
   padding: 0.4rem 0 0.4rem 0.6rem;
   margin: 0.6rem 0;
 }
 
 .tag.tier-hard {
-  border-color: #c0392b;
+  border-color: var(--tier-hard);
 }
 
 .tag.tier-mid {
-  border-color: #2980b9;
+  border-color: var(--tier-mid);
 }
 
 .tag.tier-soft {
-  border-color: #7f8c8d;
+  border-color: var(--tier-soft);
 }
 
 .tag-head {
@@ -759,14 +938,40 @@ body,
 }
 
 @media (max-width: 900px) {
+  /**
+   * 移动端回到文档滚动。桌面端 .app 是固定高 + overflow:hidden，
+   * 但这里 .main 变成了 55vh + auto 两行——auto 那行在固定高容器里会
+   * 溢出被裁掉，详情面板直接变得不可达。所以必须把高度约束放开。
+   */
+  .app {
+    height: auto;
+    min-height: 100dvh;
+    overflow: visible;
+  }
+
   .main {
     grid-template-columns: 1fr;
     grid-template-rows: 55vh auto;
   }
 
+  .main.side-collapsed {
+    grid-template-columns: 1fr;
+    grid-template-rows: 55vh 0;
+  }
+
+  .main.side-collapsed .side {
+    border-top: none;
+  }
+
+  /* 竖排时详情就在图下面，折叠按钮没有意义 */
+  .side-toggle {
+    display: none;
+  }
+
   .side {
     border-left: none;
     border-top: 1px solid var(--line);
+    overflow: visible;
   }
 
   .controls .meta {

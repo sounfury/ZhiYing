@@ -38,7 +38,7 @@ export function DetailPanel({
   }
 
   return (
-    <aside className="side">
+    <aside className="side" id="detail-side">
       <h2>详情</h2>
 
       {!selectedNode && !selectedEdge && (

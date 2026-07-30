@@ -81,16 +81,84 @@ const RANK: Record<ClusterId, number> = {
 /** 势力名标签节点的 id 前缀（点击时要跳过） */
 const LABEL_PREFIX = '__f:'
 
-/** 搜索命中后的聚焦动画 */
+/** 搜索命中后的镜头推进 */
 const FOCUS = {
-  /** 平移到视口中心的时长 */
-  panMs: 520,
-  /** 随后推近的时长 */
-  zoomMs: 420,
+  /** 一段式推进的时长 */
+  duration: 520,
   /** 目标缩放：百人大图 fitView 后通常只有 0.3 左右，推到这个级别才看得清名字 */
   zoom: 1.05,
-  /** 高亮保留时长；之后自动褪去，避免残留一个红圈 */
-  holdMs: 3200,
+}
+
+const easeInOutCubic = (t: number) =>
+  t < 0.5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2
+
+/**
+ * 把镜头推到某个世界坐标 + 目标缩放，自己按帧算缓动。
+ *
+ * 为什么不用 G6 的 focusElement / zoomTo 动画（三个坑叠在一起，合起来就是「特别卡」）：
+ *  1. 建图传了 animation: false，G6 会把视口动画一并关掉——getAnimationOptions 见到
+ *     options.animation === false 就直接返回 false，逐次调用传的 duration/easing 被
+ *     静默丢弃，镜头是硬切的；
+ *  2. 平移和推近是两次 viewport.transform，后一次的 gotoLandmark 会掐掉前一次的动画；
+ *  3. 即使只发一次，G6 的 landmark 每帧是 lerp(当前值, 目标值, ease(t))——从「当前」
+ *     而不是「起点」插值，等于指数逼近：前小半段就冲到位、后半段几乎不动、最后一帧硬切。
+ *
+ * 所以自己驱动一个 rAF：平移与缩放同一条时间轴，缩放走几何插值（等比变化才是匀速的
+ * 观感），每帧用非动画的 zoomTo + translateTo 落到画布上（两次调用同步生效，合成一帧）。
+ */
+function dollyTo(
+  graph: Graph,
+  container: HTMLElement,
+  target: [number, number],
+  targetZoom: number,
+  duration: number,
+): () => void {
+  const [cx, cy] = graph.getCanvasCenter()
+  const [fx, fy] = graph.getViewportCenter()
+  const [tx, ty] = target
+  const z0 = graph.getZoom()
+  const zRatio = targetZoom / z0
+
+  // 已经对准且够近：别为了播动画白刷 500ms 的帧
+  if (Math.abs(zRatio - 1) < 0.01 && Math.hypot(tx - fx, ty - fy) < 1) {
+    return () => {}
+  }
+
+  let raf = 0
+  let stopped = false
+
+  const stop = () => {
+    if (stopped) return
+    stopped = true
+    cancelAnimationFrame(raf)
+    container.removeEventListener('wheel', stop)
+    container.removeEventListener('pointerdown', stop)
+  }
+
+  // 动画途中用户自己拖 / 滚：立刻让位，否则每帧都把用户的操作覆盖回去，那才是真卡
+  container.addEventListener('wheel', stop, { passive: true })
+  container.addEventListener('pointerdown', stop)
+
+  let startTs = 0
+  const step = (now: number) => {
+    if (stopped) return
+    if (!startTs) startTs = now
+    const t = Math.min(1, (now - startTs) / duration)
+    const u = easeInOutCubic(t)
+
+    const zoom = z0 * Math.pow(zRatio, u)
+    const px = fx + (tx - fx) * u
+    const py = fy + (ty - fy) * u
+    // translateTo 收的是屏幕位移，按当前缩放折算回世界坐标（见 ViewportController）
+    void graph.zoomTo(zoom, false)
+    void graph.translateTo([(cx - px) * zoom, (cy - py) * zoom], false)
+
+    if (t < 1) raf = requestAnimationFrame(step)
+    else stop()
+  }
+  raf = requestAnimationFrame(step)
+
+  return stop
 }
 
 /** 搜索聚焦请求：nonce 变化才重新播动画（同一人可反复聚焦） */
@@ -358,10 +426,18 @@ type Props = {
   layoutMode?: LayoutMode
   /** 只看这几个势力块；空数组 = 全部。仅势力模式生效 */
   selectedFactions?: string[]
-  /** 搜索命中后聚焦到某人（平移 + 推近 + 高亮） */
+  /** 搜索命中后聚焦到某人（平移 + 推近） */
   focusRequest?: FocusRequest | null
+  /** 当前选中人物的 person_id（单击或搜索命中都会设置）；非空时持续高亮该节点 */
+  selectedPersonId?: string | null
   /** 非空时：仅显示该人 + 与其有边的一度邻居（由详情页按钮触发，非单击节点） */
   egoPersonId?: string | null
+  /**
+   * 离散的布局变化（目前只有折叠详情栏）后，父组件递增这个值来请求重新框图。
+   * 之所以不在 ResizeObserver 里自动 refit：拖窗口时连续 refit 会一直跟用户
+   * 手动的缩放/平移打架，而单独 setSize 是保留视口变换的，那才是拖动时想要的。
+   */
+  refitToken?: number
   onSelectEdge?: (edge: GraphEdge | null) => void
   onSelectNode?: (node: GraphNode | null) => void
   onExitEgo?: () => void
@@ -372,13 +448,23 @@ export function GraphView({
   layoutMode = 'faction',
   selectedFactions = [],
   focusRequest = null,
+  selectedPersonId = null,
   egoPersonId = null,
+  refitToken = 0,
   onSelectEdge,
   onSelectNode,
   onExitEgo,
 }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const graphRef = useRef<Graph | null>(null)
+  /**
+   * 当前图「画完并框好」的时刻。选中高亮 / 镜头推进都等它落定再动手——
+   * 以前是各拍一个 50/60/100ms 的 setTimeout 互相错开，既凭空慢半拍，
+   * 又会在重建图时和 fitView 抢镜头。
+   */
+  const readyRef = useRef<Promise<void>>(Promise.resolve())
+  /** 在飞的镜头推进的取消句柄：容器尺寸一变，它捕获的画布中心就过期了 */
+  const dollyCancelRef = useRef<(() => void) | null>(null)
 
   // 默认主角全图中心
   const defaultCenterId = useMemo(
@@ -651,29 +737,18 @@ export function GraphView({
       onSelectNode?.(null)
     })
 
-    graph.render()
     graphRef.current = graph
 
-    const fitLater = window.setTimeout(() => {
-      try {
-        void graph.fitView({ when: 'always', direction: 'both' })
-      } catch {
-        /* ignore */
-      }
-    }, 50)
-
-    const onResize = () => {
-      if (!containerRef.current || !graphRef.current) return
-      graphRef.current.setSize(
-        containerRef.current.clientWidth,
-        containerRef.current.clientHeight,
-      )
-    }
-    window.addEventListener('resize', onResize)
+    readyRef.current = (async () => {
+      await graph.render()
+      // 期间图被重建 / 销毁了就别再动镜头
+      if (graphRef.current !== graph) return
+      await graph.fitView({ when: 'always', direction: 'both' })
+    })().catch(() => {
+      /* 图可能已被重建/销毁 */
+    })
 
     return () => {
-      window.clearTimeout(fitLater)
-      window.removeEventListener('resize', onResize)
       graph.destroy()
       graphRef.current = null
     }
@@ -690,51 +765,154 @@ export function GraphView({
   ])
 
   /**
-   * 搜索聚焦：平移到视口中心 → 推近 → 高亮，几秒后自动褪去。
+   * 选中高亮：单击节点 / 搜索命中都会把 person_id 设进 selectedPersonId，
+   * 这里统一套上 'focus' 态（橙圈 + halo），选中谁就高亮谁，换人或取消时
+   * 自动移到新目标 / 褪去。
    *
-   * 独立于建图 effect，所以不会为了播动画重建整张图。
-   * 若同一次交互里筛选也变了（搜到的人被筛掉时 App 会清筛选），两个 state
-   * 更新会批到同一次 commit：建图 effect 先跑，这里再跑，顺序天然正确。
+   * 依赖里带上 view：势力筛选等导致整图重建后，新图上的节点态会清空，
+   * 让本 effect 随重建再跑一遍把高亮补回来（只剩未归属块时退回亲疏模式
+   * 所引发的重建同样会走到这里）。
+   */
+  const prevSelectedRef = useRef<string | null>(null)
+  useEffect(() => {
+    const prevId = prevSelectedRef.current
+    const newId = selectedPersonId ?? null
+    prevSelectedRef.current = newId
+
+    let disposed = false
+    void readyRef.current.then(() => {
+      const g = graphRef.current
+      if (disposed || !g) return
+      if (prevId && prevId !== newId) {
+        g.setElementState(prevId, []).catch(() => {})
+      }
+      if (newId) {
+        g.setElementState(newId, ['focus']).catch(() => {})
+      }
+    })
+
+    return () => {
+      disposed = true
+    }
+  }, [selectedPersonId, view])
+
+  /**
+   * 搜索聚焦：一段式镜头推进（平移与推近同一条时间轴，见 dollyTo）。
+   *
+   * 高亮交给上面的 selectedPersonId effect 统一管理（选中即高亮，不再自动褪去），
+   * 这里只负责把镜头对准命中的人。独立于建图 effect，所以不会为了播动画重建整张图。
    */
   useEffect(() => {
     if (!focusRequest) return
     const { personId } = focusRequest
-    let cancelled = false
-    let fade = 0
+    let disposed = false
+    let cancel: (() => void) | null = null
 
-    // 等建图 effect 里的 fitView（50ms）落定，再开始平移
-    const timer = window.setTimeout(async () => {
+    void readyRef.current.then(() => {
       const g = graphRef.current
-      if (!g || cancelled) return
+      const container = containerRef.current
+      if (disposed || !g || !container) return
       try {
         if (!g.getNodeData().some((n) => n.id === personId)) return
-        await g.focusElement(personId, {
-          duration: FOCUS.panMs,
-          easing: 'ease-in-out',
-        })
-        if (cancelled) return
-        // 已经放得比目标更大时不要缩回去
-        await g.zoomTo(Math.max(g.getZoom(), FOCUS.zoom), {
-          duration: FOCUS.zoomMs,
-          easing: 'ease-in-out',
-        })
-        if (cancelled) return
-        await g.setElementState(personId, ['focus'])
-        fade = window.setTimeout(() => {
-          graphRef.current?.setElementState(personId, []).catch(() => {})
-        }, FOCUS.holdMs)
+        const [tx, ty] = g.getElementPosition(personId)
+        cancel = dollyTo(
+          g,
+          container,
+          [tx, ty],
+          Math.max(g.getZoom(), FOCUS.zoom),
+          FOCUS.duration,
+        )
+        // 也交给 resize 一份：容器尺寸变了这段动画的目标就算错了
+        dollyCancelRef.current = cancel
       } catch {
         /* 图可能已被重建/销毁，聚焦失败无所谓 */
       }
-    }, 140)
+    })
 
     return () => {
-      cancelled = true
-      window.clearTimeout(timer)
-      window.clearTimeout(fade)
-      graphRef.current?.setElementState(personId, []).catch(() => {})
+      disposed = true
+      cancel?.()
+      dollyCancelRef.current = null
     }
   }, [focusRequest])
+
+  /**
+   * 容器尺寸跟随：G6 的画布尺寸是建图时按容器算死的，之后只能靠 setSize 同步。
+   *
+   * 原来只听 window resize，但折叠详情栏改变的是 .canvas-wrap 的宽度、**不会**
+   * 触发 window resize，canvas 就会僵在旧尺寸和容器脱钩。所以改用 ResizeObserver。
+   *
+   * 刻意放在独立的、空依赖的 effect 里：建图 effect 的依赖有 data/view/… 一长串，
+   * 尺寸处理挂在那里会随每次重建反复拆装监听。
+   *
+   * 不会造成 RO 死循环——setSize 写的是 G6 内部的 <canvas>，而被观察的
+   * .graph-canvas 容器尺寸由 CSS grid 决定，没有自反馈。
+   */
+  useEffect(() => {
+    const container = containerRef.current
+    if (!container) return
+
+    let raf = 0
+    let lastW = container.clientWidth
+    let lastH = container.clientHeight
+
+    const apply = () => {
+      raf = 0
+      const g = graphRef.current
+      if (!g) return
+      const w = container.clientWidth
+      const h = container.clientHeight
+      if (w === lastW && h === lastH) return // RO 会因滚动条增减等空转
+      if (w < 1 || h < 1) return // 容器被折叠隐藏的瞬间
+      lastW = w
+      lastH = h
+
+      // 在飞的镜头推进捕获的是旧的画布中心，尺寸一变就会推到错位置
+      dollyCancelRef.current?.()
+      dollyCancelRef.current = null
+
+      try {
+        g.setSize(w, h)
+      } catch {
+        /* 图可能正在销毁 */
+      }
+    }
+
+    const schedule = () => {
+      if (raf) return
+      raf = requestAnimationFrame(apply)
+    }
+
+    const ro = new ResizeObserver(schedule)
+    ro.observe(container)
+    // 兜底：DPR 变化、浏览器 chrome 覆盖层这类不改容器盒子的情况
+    window.addEventListener('resize', schedule)
+
+    return () => {
+      ro.disconnect()
+      window.removeEventListener('resize', schedule)
+      if (raf) cancelAnimationFrame(raf)
+    }
+  }, [])
+
+  /** 折叠/展开详情栏这类离散布局变化后，重新框一次图（详见 refitToken 的注释） */
+  useEffect(() => {
+    if (!refitToken) return
+    let disposed = false
+    // 等一帧：CSS 布局已生效、上面的 RO 也已在同批里把 setSize 做完
+    const raf = requestAnimationFrame(() => {
+      if (disposed) return
+      void readyRef.current.then(() => {
+        graphRef.current
+          ?.fitView({ when: 'always', direction: 'both' })
+          .catch(() => {})
+      })
+    })
+    return () => {
+      disposed = true
+      cancelAnimationFrame(raf)
+    }
+  }, [refitToken])
 
   if (!data.nodes.length) {
     return (

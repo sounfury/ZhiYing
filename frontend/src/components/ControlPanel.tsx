@@ -1,6 +1,7 @@
 import type { BookMeta, ChapterBrief, GraphFaction } from '../api'
 import type { LayoutMode } from '../GraphView'
 import { FactionFilter } from './FactionFilter'
+import { MoreFiltersMenu } from './MoreFiltersMenu'
 
 interface ControlPanelProps {
   // Book selection
@@ -110,26 +111,6 @@ export function ControlPanel({
       </label>
 
       <label>
-        min_appearance
-        <input
-          type="number"
-          min={0}
-          max={20}
-          value={minAppearance}
-          onChange={(e) => onMinAppearanceChange(Number(e.target.value) || 0)}
-        />
-      </label>
-
-      <label className="check">
-        <input
-          type="checkbox"
-          checked={includeSuppressed}
-          onChange={(e) => onIncludeSuppressedChange(e.target.checked)}
-        />
-        显示被压制 soft
-      </label>
-
-      <label>
         布局
         <select
           value={layoutMode}
@@ -142,6 +123,13 @@ export function ControlPanel({
           <option value="affinity">亲疏扇区</option>
         </select>
       </label>
+
+      <MoreFiltersMenu
+        minAppearance={minAppearance}
+        onMinAppearanceChange={onMinAppearanceChange}
+        includeSuppressed={includeSuppressed}
+        onIncludeSuppressedChange={onIncludeSuppressedChange}
+      />
 
       {layoutMode === 'faction' && (
         <FactionFilter

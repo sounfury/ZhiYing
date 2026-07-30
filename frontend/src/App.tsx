@@ -67,6 +67,15 @@ export default function App() {
   const [egoPersonId, setEgoPersonId] = useState<string | null>(null)
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null)
 
+  // ── 详情栏折叠 ──
+  const [sideCollapsed, setSideCollapsed] = useState(false)
+  /** 递增即请求 GraphView 重新框图：折叠改变了画布宽度，原来的取景就偏了 */
+  const [refitToken, setRefitToken] = useState(0)
+  const toggleSide = useCallback(() => {
+    setSideCollapsed((v) => !v)
+    setRefitToken((t) => t + 1)
+  }, [])
+
   // ── banner ──
   const [error, setError] = useState('')
   const [msg, setMsg] = useState('')
@@ -256,8 +265,18 @@ export default function App() {
         </div>
       )}
 
-      <main className="main">
+      <main className={`main${sideCollapsed ? ' side-collapsed' : ''}`}>
         <div className="canvas-wrap">
+          <button
+            type="button"
+            className="side-toggle"
+            onClick={toggleSide}
+            title={sideCollapsed ? '展开详情栏' : '收起详情栏'}
+            aria-expanded={!sideCollapsed}
+            aria-controls="detail-side"
+          >
+            {sideCollapsed ? '◀' : '▶'}
+          </button>
           {isRunning ? (
             <div className="graph-empty">
               分析进行中，完成后会自动刷新图…
@@ -270,7 +289,9 @@ export default function App() {
               layoutMode={layoutMode}
               selectedFactions={selectedFactions}
               focusRequest={focusRequest}
+              selectedPersonId={selectedNode?.person_id ?? null}
               egoPersonId={egoPersonId}
+              refitToken={refitToken}
               onExitEgo={() => setEgoPersonId(null)}
               onSelectEdge={setSelectedEdge}
               onSelectNode={setSelectedNode}
