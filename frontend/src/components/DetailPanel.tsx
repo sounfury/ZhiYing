@@ -1,5 +1,6 @@
 import type { GraphData, GraphEdge, GraphNode } from '../api'
 import { FACTION_KIND_LABEL, UNASSIGNED_FACTION_ID, factionColor } from '../factions'
+import { IMPORTANCE_LABEL } from '../labels'
 
 interface DetailPanelProps {
   graph: GraphData | null
@@ -38,13 +39,11 @@ export function DetailPanel({
   }
 
   return (
-    <aside className="side" id="detail-side">
-      <h2>详情</h2>
-
+    <div className="detail-panel">
       {!selectedNode && !selectedEdge && (
         <p className="hint">
-          点击节点或边查看详情。拖动画布 / 滚轮缩放。
-          在人物详情中可「只看与此人的关系」。
+          点击图上的人或连线。拖动画布，滚轮缩放。
+          人物卡片里可以「只看与此人的关系」。人名册和各章账本在旁边两个页签。
         </p>
       )}
 
@@ -55,7 +54,7 @@ export function DetailPanel({
             <dt>id</dt>
             <dd>{selectedNode.person_id}</dd>
             <dt>重要度</dt>
-            <dd>{selectedNode.importance}</dd>
+            <dd>{IMPORTANCE_LABEL[selectedNode.importance] ?? selectedNode.importance}</dd>
             <dt>出场章数</dt>
             <dd>{selectedNode.appearance_count}</dd>
             <dt>别名</dt>
@@ -158,6 +157,6 @@ export function DetailPanel({
           </p>
         </div>
       )}
-    </aside>
+    </div>
   )
 }

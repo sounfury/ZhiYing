@@ -32,6 +32,9 @@ export function useGraphData(
           to_chapter: filters.toChapter === '' ? undefined : filters.toChapter,
           single_chapter: filters.singleChapterOnly,
           min_appearance: filters.minAppearance,
+          type_filter: filters.typeFilter.length
+            ? filters.typeFilter.join(',')
+            : undefined,
           include_suppressed: filters.includeSuppressed,
         })
         setGraph(data)
@@ -64,6 +67,7 @@ export function useGraphData(
       filters.singleChapterOnly,
       filters.minAppearance,
       filters.includeSuppressed,
+      filters.typeFilter,
       chapterLabel,
     ],
   )

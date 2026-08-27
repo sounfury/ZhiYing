@@ -1,53 +1,58 @@
-import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
 import {
   analysisChapters,
+  downloadExport,
   extractFactions,
+  getBook,
+  rerunChapter,
   uploadBook,
+  type BookMeta,
 } from '../api'
 import type { FocusRequest, LayoutMode } from '../components/GraphView'
 import type { PersonHit } from '../components/PersonSearch'
 import { useBooks } from '../hooks/useBooks'
+import { useCast } from '../hooks/useCast'
 import { useChapters } from '../hooks/useChapters'
 import { useGraphData } from '../hooks/useGraphData'
 import { useAnalysis } from '../hooks/useAnalysis'
-import type { GraphFilters } from '../types'
+import { useLedger } from '../hooks/useLedger'
+import { useRelationTypes } from '../hooks/useRelationTypes'
+import type { GraphFilters, SideTab } from '../types'
 import { AppStateContext, type AppStateValue } from './appStateContext'
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
-  // ── 书籍 ──
   const { books, refreshBooks } = useBooks()
   const [bookId, setBookId] = useState('')
+  const [bookDetail, setBookDetail] = useState<BookMeta | undefined>(undefined)
 
-  // ── 章节 ──
   const { contentChapters, chapterLabel } = useChapters(bookId, (list) => {
-    // 书切换后校验 toChapter 仍合法
     const allowed = new Set(analysisChapters(list).map((c) => c.chapter_id))
     setToChapter((prev) => (prev !== '' && allowed.has(prev) ? prev : ''))
     setSingleChapterOnly(false)
+    setLedgerChapterId((prev) => (prev !== '' && allowed.has(prev) ? prev : ''))
   })
 
-  // ── 图谱过滤 ──
   const [toChapter, setToChapter] = useState<number | ''>('')
   const [singleChapterOnly, setSingleChapterOnly] = useState(false)
   const [minAppearance, setMinAppearance] = useState(1)
   const [includeSuppressed, setIncludeSuppressed] = useState(false)
+  const [typeFilter, setTypeFilter] = useState<string[]>([])
+  const relationTypes = useRelationTypes()
 
   const filters: GraphFilters = {
     toChapter,
     singleChapterOnly,
     minAppearance,
     includeSuppressed,
+    typeFilter,
   }
 
-  // ── 图数据 ──
   const { graph, graphLoading, loadGraph } = useGraphData(bookId, filters, chapterLabel)
 
-  // ── 布局 ──
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('faction')
   const [selectedFactions, setSelectedFactions] = useState<string[]>([])
   const [factionLoading, setFactionLoading] = useState(false)
 
-  // 图重载后势力块可能变（换书 / 换章节切片）→ 剔除已失效的选择
   useEffect(() => {
     if (!selectedFactions.length) return
     const alive = new Set((graph?.factions ?? []).map((f) => f.faction_id))
@@ -55,26 +60,34 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     if (next.length !== selectedFactions.length) setSelectedFactions(next)
   }, [graph, selectedFactions])
 
-  // ── 选中状态（纯 UI） ──
   const [selectedEdge, setSelectedEdge] = useState<AppStateValue['selectedEdge']>(null)
   const [selectedNode, setSelectedNode] = useState<AppStateValue['selectedNode']>(null)
   const [egoPersonId, setEgoPersonId] = useState<string | null>(null)
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null)
 
-  // ── 详情栏折叠 ──
   const [sideCollapsed, setSideCollapsed] = useState(false)
-  /** 递增即请求 GraphView 重新框图：折叠改变了画布宽度，原来的取景就偏了 */
+  const [sideTab, setSideTab] = useState<SideTab>('detail')
   const [refitToken, setRefitToken] = useState(0)
+  const sideCollapsedRef = useRef(false)
+  sideCollapsedRef.current = sideCollapsed
   const toggleSide = useCallback(() => {
     setSideCollapsed((v) => !v)
     setRefitToken((t) => t + 1)
   }, [])
 
-  // ── banner ──
+  const openSide = useCallback((tab: SideTab) => {
+    setSideTab(tab)
+    if (sideCollapsedRef.current) {
+      setSideCollapsed(false)
+      setRefitToken((t) => t + 1)
+    }
+  }, [])
+
   const [error, setError] = useState('')
   const [msg, setMsg] = useState('')
+  const [exporting, setExporting] = useState(false)
+  const [rerunning, setRerunning] = useState(false)
 
-  // ── 包装 loadGraph：清选择 + 写 banner ──
   const handleLoadGraph = useCallback(async () => {
     setError('')
     setSelectedEdge(null)
@@ -85,13 +98,33 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setMsg(m)
   }, [loadGraph])
 
-  // ── 分析 ──
+  const {
+    cast,
+    loading: castLoading,
+    saving: castSaving,
+    error: castError,
+    refresh: refreshCast,
+    savePerson: saveCastPerson,
+    merge: mergeCast,
+  } = useCast(bookId)
+
+  const [ledgerChapterId, setLedgerChapterId] = useState<number | ''>('')
+  const {
+    ledger,
+    loading: ledgerLoading,
+    missing: ledgerMissing,
+    error: ledgerError,
+    refresh: refreshLedger,
+  } = useLedger(bookId, ledgerChapterId)
+
   const { analysis, start: startAnalysis, stop: stopAnalysis, isRunning, pushLog } =
     useAnalysis({
       chapterLabel,
       onAnalysisDone: async () => {
         await refreshBooks()
         await handleLoadGraph()
+        await refreshCast()
+        await refreshLedger()
       },
       onBanner: (err, m) => {
         setError(err)
@@ -99,15 +132,34 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       },
     })
 
-  // ── 首次加载自动选 demo 书 ──
+  // 选中的书：详情优先（含 analysis_progress），否则用列表项
   useEffect(() => {
-    if (!bookId && books.length) {
-      const demo = books.find((b) => b.book_id === 'aa317311-a246-4900-bb6a-19a2fa820669')
-      setBookId(demo?.book_id ?? books[0].book_id)
+    if (!bookId) {
+      setBookDetail(undefined)
+      return
     }
-  }, [books, bookId])
+    let cancelled = false
+    void getBook(bookId)
+      .then((b) => {
+        if (!cancelled) setBookDetail(b)
+      })
+      .catch(() => {
+        if (!cancelled) setBookDetail(undefined)
+      })
+    return () => {
+      cancelled = true
+    }
+  }, [bookId, books])
 
-  // ── 书切换 / 过滤变化 → 自动刷新图（分析中不打断） ──
+  const selectedBook = bookDetail ?? books.find((b) => b.book_id === bookId)
+
+  useEffect(() => {
+    document.title = selectedBook?.title
+      ? `${selectedBook.title} · 织影`
+      : '织影 · 人物关系图谱'
+  }, [selectedBook])
+
+  // 书切换 / 过滤变化 → 自动刷新图（分析中不打断）
   useEffect(() => {
     if (bookId && !isRunning) void handleLoadGraph()
   }, [bookId, handleLoadGraph, isRunning])
@@ -120,7 +172,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       try {
         const res = await uploadBook(file)
         pushLog('ok', `已上传：${res.title}`)
+        setMsg(`已上传「${res.title}」，可以启动分析`)
         await refreshBooks()
+        setBookId(res.book_id)
+        setEgoPersonId(null)
+        setSelectedNode(null)
+        setSelectedEdge(null)
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
       }
@@ -143,9 +200,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setEgoPersonId(null)
     setSelectedNode(null)
     setSelectedEdge(null)
+    setTypeFilter([])
+    setSelectedFactions([])
+    setSideTab('detail')
   }, [])
 
-  /** 抽取势力：单次 LLM 会话，几十秒级，完成后重载图 */
   const onExtractFactions = useCallback(async () => {
     if (!bookId) return
     setError('')
@@ -165,13 +224,21 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, [bookId, handleLoadGraph, pushLog])
 
-  /**
-   * 搜索命中 → 聚焦。
-   *
-   * 命中的人可能正被势力筛选 / ego 模式挡在图外，那就先把挡住他的视图约束撤掉，
-   * 否则动画会对着一个不存在的节点空转。被 min_appearance 过滤的只能给提示——
-   * 那是后端出图阶段就没给出的节点。
-   */
+  const onExport = useCallback(async () => {
+    if (!bookId) return
+    setExporting(true)
+    setError('')
+    try {
+      const filename = await downloadExport(bookId)
+      setMsg(`已导出 ${filename}`)
+      pushLog('ok', `导出 ${filename}`)
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setExporting(false)
+    }
+  }, [bookId, pushLog])
+
   const onPickPerson = useCallback(
     (hit: PersonHit) => {
       setError('')
@@ -199,16 +266,103 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
       setSelectedEdge(null)
       setSelectedNode(node)
-      // nonce 递增，保证同一人可以反复聚焦
+      openSide('detail')
       setFocusRequest((prev) => ({
         personId: hit.personId,
         nonce: (prev?.nonce ?? 0) + 1,
       }))
     },
-    [graph, minAppearance, selectedFactions],
+    [graph, minAppearance, selectedFactions, openSide],
   )
 
-  const selectedBook = books.find((b) => b.book_id === bookId)
+  const onFocusCastPerson = useCallback(
+    (personId: string) => {
+      const node = graph?.nodes.find((n) => n.person_id === personId)
+      const name =
+        node?.name ??
+        cast?.persons.find((p) => p.person_id === personId)?.canonical_name ??
+        personId
+      if (!node) {
+        setMsg(`「${name}」当前不在图上（可能被过滤，或尚未入图）`)
+        return
+      }
+      onPickPerson({
+        personId: node.person_id,
+        name: node.name,
+        aliases: node.aliases,
+        importance: node.importance,
+        appearanceCount: node.appearance_count,
+        filtered: false,
+      })
+    },
+    [graph, cast, onPickPerson],
+  )
+
+  const saveCastPersonAndRefresh = useCallback(
+    async (person: Parameters<typeof saveCastPerson>[0]) => {
+      await saveCastPerson(person)
+      await handleLoadGraph()
+    },
+    [saveCastPerson, handleLoadGraph],
+  )
+
+  const mergeCastAndRefresh = useCallback(
+    async (keepId: string, dropId: string) => {
+      await mergeCast(keepId, dropId)
+      await handleLoadGraph()
+      await refreshLedger()
+    },
+    [mergeCast, handleLoadGraph, refreshLedger],
+  )
+
+  const onRerunChapter = useCallback(async () => {
+    if (!bookId || ledgerChapterId === '') return
+    setRerunning(true)
+    setError('')
+    setMsg('正在重跑此章（覆盖该章账本，不级联）…')
+    try {
+      const res = await rerunChapter(bookId, ledgerChapterId)
+      pushLog('ok', `重跑完成：第 ${res.chapter_id} 章 · ${res.steps_used} 步`)
+      await refreshBooks()
+      await refreshCast()
+      await refreshLedger()
+      await handleLoadGraph()
+      setMsg(`重跑完成：${chapterLabel(res.chapter_id)}`)
+    } catch (e) {
+      setMsg('')
+      setError(e instanceof Error ? e.message : String(e))
+    } finally {
+      setRerunning(false)
+    }
+  }, [
+    bookId,
+    ledgerChapterId,
+    pushLog,
+    refreshBooks,
+    refreshCast,
+    refreshLedger,
+    handleLoadGraph,
+    chapterLabel,
+  ])
+
+  const personName = useCallback(
+    (personId: string) =>
+      graph?.nodes.find((n) => n.person_id === personId)?.name ??
+      cast?.persons.find((p) => p.person_id === personId)?.canonical_name ??
+      personId,
+    [graph, cast],
+  )
+
+  const openSideWithLedgerDefault = useCallback(
+    (tab: SideTab) => {
+      if (tab === 'ledger' && ledgerChapterId === '') {
+        const hint = toChapter !== '' ? toChapter : contentChapters[0]?.chapter_id
+        if (hint != null) setLedgerChapterId(hint)
+      }
+      openSide(tab)
+    },
+    [ledgerChapterId, toChapter, contentChapters, openSide],
+  )
 
   const value = useMemo<AppStateValue>(
     () => ({
@@ -226,6 +380,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setMinAppearance,
       includeSuppressed,
       setIncludeSuppressed,
+      typeFilter,
+      setTypeFilter,
+      relationTypes,
       graph,
       graphLoading,
       handleLoadGraph,
@@ -242,8 +399,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setEgoPersonId,
       focusRequest,
       sideCollapsed,
+      sideTab,
+      setSideTab,
       refitToken,
       toggleSide,
+      openSide: openSideWithLedgerDefault,
       error,
       msg,
       analysis,
@@ -253,6 +413,24 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       onStop,
       onExtractFactions,
       onPickPerson,
+      onExport,
+      exporting,
+      cast,
+      castLoading,
+      castSaving,
+      castError,
+      saveCastPerson: saveCastPersonAndRefresh,
+      mergeCast: mergeCastAndRefresh,
+      onFocusCastPerson,
+      ledgerChapterId,
+      setLedgerChapterId,
+      ledger,
+      ledgerLoading,
+      ledgerMissing,
+      ledgerError,
+      rerunning,
+      onRerunChapter,
+      personName,
     }),
     [
       books,
@@ -265,6 +443,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       singleChapterOnly,
       minAppearance,
       includeSuppressed,
+      typeFilter,
+      relationTypes,
       graph,
       graphLoading,
       handleLoadGraph,
@@ -276,8 +456,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       egoPersonId,
       focusRequest,
       sideCollapsed,
+      sideTab,
       refitToken,
       toggleSide,
+      openSideWithLedgerDefault,
       error,
       msg,
       analysis,
@@ -287,6 +469,23 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       onStop,
       onExtractFactions,
       onPickPerson,
+      onExport,
+      exporting,
+      cast,
+      castLoading,
+      castSaving,
+      castError,
+      saveCastPersonAndRefresh,
+      mergeCastAndRefresh,
+      onFocusCastPerson,
+      ledgerChapterId,
+      ledger,
+      ledgerLoading,
+      ledgerMissing,
+      ledgerError,
+      rerunning,
+      onRerunChapter,
+      personName,
     ],
   )
 

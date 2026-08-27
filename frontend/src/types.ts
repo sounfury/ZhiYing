@@ -19,7 +19,11 @@ export type GraphFilters = {
   singleChapterOnly: boolean
   minAppearance: number
   includeSuppressed: boolean
+  /** 空数组 = 不过滤（全部类型） */
+  typeFilter: string[]
 }
+
+export type SideTab = 'detail' | 'cast' | 'ledger'
 
 export const emptyAnalysis = (): AnalysisUi => ({
   running: false,

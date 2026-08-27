@@ -74,21 +74,31 @@ body,
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 1rem;
-  padding: 0.75rem 1.25rem;
+  gap: 1.1rem;
+  padding: 0.7rem 1.4rem;
   border-bottom: 1px solid var(--line);
   background: linear-gradient(180deg, var(--panel), var(--surface-2));
 }
 
+.brand {
+  display: flex;
+  flex-direction: column;
+  gap: 0.05rem;
+  flex: none;
+}
+
 .brand h1 {
   margin: 0;
-  font-size: 1.35rem;
-  letter-spacing: 0.02em;
+  font-size: 1.28rem;
+  letter-spacing: 0.18em;
+  font-weight: 600;
 }
 
 .brand .sub {
   color: var(--muted);
-  font-size: 0.85rem;
+  font-size: 0.72rem;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
 }
 
 .actions {
@@ -214,10 +224,20 @@ body,
   background: var(--surface-1);
   color: var(--ink);
   border-radius: 8px;
-  padding: 0.45rem 0.85rem;
+  padding: 0.42rem 0.85rem;
   font: inherit;
-  font-size: 0.9rem;
+  font-size: 0.88rem;
   cursor: pointer;
+  transition: border-color 0.12s ease, background 0.12s ease, color 0.12s ease;
+}
+
+.btn:hover:not(:disabled) {
+  border-color: var(--accent);
+}
+
+.btn:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 .btn:disabled {
@@ -231,14 +251,23 @@ body,
   color: var(--on-accent);
 }
 
+.btn.primary:hover:not(:disabled) {
+  background: var(--accent-mid);
+  border-color: var(--accent-mid);
+}
+
 .btn.danger {
   background: var(--surface-1);
   border-color: var(--err-border);
   color: var(--err);
 }
 
+.btn.danger:hover:not(:disabled) {
+  background: var(--err-soft);
+}
+
 .progress-panel {
-  padding: 0.65rem 1.25rem 0.85rem;
+  padding: 0.55rem 1.4rem 0.7rem;
   border-bottom: 1px solid var(--line);
   background: var(--tint-warm);
 }
@@ -333,9 +362,9 @@ body,
 .controls {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.5rem 1rem;
+  gap: 0.55rem 1.1rem;
   align-items: end;
-  padding: 0.5rem 1.25rem;
+  padding: 0.55rem 1.4rem 0.6rem;
   border-bottom: 1px solid var(--line);
   background: var(--panel);
 }
@@ -343,11 +372,10 @@ body,
 .controls label {
   display: flex;
   flex-direction: column;
-  gap: 0.25rem;
-  font-size: 0.75rem;
+  gap: 0.22rem;
+  font-size: 0.72rem;
   color: var(--muted);
-  text-transform: lowercase;
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .controls label.check {
@@ -369,6 +397,13 @@ body,
   border-radius: 6px;
   font: inherit;
   background: var(--surface-1);
+}
+
+.controls select:focus-visible,
+.controls input:focus-visible,
+.person-search input:focus-visible {
+  outline: none;
+  border-color: var(--accent);
 }
 
 .controls select {
@@ -411,9 +446,9 @@ body,
 }
 
 .faction-filter-label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--muted);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .faction-filter-btn {
@@ -542,9 +577,9 @@ body,
 }
 
 .more-filters-label {
-  font-size: 0.75rem;
+  font-size: 0.72rem;
   color: var(--muted);
-  letter-spacing: 0.04em;
+  letter-spacing: 0.06em;
 }
 
 .more-filters-btn {
@@ -586,11 +621,12 @@ body,
   z-index: 20;
   top: calc(100% + 0.25rem);
   left: 0;
-  min-width: 14rem;
+  min-width: 18rem;
+  max-width: min(24rem, 90vw);
   display: flex;
   flex-direction: column;
   gap: 0.6rem;
-  padding: 0.6rem;
+  padding: 0.7rem;
   border: 1px solid var(--line);
   border-radius: 8px;
   background: var(--panel);
@@ -644,6 +680,10 @@ body,
 
 .main.side-collapsed {
   grid-template-columns: minmax(0, 1fr) 0;
+}
+
+.main.solo {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .canvas-wrap {
@@ -747,12 +787,12 @@ body,
   display: grid;
   place-items: center;
   height: 100%;
-  /* 留一个下限，否则「分析进行中…」会被压成一条；12rem 远小于任何
-     合理的内容区高度，不会再引发页面滚动 */
   min-height: 12rem;
   color: var(--muted);
   padding: 2rem;
   text-align: center;
+  line-height: 1.6;
+  font-size: 0.98rem;
 }
 
 /* 势力归属 chips（详情侧栏） */
@@ -974,7 +1014,28 @@ body,
     overflow: visible;
   }
 
-  .controls .meta {
+  .controls .meta,
+  .control-links {
     margin-left: 0;
+  }
+
+  .top {
+    flex-wrap: wrap;
+  }
+
+  .identity {
+    flex: 1 1 12rem;
+    order: 3;
+    width: 100%;
+  }
+
+  .person-search {
+    max-width: none;
+    flex: 1 1 10rem;
+  }
+
+  .main.solo {
+    grid-template-columns: 1fr;
+    grid-template-rows: auto;
   }
 }

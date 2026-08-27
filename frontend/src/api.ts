@@ -258,3 +258,172 @@ export function subscribeAnalysisProgress(
 
   return close
 }
+
+// ── Cast / 人名册 ──
+
+export type CastAlias = {
+  name: string
+  frequency: string
+}
+
+export type CastPerson = {
+  person_id: string
+  canonical_name: string
+  aliases: CastAlias[]
+  bio: string
+  gender: string
+  importance: string
+  merge_candidates: string[]
+}
+
+export type Cast = {
+  version: number
+  persons: CastPerson[]
+}
+
+export function getCast(bookId: string): Promise<Cast> {
+  return request<Cast>(`/api/books/${bookId}/cast`)
+}
+
+export function putCast(bookId: string, body: Cast): Promise<Cast> {
+  return request<Cast>(`/api/books/${bookId}/cast`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+}
+
+export function mergeCastPersons(
+  bookId: string,
+  keepId: string,
+  dropId: string,
+): Promise<Cast> {
+  return request<Cast>(`/api/books/${bookId}/cast/merge`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keep_id: keepId, drop_id: dropId }),
+  })
+}
+
+// ── Chapter ledger / 单章账本 ──
+
+export type LedgerEvidence = {
+  chapter_id: number
+  quote: string
+  note: string
+  quote_verified: boolean | null
+}
+
+export type LedgerRelation = {
+  person_a: string
+  person_b: string
+  type: string
+  tier: string
+  directed: boolean
+  evidence: LedgerEvidence
+}
+
+export type LedgerPerson = {
+  person_id: string
+  aliases_in_chapter: string[]
+}
+
+export type LedgerEvent = {
+  description: string
+  persons: string[]
+}
+
+export type ChapterLedger = {
+  chapter_id: number
+  persons: LedgerPerson[]
+  relations: LedgerRelation[]
+  events: LedgerEvent[]
+  summary: string
+}
+
+export function getChapterLedger(
+  bookId: string,
+  chapterId: number,
+): Promise<ChapterLedger> {
+  return request<ChapterLedger>(`/api/books/${bookId}/chapters/${chapterId}/result`)
+}
+
+export type RerunResult = {
+  status: string
+  chapter_id: number
+  success: boolean
+  steps_used: number
+}
+
+export function rerunChapter(bookId: string, chapterId: number): Promise<RerunResult> {
+  return request<RerunResult>(`/api/books/${bookId}/chapters/${chapterId}/rerun`, {
+    method: 'POST',
+  })
+}
+
+// ── Export ──
+
+async function readError(res: Response): Promise<string> {
+  let detail = res.statusText
+  try {
+    const body = await res.json()
+    detail = body.message || body.detail || JSON.stringify(body)
+  } catch {
+    /* ignore */
+  }
+  return `${res.status}: ${detail}`
+}
+
+/**
+ * GET /export → JSON bundle (meta / cast / factions / overrides / graph / ledgers).
+ * Triggers a browser download using Content-Disposition when present.
+ */
+export async function downloadExport(bookId: string): Promise<string> {
+  const res = await fetch(`/api/books/${bookId}/export`)
+  if (!res.ok) throw new Error(await readError(res))
+  const blob = await res.blob()
+  const cd = res.headers.get('Content-Disposition') ?? ''
+  const match = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(cd)
+  const filename = decodeURIComponent(match?.[1]?.replace(/"/g, '') ?? `zhiying-${bookId}.json`)
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = filename
+  document.body.appendChild(a)
+  a.click()
+  a.remove()
+  URL.revokeObjectURL(url)
+  return filename
+}
+
+// ── Relation type meta ──
+
+export type RelationTypeMeta = {
+  type: string
+  tier: string
+  directed: boolean
+}
+
+export async function getRelationTypes(): Promise<RelationTypeMeta[]> {
+  const data = await request<{ relation_types: RelationTypeMeta[] }>(
+    '/api/meta/relation-types',
+  )
+  return data.relation_types ?? []
+}
+
+/** Fallback if the meta endpoint is unreachable; matches backend SSOT. */
+export const FALLBACK_RELATION_TYPES: RelationTypeMeta[] = [
+  { type: '夫妻', tier: 'hard', directed: false },
+  { type: '亲子', tier: 'hard', directed: true },
+  { type: '兄妹', tier: 'hard', directed: false },
+  { type: '表亲', tier: 'hard', directed: false },
+  { type: '师徒', tier: 'hard', directed: true },
+  { type: '主仆', tier: 'mid', directed: true },
+  { type: '上下级', tier: 'mid', directed: true },
+  { type: '同学', tier: 'mid', directed: false },
+  { type: '结盟', tier: 'mid', directed: false },
+  { type: '敌对', tier: 'mid', directed: false },
+  { type: '朋友', tier: 'soft', directed: false },
+  { type: '相识', tier: 'soft', directed: false },
+  { type: '同场', tier: 'soft', directed: false },
+]

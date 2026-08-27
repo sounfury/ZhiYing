@@ -1,8 +1,18 @@
 import { createContext } from 'react'
-import type { BookMeta, ChapterBrief, GraphData, GraphEdge, GraphNode } from '../api'
+import type {
+  BookMeta,
+  Cast,
+  CastPerson,
+  ChapterBrief,
+  ChapterLedger,
+  GraphData,
+  GraphEdge,
+  GraphNode,
+  RelationTypeMeta,
+} from '../api'
 import type { FocusRequest, LayoutMode } from '../components/GraphView'
 import type { PersonHit } from '../components/PersonSearch'
-import type { AnalysisUi } from '../types'
+import type { AnalysisUi, SideTab } from '../types'
 
 export type AppStateValue = {
   books: BookMeta[]
@@ -20,6 +30,9 @@ export type AppStateValue = {
   setMinAppearance: (v: number) => void
   includeSuppressed: boolean
   setIncludeSuppressed: (v: boolean) => void
+  typeFilter: string[]
+  setTypeFilter: (types: string[]) => void
+  relationTypes: RelationTypeMeta[]
 
   graph: GraphData | null
   graphLoading: boolean
@@ -40,8 +53,11 @@ export type AppStateValue = {
   focusRequest: FocusRequest | null
 
   sideCollapsed: boolean
+  sideTab: SideTab
+  setSideTab: (tab: SideTab) => void
   refitToken: number
   toggleSide: () => void
+  openSide: (tab: SideTab) => void
 
   error: string
   msg: string
@@ -54,6 +70,26 @@ export type AppStateValue = {
   onStop: () => Promise<void>
   onExtractFactions: () => Promise<void>
   onPickPerson: (hit: PersonHit) => void
+  onExport: () => Promise<void>
+  exporting: boolean
+
+  cast: Cast | null
+  castLoading: boolean
+  castSaving: boolean
+  castError: string
+  saveCastPerson: (person: CastPerson) => Promise<void>
+  mergeCast: (keepId: string, dropId: string) => Promise<void>
+  onFocusCastPerson: (personId: string) => void
+
+  ledgerChapterId: number | ''
+  setLedgerChapterId: (id: number | '') => void
+  ledger: ChapterLedger | null
+  ledgerLoading: boolean
+  ledgerMissing: boolean
+  ledgerError: string
+  rerunning: boolean
+  onRerunChapter: () => Promise<void>
+  personName: (personId: string) => string
 }
 
 export const AppStateContext = createContext<AppStateValue | null>(null)
