@@ -1,5 +1,5 @@
 import type { BookMeta, ChapterBrief, GraphFaction } from '../api'
-import type { LayoutMode } from '../GraphView'
+import type { LayoutMode } from './GraphView'
 import { FactionFilter } from './FactionFilter'
 import { MoreFiltersMenu } from './MoreFiltersMenu'
 
