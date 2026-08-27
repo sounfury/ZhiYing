@@ -1,0 +1,60 @@
+{
+  "chapter_id": 9,
+  "persons": [
+    {
+      "person_id": "p001",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p002",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p007",
+      "aliases_in_chapter": []
+    }
+  ],
+  "relations": [
+    {
+      "person_a": "p007",
+      "person_b": "p001",
+      "type": "师徒",
+      "tier": "hard",
+      "directed": true,
+      "evidence": {
+        "chapter_id": 9,
+        "quote": "By this river I want to stay, thought Siddhartha",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p001",
+      "person_b": "p007",
+      "type": "朋友",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 9,
+        "quote": "the ferryman Vasudeva",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p001",
+      "person_b": "p002",
+      "type": "朋友",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 9,
+        "quote": "Govinda",
+        "note": "",
+        "quote_verified": null
+      }
+    }
+  ],
+  "events": [],
+  "summary": "悉达多随渡船人婆苏提婆住下，学听河水。乔文达路过未认出。"
+}

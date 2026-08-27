@@ -18,7 +18,9 @@ env/
 *.env.local
 
 # ── Workspace (runtime data: books, ledgers, DB) ──
-workspace/
+workspace/*
+!workspace/demo-siddhartha/
+!workspace/demo-siddhartha/**
 
 # ── Sample / local EPUB binaries (do not commit) ──
 *.epub

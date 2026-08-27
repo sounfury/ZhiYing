@@ -1,0 +1,64 @@
+{
+  "chapter_id": 12,
+  "persons": [
+    {
+      "person_id": "p001",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p002",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p004",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p005",
+      "aliases_in_chapter": []
+    }
+  ],
+  "relations": [
+    {
+      "person_a": "p001",
+      "person_b": "p002",
+      "type": "朋友",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 12,
+        "quote": "Together with other monks, Govinda",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p004",
+      "person_b": "p002",
+      "type": "师徒",
+      "tier": "hard",
+      "directed": true,
+      "evidence": {
+        "chapter_id": 12,
+        "quote": "the followers of Gotama",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p001",
+      "person_b": "p005",
+      "type": "相识",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 12,
+        "quote": "the courtesan Kamala had given to the followers of Gotama",
+        "note": "",
+        "quote_verified": null
+      }
+    }
+  ],
+  "events": [],
+  "summary": "晚年乔文达再遇悉达多，向他求法。"
+}

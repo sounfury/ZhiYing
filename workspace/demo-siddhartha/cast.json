@@ -1,0 +1,137 @@
+{
+  "version": 1,
+  "persons": [
+    {
+      "person_id": "p001",
+      "canonical_name": "悉达多",
+      "aliases": [
+        {
+          "name": "Siddhartha",
+          "frequency": "high"
+        }
+      ],
+      "bio": "婆罗门之子，后为沙门、商人、船夫",
+      "gender": "male",
+      "importance": "main",
+      "merge_candidates": []
+    },
+    {
+      "person_id": "p002",
+      "canonical_name": "乔文达",
+      "aliases": [
+        {
+          "name": "Govinda",
+          "frequency": "high"
+        }
+      ],
+      "bio": "悉达多幼年挚友，后追随乔达摩",
+      "gender": "male",
+      "importance": "main",
+      "merge_candidates": []
+    },
+    {
+      "person_id": "p003",
+      "canonical_name": "婆罗门父亲",
+      "aliases": [
+        {
+          "name": "the Brahman",
+          "frequency": "high"
+        },
+        {
+          "name": "Siddhartha's father",
+          "frequency": "mid"
+        }
+      ],
+      "bio": "悉达多之父",
+      "gender": "male",
+      "importance": "supporting",
+      "merge_candidates": []
+    },
+    {
+      "person_id": "p004",
+      "canonical_name": "乔达摩",
+      "aliases": [
+        {
+          "name": "Gotama",
+          "frequency": "high"
+        },
+        {
+          "name": "Buddha",
+          "frequency": "mid"
+        },
+        {
+          "name": "the exalted one",
+          "frequency": "low"
+        }
+      ],
+      "bio": "佛陀",
+      "gender": "male",
+      "importance": "supporting",
+      "merge_candidates": []
+    },
+    {
+      "person_id": "p005",
+      "canonical_name": "迦摩罗",
+      "aliases": [
+        {
+          "name": "Kamala",
+          "frequency": "high"
+        }
+      ],
+      "bio": "名妓，悉达多的情人，后把园子施予僧团",
+      "gender": "female",
+      "importance": "main",
+      "merge_candidates": []
+    },
+    {
+      "person_id": "p006",
+      "canonical_name": "迦摩湿瓦米",
+      "aliases": [
+        {
+          "name": "Kamaswami",
+          "frequency": "high"
+        }
+      ],
+      "bio": "富商，教悉达多经商",
+      "gender": "male",
+      "importance": "supporting",
+      "merge_candidates": []
+    },
+    {
+      "person_id": "p007",
+      "canonical_name": "婆苏提婆",
+      "aliases": [
+        {
+          "name": "Vasudeva",
+          "frequency": "high"
+        },
+        {
+          "name": "the ferryman",
+          "frequency": "mid"
+        }
+      ],
+      "bio": "渡船人，悉达多的河流之师",
+      "gender": "male",
+      "importance": "main",
+      "merge_candidates": []
+    },
+    {
+      "person_id": "p008",
+      "canonical_name": "悉达多之子",
+      "aliases": [
+        {
+          "name": "the boy",
+          "frequency": "high"
+        },
+        {
+          "name": "Siddhartha's son",
+          "frequency": "mid"
+        }
+      ],
+      "bio": "迦摩罗与悉达多之子",
+      "gender": "male",
+      "importance": "supporting",
+      "merge_candidates": []
+    }
+  ]
+}

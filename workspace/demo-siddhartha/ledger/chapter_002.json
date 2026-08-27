@@ -1,0 +1,43 @@
+{
+  "chapter_id": 2,
+  "persons": [
+    {
+      "person_id": "p001",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p002",
+      "aliases_in_chapter": []
+    }
+  ],
+  "relations": [
+    {
+      "person_a": "p001",
+      "person_b": "p002",
+      "type": "朋友",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 2,
+        "quote": "Siddhartha and Govinda lived among the Samanas",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p001",
+      "person_b": "p002",
+      "type": "同学",
+      "tier": "mid",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 2,
+        "quote": "they caught up with the ascetics, the skinny Samanas",
+        "note": "",
+        "quote_verified": null
+      }
+    }
+  ],
+  "events": [],
+  "summary": "二人加入沙门苦修。"
+}

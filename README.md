@@ -32,7 +32,7 @@ npm run dev
 
 浏览器打开 **http://127.0.0.1:5173/**  
 
-默认有一本演示书 `【演示】大观园人物关系样例`（workspace/demo-zhiying，可直接出图）。  
+仓库带一本演示书 `悉达多`（`workspace/demo-siddhartha`，已分析，可直接出图）。  
 Vite 已把 `/api` 代理到 `http://127.0.0.1:8000`。
 
 ## 名称含义

@@ -1,0 +1,47 @@
+{
+  "chapter_id": 1,
+  "persons": [
+    {
+      "person_id": "p001",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p002",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p003",
+      "aliases_in_chapter": []
+    }
+  ],
+  "relations": [
+    {
+      "person_a": "p003",
+      "person_b": "p001",
+      "type": "亲子",
+      "tier": "hard",
+      "directed": true,
+      "evidence": {
+        "chapter_id": 1,
+        "quote": "Siddhartha grew up, the handsome son of the Brahman",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p001",
+      "person_b": "p002",
+      "type": "朋友",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 1,
+        "quote": "his friend, the Brahman's son Govinda",
+        "note": "",
+        "quote_verified": null
+      }
+    }
+  ],
+  "events": [],
+  "summary": "婆罗门之子悉达多与挚友乔文达长大，决意出走做沙门。"
+}

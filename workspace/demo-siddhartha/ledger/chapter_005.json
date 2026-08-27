@@ -1,0 +1,43 @@
+{
+  "chapter_id": 5,
+  "persons": [
+    {
+      "person_id": "p001",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p005",
+      "aliases_in_chapter": []
+    }
+  ],
+  "relations": [
+    {
+      "person_a": "p001",
+      "person_b": "p005",
+      "type": "朋友",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 5,
+        "quote": "Kamala smiled and played with her fan of peacocks' feathers",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p001",
+      "person_b": "p005",
+      "type": "相识",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 5,
+        "quote": "Siddhartha went to the beautiful Kamala",
+        "note": "",
+        "quote_verified": null
+      }
+    }
+  ],
+  "events": [],
+  "summary": "悉达多遇见名妓迦摩罗，向她学爱。"
+}

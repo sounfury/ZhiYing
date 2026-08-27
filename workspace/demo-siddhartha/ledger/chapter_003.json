@@ -1,0 +1,60 @@
+{
+  "chapter_id": 3,
+  "persons": [
+    {
+      "person_id": "p001",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p002",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p004",
+      "aliases_in_chapter": []
+    }
+  ],
+  "relations": [
+    {
+      "person_a": "p004",
+      "person_b": "p002",
+      "type": "师徒",
+      "tier": "hard",
+      "directed": true,
+      "evidence": {
+        "chapter_id": 3,
+        "quote": "Govinda, his shadow, had become a disciple of Gotama",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p001",
+      "person_b": "p004",
+      "type": "相识",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 3,
+        "quote": "Siddhartha spoke to the exalted one",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p001",
+      "person_b": "p002",
+      "type": "朋友",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 3,
+        "quote": "then he felt that in this grove his past life also stayed behind, where Govinda stayed behind",
+        "note": "",
+        "quote_verified": null
+      }
+    }
+  ],
+  "events": [],
+  "summary": "乔文达皈依乔达摩；悉达多与佛一谈后独自上路。"
+}

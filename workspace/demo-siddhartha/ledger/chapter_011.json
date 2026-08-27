@@ -1,0 +1,47 @@
+{
+  "chapter_id": 11,
+  "persons": [
+    {
+      "person_id": "p001",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p007",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p008",
+      "aliases_in_chapter": []
+    }
+  ],
+  "relations": [
+    {
+      "person_a": "p001",
+      "person_b": "p008",
+      "type": "亲子",
+      "tier": "hard",
+      "directed": true,
+      "evidence": {
+        "chapter_id": 11,
+        "quote": "the wound continued to burn",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p007",
+      "person_b": "p001",
+      "type": "师徒",
+      "tier": "hard",
+      "directed": true,
+      "evidence": {
+        "chapter_id": 11,
+        "quote": "Vasudeva",
+        "note": "",
+        "quote_verified": null
+      }
+    }
+  ],
+  "events": [],
+  "summary": "丧子之痛后悉达多在河上证得圆满，婆苏提婆入林。"
+}

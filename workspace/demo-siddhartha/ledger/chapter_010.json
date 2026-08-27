@@ -1,0 +1,77 @@
+{
+  "chapter_id": 10,
+  "persons": [
+    {
+      "person_id": "p001",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p005",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p007",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p008",
+      "aliases_in_chapter": []
+    }
+  ],
+  "relations": [
+    {
+      "person_a": "p001",
+      "person_b": "p008",
+      "type": "亲子",
+      "tier": "hard",
+      "directed": true,
+      "evidence": {
+        "chapter_id": 10,
+        "quote": "Siddhartha, who greeted him as his son",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p005",
+      "person_b": "p008",
+      "type": "亲子",
+      "tier": "hard",
+      "directed": true,
+      "evidence": {
+        "chapter_id": 10,
+        "quote": "the boy had attended his mother's funeral",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p001",
+      "person_b": "p005",
+      "type": "朋友",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 10,
+        "quote": "Kamala",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p007",
+      "person_b": "p001",
+      "type": "师徒",
+      "tier": "hard",
+      "directed": true,
+      "evidence": {
+        "chapter_id": 10,
+        "quote": "at his place in Vasudeva's hut",
+        "note": "",
+        "quote_verified": null
+      }
+    }
+  ],
+  "events": [],
+  "summary": "迦摩罗死后，其子被悉达多认领，却无法相处。"
+}

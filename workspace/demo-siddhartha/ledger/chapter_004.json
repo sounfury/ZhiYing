@@ -1,0 +1,47 @@
+{
+  "chapter_id": 4,
+  "persons": [
+    {
+      "person_id": "p001",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p002",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p004",
+      "aliases_in_chapter": []
+    }
+  ],
+  "relations": [
+    {
+      "person_a": "p001",
+      "person_b": "p002",
+      "type": "朋友",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 4,
+        "quote": "where Govinda stayed behind",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p001",
+      "person_b": "p004",
+      "type": "相识",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 4,
+        "quote": "When Siddhartha left the grove, where the Buddha, the perfected one, stayed behind",
+        "note": "",
+        "quote_verified": null
+      }
+    }
+  ],
+  "events": [],
+  "summary": "悉达多离开林园，自觉如新生。"
+}

@@ -1,0 +1,60 @@
+{
+  "chapter_id": 6,
+  "persons": [
+    {
+      "person_id": "p001",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p005",
+      "aliases_in_chapter": []
+    },
+    {
+      "person_id": "p006",
+      "aliases_in_chapter": []
+    }
+  ],
+  "relations": [
+    {
+      "person_a": "p006",
+      "person_b": "p001",
+      "type": "师徒",
+      "tier": "hard",
+      "directed": true,
+      "evidence": {
+        "chapter_id": 6,
+        "quote": "Siddhartha went to Kamaswami the merchant",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p006",
+      "person_b": "p001",
+      "type": "上下级",
+      "tier": "mid",
+      "directed": true,
+      "evidence": {
+        "chapter_id": 6,
+        "quote": "he was directed into a rich house",
+        "note": "",
+        "quote_verified": null
+      }
+    },
+    {
+      "person_a": "p001",
+      "person_b": "p005",
+      "type": "朋友",
+      "tier": "soft",
+      "directed": false,
+      "evidence": {
+        "chapter_id": 6,
+        "quote": "Kamala had led him to the merchant",
+        "note": "",
+        "quote_verified": null
+      }
+    }
+  ],
+  "events": [],
+  "summary": "迦摩罗介绍悉达多投奔富商迦摩湿瓦米学经商。"
+}
