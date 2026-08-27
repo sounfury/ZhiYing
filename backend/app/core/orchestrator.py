@@ -23,7 +23,7 @@ from app.agent.reconcile_agent import run_reconcile_agent
 from app.config import Settings, settings
 from app.core.patch_applier import PatchApplier
 from app.core.suspects import SuspectsGenerator
-from app.errors import analysis_already_running
+from app.errors import AppError, ErrorCode, analysis_already_running
 from app.logging_config import get_logger
 from app.models.book import (
     AnalysisMode,
@@ -157,6 +157,95 @@ class Orchestrator:
             "status": "analyzing",
             "mode": "few_long",
             "total_chapters": self._total_chapters,
+        }
+
+    async def rerun_chapter(self, chapter_id: int) -> dict:
+        """
+        重跑单章：覆盖该章 ledger，不级联后续章，不跑 Reconcile。
+
+        调用方须先校验书/章存在。分析中 / 校对中 → ANALYSIS_ALREADY_RUNNING。
+        """
+        async with _get_start_lock(self.book_id):
+            meta = await asyncio.to_thread(self.filestore.read_meta, self.book_id)
+            if meta.status in (BookStatus.ANALYZING, BookStatus.RECONCILING):
+                raise analysis_already_running(self.book_id)
+            prev_status = meta.status
+            meta.status = BookStatus.ANALYZING
+            await asyncio.to_thread(self.filestore.write_meta, self.book_id, meta)
+
+        result: AgentResult | None = None
+        error: Exception | None = None
+        try:
+            cast_snapshot = await asyncio.to_thread(
+                self.filestore.read_cast, self.book_id
+            )
+            result = await run_chapter_agent(
+                self.book_id,
+                chapter_id,
+                cast_snapshot,
+                self.filestore,
+                self.cfg,
+            )
+            if result.success and result.cast_buffer:
+                writer = CastWriter(self.book_id, self.filestore)
+                writer.apply(chapter_id, result.cast_buffer)
+                await asyncio.to_thread(writer.finalize)
+        except Exception as e:
+            error = e
+            logger.error("Chapter rerun failed: book=%s ch=%d err=%s", self.book_id, chapter_id, e)
+
+        # restore status; on success record this chapter as done
+        meta = await asyncio.to_thread(self.filestore.read_meta, self.book_id)
+        if result is not None and result.success:
+            done = list(meta.analysis_progress.chapters_done)
+            failed = list(meta.analysis_progress.chapters_failed)
+            if chapter_id not in done:
+                done.append(chapter_id)
+                done.sort()
+            if chapter_id in failed:
+                failed = [c for c in failed if c != chapter_id]
+            meta.analysis_progress.chapters_done = done
+            meta.analysis_progress.chapters_failed = failed
+            if prev_status in (
+                BookStatus.UPLOADED,
+                BookStatus.FAILED,
+                BookStatus.CAST_PASS,
+            ) and done:
+                meta.status = BookStatus.ANALYZED
+            else:
+                meta.status = prev_status
+        else:
+            meta.status = prev_status
+        await asyncio.to_thread(self.filestore.write_meta, self.book_id, meta)
+
+        if error is not None:
+            if isinstance(error, AppError):
+                raise error
+            raise AppError(
+                ErrorCode.LLM_PROVIDER_ERROR,
+                f"Chapter rerun failed: {error}",
+                status_code=502,
+            )
+
+        if result is None or not result.success:
+            warning = result.warning if result is not None else "unknown error"
+            raise AppError(
+                ErrorCode.LLM_PROVIDER_ERROR,
+                f"Chapter rerun failed: {warning}",
+                status_code=502,
+            )
+
+        logger.info(
+            "Chapter rerun complete: book=%s ch=%d steps=%d",
+            self.book_id,
+            chapter_id,
+            result.steps_used,
+        )
+        return {
+            "status": "ok",
+            "chapter_id": chapter_id,
+            "success": True,
+            "steps_used": result.steps_used,
         }
 
     async def _run(self) -> None:

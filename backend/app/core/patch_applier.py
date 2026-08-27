@@ -97,6 +97,23 @@ class PatchApplier:
 
         return result
 
+    def merge_persons(self, keep_id: str, drop_id: str) -> Cast:
+        """
+        人工合并两人（ARCHITECTURE §8.2）。
+
+        复用 _apply_merges：keep 吸收 drop 的别名，删 drop；
+        全库 ledger + relation_overrides 确定性 rewrite person_id；
+        自环边丢弃。返回更新后的 Cast。
+        """
+        remap = self._apply_merges(
+            [MergeSuggestion(keep_id=keep_id, drop_id=drop_id, reason="manual")]
+        )
+        if not remap:
+            logger.warning(
+                "merge_persons applied nothing: keep=%s drop=%s", keep_id, drop_id
+            )
+        return self.filestore.read_cast(self.book_id)
+
     # ── 1. 合并 ──
 
     def _apply_merges(self, merges: List[MergeSuggestion]) -> Dict[str, str]:

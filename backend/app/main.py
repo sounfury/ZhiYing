@@ -2,7 +2,7 @@
 ZhiYing 后端入口。
 
 FastAPI app + CORS + 全局异常处理 + 日志初始化。
-路由暂为 501 骨架，后续逐步实现。
+书籍 / 分析 / 校对编辑路由已拆到 app/api/。
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from app.errors import register_exception_handlers
 from app.logging_config import get_logger, setup_logging
 from app.api.books import router as books_router
 from app.api.analysis import router as analysis_router
+from app.api.edits import router as edits_router
 
 logger = get_logger("main")
 
@@ -44,6 +45,7 @@ def create_app() -> FastAPI:
     # ── 路由注册 ──
     app.include_router(books_router)
     app.include_router(analysis_router)
+    app.include_router(edits_router)
 
     _register_remaining_routes(app)
 
@@ -62,11 +64,7 @@ def create_app() -> FastAPI:
 
 
 def _register_remaining_routes(app: FastAPI) -> None:
-    """
-    其余 P0 路由骨架（尚未实现的端点）。
-
-    books 相关路由已拆到 app/api/books.py。
-    """
+    """health + relation-types；编辑/导出路由在 app/api/edits.py。"""
 
     @app.get("/api/health")
     async def health() -> dict:
@@ -86,55 +84,6 @@ def _register_remaining_routes(app: FastAPI) -> None:
                 "directed": meta.directed,
             })
         return {"relation_types": result}
-
-    # ── 以下路由返回 501，待实现 ──
-
-    @app.post("/api/books/{book_id}/chapters/{cid}/rerun")
-    async def rerun_chapter(book_id: str, cid: int) -> dict:
-        from app.errors import AppError, ErrorCode
-        raise AppError(
-            ErrorCode.INTERNAL_ERROR,
-            "Not implemented yet",
-            status_code=501,
-        )
-
-    @app.put("/api/books/{book_id}/cast")
-    async def update_cast(book_id: str) -> dict:
-        from app.errors import AppError, ErrorCode
-        raise AppError(
-            ErrorCode.INTERNAL_ERROR,
-            "Not implemented yet",
-            status_code=501,
-        )
-
-    # GET /api/books/{book_id}/graph → analysis router (Aggregator)
-
-    @app.put("/api/books/{book_id}/relations")
-    async def update_relations(book_id: str) -> dict:
-        from app.errors import AppError, ErrorCode
-        raise AppError(
-            ErrorCode.INTERNAL_ERROR,
-            "Not implemented yet",
-            status_code=501,
-        )
-
-    @app.post("/api/books/{book_id}/cast/merge")
-    async def merge_persons(book_id: str) -> dict:
-        from app.errors import AppError, ErrorCode
-        raise AppError(
-            ErrorCode.INTERNAL_ERROR,
-            "Not implemented yet",
-            status_code=501,
-        )
-
-    @app.get("/api/books/{book_id}/export")
-    async def export_book(book_id: str) -> dict:
-        from app.errors import AppError, ErrorCode
-        raise AppError(
-            ErrorCode.INTERNAL_ERROR,
-            "Not implemented yet",
-            status_code=501,
-        )
 
 
 # ── uvicorn entry ──
