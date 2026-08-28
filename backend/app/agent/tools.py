@@ -267,8 +267,11 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
         persons: List[Dict],
     ) -> str:
         """
-        Propose one or more new persons for the cast registry in a single call.
+        Propose one or more named characters for the cast registry in a single call.
         Returns a mapping from canonical_name to person_id for every person.
+
+        Only named characters (proper names). Do not propose unnamed extras,
+        occupational types, or groups (e.g. "洗衣少女", "沙门").
 
         For each person:
         - If canonical_name already exists in the frozen cast snapshot, returns the existing person_id.
@@ -482,30 +485,12 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
             JSON string: {status: "submitted"} on success,
             or {status: "error", message: "..."} on validation failure.
         """
-        # ── 派生本章出场人物 ──
-        # = cast_buffer 中 propose 过的人 + relations 中引用到的人
-        person_ids_in_chapter: set[str] = set(ctx.cast_buffer.keys())
-        for rel in ctx.relations_buffer:
-            person_ids_in_chapter.add(rel.person_a)
-            person_ids_in_chapter.add(rel.person_b)
-
-        ledger_persons = [
-            ChapterPerson(person_id=pid, aliases_in_chapter=[])
-            for pid in sorted(person_ids_in_chapter)
-        ]
-
-        ctx.submit_ledger = ChapterLedger(
-            chapter_id=ctx.chapter_id,
-            persons=ledger_persons,
-            relations=list(ctx.relations_buffer),
-            events=[],  # events 不再由模型生成
-            summary=summary,
-        )
+        ctx.finalize_submit(summary=summary)
 
         logger.info(
             "submit_result success: ch=%d, persons=%d, relations=%d",
             ctx.chapter_id,
-            len(ledger_persons),
+            len(ctx.submit_ledger.persons) if ctx.submit_ledger else 0,
             len(ctx.relations_buffer),
         )
         return json.dumps({"status": "submitted"}, ensure_ascii=False)

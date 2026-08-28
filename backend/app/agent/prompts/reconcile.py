@@ -183,7 +183,7 @@ def build_user_prompt(
         f"## 可疑清单\n{suspects_text}\n\n"
         f"## 各章摘要\n{summaries_text}\n\n"
         f"## 任务\n"
-        f"请逐项处理可疑清单，并顺手合并中/英译名（即使不在清单里，人名册里明显的 Govinda/乔文达、Gotama/乔达摩 等也要合并，keep 中文名）。对每项：\n"
+        f"请逐项处理可疑清单。对每项：\n"
         f"1. 先用工具回查原文（search_in_chapter / read_chapter_text / get_chapter_result）\n"
         f"2. 做出决策：合并 / 改别名 / 改关系 / 写待办。误标的师徒（拒拜师、教情爱）应 remove\n"
         f"3. 全部处理完后，用 submit_reconciliation 一次性提交。\n"

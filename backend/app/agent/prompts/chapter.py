@@ -114,7 +114,7 @@ def _build_short_chapter_prompt(chapter: Chapter, cast_summary: str) -> str:
         f"{chapter.content}\n\n"
         f"## 任务\n"
         f"请分析本章出场的人物及其关系。\n"
-        f"1. 用 propose_persons 一次性批量提议所有**有姓名的**出场人物（已在 cast 快照中则直接引用 person_id；译名写入 aliases，正式名优先中文）。不要 propose 无名龙套/职业类型/群体。\n"
+        f"1. 用 propose_persons 一次性批量提议所有**有姓名的**出场人物（已在 cast 快照中则直接引用 person_id）。不要 propose 无名龙套/职业类型/群体。\n"
         f"2. 用 submit_relations 提交本章关系（可分批）。亲属称呼必须写成 hard 边（亲子/兄妹/表亲/夫妻）。**师徒仅明确拜师/收徒**（拒拜师、辩论、教情爱→相识或朋友）。**同场仅有名角色且确有互动**。\n"
         f"3. 必须用 submit_result(summary) 提交一句话章总结并结束；不调用则本章没有账本。\n"
     )
@@ -141,7 +141,7 @@ def _build_long_chapter_prompt(
         f"从 offset=0 开始，每次推进 offset += {read_window_chars}，直到 has_more=false。\n"
         f"如需精确查找某人名，可使用 grep_in_chapter(keyword) 快速定位。\n\n"
         f"## 任务\n"
-        f"读完正文后：用 propose_persons 批量提议**有姓名的**人物（译名合一、正式名优先中文；不要龙套/群体）、用 submit_relations 提交关系（可分批）、最后必须用 submit_result(summary) 结束。\n"
+        f"读完正文后：用 propose_persons 批量提议**有姓名的**人物（不要龙套/职业类型/群体）、用 submit_relations 提交关系（可分批）、最后必须用 submit_result(summary) 结束。\n"
         f"特别注意：亲属称呼须落 hard 关系。师徒仅明确拜师/收徒（拒拜师或教情爱不是师徒）。同场仅有名角色且确有互动。\n"
     )
 
