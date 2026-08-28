@@ -137,7 +137,7 @@ def relation_summary_for_prompt() -> str:
             # 打个简注
             _HINTS = {
                 "亲子": "a是b的父母",
-                "师徒": "a是师傅",
+                "师徒": "a是师傅；仅明确拜师/收徒，拒拜师或学艺≠师徒",
                 "主仆": "a是主人",
                 "上下级": "a是上级",
             }
@@ -146,5 +146,11 @@ def relation_summary_for_prompt() -> str:
             suffix = ": 舅/叔/姑/姨/甥/侄/堂表等旁系；勿用「相识」敷衍"
         elif name == "兄妹":
             suffix = ": 兄弟姐妹"
+        elif name == "同场":
+            suffix = ": 仅有名角色且确有互动；勿给龙套/同框路人"
+        elif name == "相识":
+            suffix = ": 认识但无亲友/师徒身份；会面、辩论、拒拜师用此"
+        elif name == "朋友":
+            suffix = ": 明确友谊；教情爱但未拜师用此，勿标师徒"
         lines.append(f"  - {name} ({tier.value}, {direction}{suffix})")
     return "\n".join(lines)

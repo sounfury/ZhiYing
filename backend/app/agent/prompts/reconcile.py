@@ -43,6 +43,11 @@ _SYSTEM_TEMPLATE = """\
 
 {relation_summary}
 
+## 师徒修正
+
+**师徒仅用于明确拜师/收徒/门下弟子。** 会面、辩论、听讲但拒绝成为弟子、学过某人所教、情人互称老师、教授情爱或技艺但未拜师 → 不是师徒。
+若账本误标师徒，用 relation_changes **remove** 该师徒，必要时 **add** 相识或朋友（带 quote）。不要把拒拜师改成或保留为师徒。
+
 ## 亲属修正提示
 
 若原文出现「舅/舅公/uncle/叔/姑/父母/兄妹」等，而账本只有「相识/同场」，应考虑 relation_changes **add** 为 **表亲 / 亲子 / 兄妹 / 夫妻**（带 chapter_id + quote），不要无证据乱合并人名。
@@ -178,8 +183,8 @@ def build_user_prompt(
         f"## 可疑清单\n{suspects_text}\n\n"
         f"## 各章摘要\n{summaries_text}\n\n"
         f"## 任务\n"
-        f"请逐项处理可疑清单。对每项：\n"
+        f"请逐项处理可疑清单，并顺手合并中/英译名（即使不在清单里，人名册里明显的 Govinda/乔文达、Gotama/乔达摩 等也要合并，keep 中文名）。对每项：\n"
         f"1. 先用工具回查原文（search_in_chapter / read_chapter_text / get_chapter_result）\n"
-        f"2. 做出决策：合并 / 改别名 / 改关系 / 写待办\n"
+        f"2. 做出决策：合并 / 改别名 / 改关系 / 写待办。误标的师徒（拒拜师、教情爱）应 remove\n"
         f"3. 全部处理完后，用 submit_reconciliation 一次性提交。\n"
     )

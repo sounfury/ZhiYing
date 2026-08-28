@@ -37,6 +37,13 @@ from app.storage.filestore import Filestore
 
 logger = get_logger("agent.chapter_agent")
 
+_SUBMIT_REMINDER = (
+    "你刚才没有调用任何工具。纯文本不会写入账本。"
+    "若人物/关系已提交完毕，请立即调用 submit_result(summary) 结束本章；"
+    "若尚未提交，请先 propose_persons / submit_relations，最后必须调用 submit_result。"
+    "即使本章很短、出场很少，也必须调用 submit_result，否则本章没有账本。"
+)
+
 
 @dataclass
 class AgentResult:
@@ -142,6 +149,8 @@ async def run_chapter_agent(
     # ── Tool-calling loop ──
     steps_used = 0
     submitted = False
+    auto_finalized = False
+    reminded_submit = False
     total_llm_ms = 0.0
     total_tool_ms = 0.0
 
@@ -172,11 +181,37 @@ async def run_chapter_agent(
         tool_calls = getattr(ai_response, "tool_calls", None)
         if not tool_calls:
             logger.info(
-                "Agent exited without tool calls at step %d (ch=%d) llm_ms=%.0f",
+                "Agent emitted no tool calls at step %d (ch=%d) llm_ms=%.0f",
                 steps_used,
                 chapter_id,
                 llm_ms,
             )
+            # 已有人物/关系 → 走与 submit_result 相同的路径自动收尾
+            if ctx.has_accumulated_work() or ctx.submit_ledger is not None:
+                if ctx.submit_ledger is None:
+                    summary = _summary_from_ai(ai_response)
+                    ctx.finalize_submit(summary=summary)
+                    auto_finalized = True
+                submitted = True
+                logger.info(
+                    "Auto-finalized chapter %d at step %d (persons=%d relations=%d)",
+                    chapter_id,
+                    steps_used,
+                    len(ctx.cast_buffer),
+                    len(ctx.relations_buffer),
+                )
+                break
+            # 尚未累积：提醒一次继续循环，要求调用 submit_result
+            if not reminded_submit and step < max_steps - 1:
+                reminded_submit = True
+                messages.append(HumanMessage(content=_SUBMIT_REMINDER))
+                logger.info("Reminded agent to submit_result (ch=%d step=%d)", chapter_id, steps_used)
+                continue
+            # 提醒过仍不调工具：空账本也要落盘，避免短章丢失
+            ctx.finalize_submit(summary=_summary_from_ai(ai_response))
+            auto_finalized = True
+            submitted = True
+            logger.info("Auto-finalized empty chapter %d after no tool calls", chapter_id)
             break
 
         # ── 执行工具 ──
@@ -236,6 +271,20 @@ async def run_chapter_agent(
         if submitted:
             break
 
+    # 步数用尽仍未提交：若已有人物/关系则自动收尾
+    if not submitted and (ctx.has_accumulated_work() or ctx.submit_ledger is not None):
+        if ctx.submit_ledger is None:
+            ctx.finalize_submit(summary="")
+            auto_finalized = True
+        submitted = True
+        logger.info(
+            "Auto-finalized chapter %d after %d steps (persons=%d relations=%d)",
+            chapter_id,
+            steps_used,
+            len(ctx.cast_buffer),
+            len(ctx.relations_buffer),
+        )
+
     # ── 构建结果 ──
     if not submitted:
         logger.warning(
@@ -244,13 +293,19 @@ async def run_chapter_agent(
             chapter_id,
         )
 
+    warning = ""
+    if not submitted:
+        warning = f"Did not submit within {max_steps} steps"
+    elif auto_finalized:
+        warning = "auto-finalized without submit_result"
+
     result = AgentResult(
         chapter_id=chapter_id,
         ledger=ctx.submit_ledger,
         cast_buffer=ctx.cast_buffer,
         summary=ctx.submit_ledger.summary if ctx.submit_ledger else "",
         success=submitted,
-        warning="" if submitted else f"Did not submit within {max_steps} steps",
+        warning=warning,
         steps_used=steps_used,
     )
 
@@ -271,3 +326,21 @@ async def run_chapter_agent(
     )
 
     return result
+
+
+def _summary_from_ai(ai_response: AIMessage) -> str:
+    """从模型的非工具文本里摘一句话当 summary（过长截断）。"""
+    content = getattr(ai_response, "content", "") or ""
+    if isinstance(content, list):
+        parts: list[str] = []
+        for block in content:
+            if isinstance(block, str):
+                parts.append(block)
+            elif isinstance(block, dict) and block.get("type") == "text":
+                parts.append(str(block.get("text") or ""))
+        content = "\n".join(parts)
+    text = str(content).strip()
+    if len(text) > 2000:
+        text = text[:2000]
+    return text
+

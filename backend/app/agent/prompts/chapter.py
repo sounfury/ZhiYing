@@ -35,9 +35,9 @@ _SYSTEM_TEMPLATE = """\
 
 - **先读文再分析**：如果正文未注入 prompt，必须先调用 read_chapter_window 逐窗读取全文后再分析。
 - **同一人物不重复 propose**：同一 canonical_name 再次 propose 会返回已有 id，不会创建新人物。
-- **批量提议人物**：将本章所有出场人物一次性传入 propose_persons，不要逐个调用。
+- **批量提议人物**：将本章所有**有姓名的角色**一次性传入 propose_persons，不要逐个调用。
 - **关系可分批提交**：用 submit_relations 分批提交关系，每批不宜超过 15 条。可读完一段正文就提交该段的关系，也可以最后一次性提交全部。
-- **submit_result 是终止信号**：所有关系提交完毕后，调用一次 submit_result(summary) 结束分析。不再需要传 persons 和 relations。
+- **submit_result 必须调用**：人物/关系提交完毕后，必须调用一次 submit_result(summary) 结束分析。只发纯文本、不调工具 = 本章没有账本。即使本章很短、只有一两个人，propose 之后也必须 submit_result。
 
 ## 关系类型枚举（唯一权威源）
 
@@ -60,9 +60,19 @@ _SYSTEM_TEMPLATE = """\
 
 1. **称谓即证据**：如「查尔斯舅公」「我舅舅」「uncle Charles」→ 查尔斯与对应晚辈（常为叙事主角/其父母一辈所指对象）之间应有 **表亲**（或能确定父母子女时用 **亲子**），并尽量带 quote。
 2. **同一章内**：人物已 propose 进 persons 且文中有明确亲属称呼时，**必须**在 relations 中写出对应 hard 边，禁止只登记出场不写亲缘。
-3. **宁可用表亲/兄妹/亲子，不要用相识**：相识仅用于「认识但无明显亲友身份」；同场仅用于同框但无社交关系。
+3. **宁可用表亲/兄妹/亲子，不要用相识**：相识仅用于「认识但无明显亲友/师徒身份」。
 4. **多标签可并存**：例如既是表亲又同场，可同时有 表亲 + 同场；hard 不会被 soft 顶替，但 soft 不能代替 hard。
 5. **拿不准直系还是旁系**：优先 **表亲**（旁系 hard），不要降级成相识。
+
+## 人物收录
+
+- **只收录有姓名（或稳定专名）的角色**。不要把无名龙套、职业类型、群体当成人物。反例：洗衣少女、理发匠学徒、沙门（作为一群人）、村民们、路过的女人。群体用叙述即可，不要 propose。
+- 已在人名册中的人：直接引用其 person_id，不要因拼写差异再 propose。
+
+## 师徒 / 同场（易误标，必须收紧）
+
+- **师徒**（有向，a 是师傅）：**仅当**正文有明确拜师、收徒、成为门下弟子、正式师承。会面、辩论、听讲但**拒绝**成为弟子、路过请教、互称老师但未拜师、教授情爱或一门技艺但未拜师 → **不是师徒**。拒拜师、辩论后离去 → **相识**；教情爱且互称朋友 → **朋友**。
+- **同场**：仅当**双方都是有姓名的角色**，并且本章确实有互动（对话/肢体/明确共同行动）。不要因为两人出现在同一场景就打同场；不要给龙套、职业路人、群体打同场。
 
 ## 出口约定（校验规则）
 
@@ -73,7 +83,7 @@ _SYSTEM_TEMPLATE = """\
 
 ## 输出语言
 
-- canonical_name、aliases、bio、summary 等文本字段：使用书中出现的原文语言（通常为中文）。
+- canonical_name、aliases、bio、summary 等文本字段：使用书中出现的原文语言（默认中文）。
 - 关系 type：必须使用上述枚举中的中文类型名。
 """
 
@@ -104,9 +114,9 @@ def _build_short_chapter_prompt(chapter: Chapter, cast_summary: str) -> str:
         f"{chapter.content}\n\n"
         f"## 任务\n"
         f"请分析本章出场的人物及其关系。\n"
-        f"1. 用 propose_persons 一次性批量提议所有出场人物（如果已在 cast 快照中则直接引用其 person_id）。\n"
-        f"2. 用 submit_relations 提交本章所有关系（可分批）。**亲属称呼（舅/叔/父/母/兄妹等）必须写成 hard 边（亲子/兄妹/表亲/夫妻），禁止只用相识。**\n"
-        f"3. 用 submit_result(summary) 提交一句话章总结，结束分析。\n"
+        f"1. 用 propose_persons 一次性批量提议所有**有姓名的**出场人物（已在 cast 快照中则直接引用 person_id；译名写入 aliases，正式名优先中文）。不要 propose 无名龙套/职业类型/群体。\n"
+        f"2. 用 submit_relations 提交本章关系（可分批）。亲属称呼必须写成 hard 边（亲子/兄妹/表亲/夫妻）。**师徒仅明确拜师/收徒**（拒拜师、辩论、教情爱→相识或朋友）。**同场仅有名角色且确有互动**。\n"
+        f"3. 必须用 submit_result(summary) 提交一句话章总结并结束；不调用则本章没有账本。\n"
     )
 
 
@@ -131,8 +141,8 @@ def _build_long_chapter_prompt(
         f"从 offset=0 开始，每次推进 offset += {read_window_chars}，直到 has_more=false。\n"
         f"如需精确查找某人名，可使用 grep_in_chapter(keyword) 快速定位。\n\n"
         f"## 任务\n"
-        f"读完正文后：用 propose_persons 批量提议人物、用 submit_relations 提交关系（可分批）、最后用 submit_result(summary) 结束。\n"
-        f"特别注意：亲属称呼（舅公/舅舅/叔叔/父母/兄妹等）须落 hard 关系（表亲/亲子/兄妹/夫妻），禁止一律写成相识。\n"
+        f"读完正文后：用 propose_persons 批量提议**有姓名的**人物（译名合一、正式名优先中文；不要龙套/群体）、用 submit_relations 提交关系（可分批）、最后必须用 submit_result(summary) 结束。\n"
+        f"特别注意：亲属称呼须落 hard 关系。师徒仅明确拜师/收徒（拒拜师或教情爱不是师徒）。同场仅有名角色且确有互动。\n"
     )
 
 

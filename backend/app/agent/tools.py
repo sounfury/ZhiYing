@@ -89,6 +89,31 @@ class ChapterToolContext:
             self._cached_content = fs.read_chapter_content(self.book_id, self.chapter_id)
         return self._cached_content
 
+    def has_accumulated_work(self) -> bool:
+        """本章是否已 propose 人物或提交过关系。"""
+        return bool(self.cast_buffer) or bool(self.relations_buffer)
+
+    def finalize_submit(self, summary: str = "") -> ChapterLedger:
+        """与 submit_result 同一落账路径；漏调 submit_result 时由 chapter_agent 收尾。"""
+        person_ids_in_chapter: set[str] = set(self.cast_buffer.keys())
+        for rel in self.relations_buffer:
+            person_ids_in_chapter.add(rel.person_a)
+            person_ids_in_chapter.add(rel.person_b)
+
+        ledger_persons = [
+            ChapterPerson(person_id=pid, aliases_in_chapter=[])
+            for pid in sorted(person_ids_in_chapter)
+        ]
+
+        self.submit_ledger = ChapterLedger(
+            chapter_id=self.chapter_id,
+            persons=ledger_persons,
+            relations=list(self.relations_buffer),
+            events=[],
+            summary=summary or "",
+        )
+        return self.submit_ledger
+
 
 # ── 工具工厂 ──
 
