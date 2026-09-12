@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 from dataclasses import dataclass, field
 from typing import Any, Awaitable, Callable, Optional
@@ -48,6 +49,22 @@ def structured_parsed(response: Any) -> Any:
     return response
 
 
+def _message_chars(messages: Any) -> int:
+    """Best-effort character count for the explicit message payload sent by callers."""
+    items = messages if isinstance(messages, (list, tuple)) else [messages]
+    total = 0
+    for item in items:
+        content = getattr(item, "content", item)
+        if isinstance(content, str):
+            total += len(content)
+            continue
+        try:
+            total += len(json.dumps(content, ensure_ascii=False, default=str))
+        except Exception:
+            total += len(str(content))
+    return total
+
+
 def is_quota_or_budget_error(exc: BaseException) -> bool:
     text = str(exc).lower()
     markers = (
@@ -86,10 +103,12 @@ class LLMControl:
     event_sink: Optional[EventSink] = None
     started_at: float = field(default_factory=time.monotonic)
     request_count: int = 0
+    message_chars: int = 0
     input_tokens: int = 0
     output_tokens: int = 0
     total_tokens: int = 0
     phase_requests: dict[str, int] = field(default_factory=dict)
+    phase_message_chars: dict[str, int] = field(default_factory=dict)
     relation_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
     stop_reason: str = ""
     _lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
@@ -133,13 +152,14 @@ class LLMControl:
     def snapshot(self) -> dict[str, Any]:
         return {
             "llm_requests": self.request_count,
+            "message_chars": self.message_chars,
             "input_tokens": self.input_tokens,
             "output_tokens": self.output_tokens,
             "total_tokens": self.total_tokens,
             "stop_reason": self.stop_reason,
         }
 
-    async def reserve(self, phase: str, context: str) -> int:
+    async def reserve(self, phase: str, context: str, *, message_chars: int = 0) -> int:
         async with self._lock:
             if self.stop_event.is_set():
                 raise LLMStopped(self.stop_reason or "analysis stopped")
@@ -158,12 +178,16 @@ class LLMControl:
                 self.stop_reason = f"{phase} request budget exceeded ({phase_limit})"
                 self.stop_event.set()
                 raise LLMBudgetExceeded(self.stop_reason)
+            request_message_chars = max(0, int(message_chars))
             self.request_count += 1
+            self.message_chars += request_message_chars
             self.phase_requests[phase] = phase_count + 1
+            self.phase_message_chars[phase] = self.phase_message_chars.get(phase, 0) + request_message_chars
             request_no = self.request_count
         await self.emit({
             "kind": "llm_request_start", "phase": phase, "context": context,
-            "request_no": request_no, **self.snapshot(),
+            "request_no": request_no, "request_message_chars": request_message_chars,
+            **self.snapshot(),
         })
         return request_no
 
@@ -200,9 +224,10 @@ async def invoke_controlled(
     """Invoke a model without hidden provider retries and with task stop/budget checks."""
     retry_limit = retries if retries is not None else (control.request_retries if control else 0)
     attempt = 0
+    message_chars = _message_chars(messages)
     while True:
         if control is not None:
-            await control.reserve(phase, context)
+            await control.reserve(phase, context, message_chars=message_chars)
         started = time.perf_counter()
         try:
             invoke_task = asyncio.create_task(asyncio.to_thread(model.invoke, messages))
@@ -274,6 +299,7 @@ def create_chat_model(
     timeout: Optional[int] = None,
     max_retries: int = 0,
     cfg: Optional[Settings] = None,
+    thinking: Optional[bool] = None,
 ) -> ChatOpenAI:
     """Create ChatOpenAI; retries are handled explicitly by ``invoke_controlled``."""
     cfg = cfg or settings
@@ -285,6 +311,9 @@ def create_chat_model(
         "Creating ChatOpenAI: base_url=%s model=%s temp=%.1f timeout=%ss retries=%d",
         cfg.llm_base_url, resolved_model, temperature, resolved_timeout, max_retries,
     )
+    extra_body = None
+    if thinking is not None and "api.deepseek.com" in cfg.llm_base_url.lower():
+        extra_body = {"thinking": {"type": "enabled" if thinking else "disabled"}}
     return ChatOpenAI(
         base_url=cfg.llm_base_url,
         api_key=cfg.llm_api_key,
@@ -292,6 +321,7 @@ def create_chat_model(
         temperature=temperature,
         timeout=resolved_timeout,
         max_retries=max_retries,
+        extra_body=extra_body,
     )
 
 
@@ -302,7 +332,11 @@ def get_chapter_llm(cfg: Optional[Settings] = None) -> ChatOpenAI:
 
 def get_reconcile_llm(cfg: Optional[Settings] = None) -> ChatOpenAI:
     cfg = cfg or settings
-    return create_chat_model(cfg.reconcile_model, temperature=0.0, cfg=cfg)
+    # DeepSeek V4 defaults to thinking mode, but LangChain's function-calling
+    # structured output forces a named tool_choice that DeepSeek rejects while
+    # thinking is enabled. Keep Chapter Agent on provider-default thinking and
+    # disable it only for the legacy postprocess/reconcile path.
+    return create_chat_model(cfg.reconcile_model, temperature=0.0, cfg=cfg, thinking=False)
 
 
 def check_connectivity(cfg: Optional[Settings] = None) -> bool:

@@ -1,0 +1,207 @@
+{
+  "snapshot_version": 1,
+  "chapter_id": 8,
+  "content_sha256": "0e366f8ae747b9a484007b590412921c313035ccfd97dc9622c60e8c4d719f4b",
+  "ledger": {
+    "chapter_id": 8,
+    "persons": [
+      {
+        "person_id": "ch8_p1",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch8_p2",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch8_p3",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch8_p4",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch8_p5",
+        "aliases_in_chapter": []
+      }
+    ],
+    "relations": [
+      {
+        "label": "朋友",
+        "category": "情感",
+        "definition": "彼此相识于早年、以友情相待并互相关怀的人之间的关系。",
+        "directed": false,
+        "subject_role": "朋友",
+        "object_role": "朋友",
+        "relation_id": "8a89bf2dc22f4f47917a9c9188311359",
+        "person_a": "ch8_p1",
+        "person_b": "ch8_p2",
+        "raw_relation": "悉达多与乔文达是青年时代的朋友，二人在河边重逢，互相致意、叙旧。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 8,
+          "quote": "很快，他认出他是自己青年时代的朋友，皈依佛陀的乔文达。",
+          "note": "后文二人相互认出，乔文达称“与你重逢我十分高兴”，悉达多称其为“我的朋友”。",
+          "quote_verified": true,
+          "start": 1450,
+          "end": 1477
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "师徒",
+        "category": "师徒",
+        "definition": "弟子皈依并依止师尊、以师承相待的出家弟子与师父关系。",
+        "directed": true,
+        "subject_role": "弟子",
+        "object_role": "师父",
+        "relation_id": "e7fb4c1ddc374e5e88810d7570e4265f",
+        "person_a": "ch8_p2",
+        "person_b": "ch8_p3",
+        "raw_relation": "乔文达皈依佛陀，自称是世尊乔达摩、佛陀释迦摩尼的弟子。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 8,
+          "quote": "我？先生，我是世尊乔达摩、佛陀释迦摩尼的弟子。",
+          "note": "另处回忆“在祗树给孤独园你皈依世尊的时刻”，同指乔文达拜入佛陀门下。",
+          "quote_verified": true,
+          "start": 1606,
+          "end": 1629
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "师徒",
+        "category": "师徒",
+        "definition": "一方从另一方受业、学习某种技艺或学问的师承关系。",
+        "directed": true,
+        "subject_role": "学生",
+        "object_role": "老师",
+        "relation_id": "74984d96140043e1be84fb488e56dd0b",
+        "person_a": "ch8_p1",
+        "person_b": "ch8_p4",
+        "raw_relation": "悉达多曾跟迦摩罗学习《爱经》。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 8,
+          "quote": "我跟迦摩罗学《爱经》，跟迦摩施瓦弥学做生意。",
+          "note": "悉达多回忆早年经历时自述曾向迦摩罗学《爱经》。",
+          "quote_verified": true,
+          "start": 3296,
+          "end": 3318
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "师徒",
+        "category": "师徒",
+        "definition": "一方从另一方受业、学习某种技艺或营生之道的师承关系。",
+        "directed": true,
+        "subject_role": "学生",
+        "object_role": "老师",
+        "relation_id": "e281419f0e7346aca462f4cc36c79062",
+        "person_a": "ch8_p1",
+        "person_b": "ch8_p5",
+        "raw_relation": "悉达多曾跟迦摩施瓦弥学习做生意，并曾在其世界里赢钱输钱。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 8,
+          "quote": "我跟迦摩罗学《爱经》，跟迦摩施瓦弥学做生意。",
+          "note": "另处提到“待在迦摩施瓦弥的世界里赢钱、输钱”，指悉达多随其经商。",
+          "quote_verified": true,
+          "start": 3296,
+          "end": 3318
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "相遇又告别",
+        "category": "经历",
+        "definition": "一方曾与另一方相逢结缘、后因故分别离开的因缘关系。",
+        "directed": false,
+        "subject_role": "曾相遇者",
+        "object_role": "曾相遇者",
+        "relation_id": "4d7616937db2430ea17dd330e3d6ba92",
+        "person_a": "ch8_p1",
+        "person_b": "ch8_p3",
+        "raw_relation": "悉达多曾与佛陀及其法义相遇，后又不得不告别佛陀及其学说。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 8,
+          "quote": "之后我又奇迹般地与佛陀和他至高的法义相遇",
+          "note": "同段写“但我又不得不告别佛陀及其伟大学说”，指明悉达多曾遇佛陀又离去。",
+          "quote_verified": true,
+          "start": 3238,
+          "end": 3258
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      }
+    ],
+    "events": [],
+    "summary": "悉达多走到河边，在绝望中欲投水自尽，却在“唵”字脱口而出的瞬间苏醒，酣睡后重获新生，决心留在河边。他醒来遇见青年时代的朋友、已皈依佛陀的僧人乔文达，二人互认同并叙旧；通过回忆，他还提及曾随迦摩罗学《爱经》、随迦摩施瓦弥学做生意，以及与佛陀相遇又告别的往事。",
+    "analysis_status": "complete",
+    "warnings": []
+  },
+  "cast_buffer": {
+    "ch8_p1": {
+      "canonical_name": "悉达多",
+      "aliases": [],
+      "bio": "婆罗门出身的求道者，曾为沙门、富商，本章在河边欲自溺后于“唵”声中重获新生。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 8
+    },
+    "ch8_p2": {
+      "canonical_name": "乔文达",
+      "aliases": [],
+      "bio": "悉达多青年时代的朋友，后皈依佛陀成为僧人，本章在河边守候酣睡的悉达多。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 8
+    },
+    "ch8_p3": {
+      "canonical_name": "乔达摩",
+      "aliases": [
+        "佛陀",
+        "世尊",
+        "释迦摩尼"
+      ],
+      "bio": "佛陀，乔文达皈依的师尊，悉达多曾与之相遇并告别。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 8
+    },
+    "ch8_p4": {
+      "canonical_name": "迦摩罗",
+      "aliases": [],
+      "bio": "曾教授悉达多《爱经》的女子。",
+      "gender": "female",
+      "importance": "minor",
+      "source_chapter_id": 8
+    },
+    "ch8_p5": {
+      "canonical_name": "迦摩施瓦弥",
+      "aliases": [],
+      "bio": "曾教授悉达多做生意的商人。",
+      "gender": "male",
+      "importance": "minor",
+      "source_chapter_id": 8
+    }
+  }
+}

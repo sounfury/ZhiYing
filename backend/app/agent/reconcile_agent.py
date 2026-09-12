@@ -34,6 +34,23 @@ from app.storage.filestore import Filestore
 logger = get_logger("agent.reconcile_agent")
 
 
+def _compact_tool_history(messages: list) -> list:
+    """Keep initial instructions plus the latest complete assistant/tool exchange.
+
+    Tool messages are only valid when their preceding assistant message (including
+    ``tool_calls``) is still present. Trimming by raw message count can orphan a
+    ToolMessage and causes strict OpenAI-compatible providers such as DeepSeek to
+    reject the next request.
+    """
+    if len(messages) <= 2:
+        return messages
+    for index in range(len(messages) - 1, 1, -1):
+        message = messages[index]
+        if isinstance(message, AIMessage) and getattr(message, "tool_calls", None):
+            return messages[:2] + messages[index:]
+    return messages[:2]
+
+
 @dataclass
 class ReconcileResult:
     """Reconcile Agent 运行结果。"""
@@ -191,11 +208,10 @@ async def run_reconcile_agent(
             )
         tool_ms = (time.perf_counter() - t_tool) * 1000
         total_tool_ms += tool_ms
-        # Keep initial instructions plus only the most recent tool exchange. This
-        # prevents multi-step reconcile from carrying an ever-growing transcript.
-        keep = max(2, cfg.reconcile_history_messages)
-        if len(messages) > keep + 2:
-            messages = messages[:2] + messages[-keep:]
+        # Keep initial instructions plus only the most recent *complete* tool
+        # exchange. Raw count slicing can orphan ToolMessage entries from the
+        # assistant tool_calls they answer, which strict providers reject.
+        messages = _compact_tool_history(messages)
 
         if progress is not None:
             await progress({

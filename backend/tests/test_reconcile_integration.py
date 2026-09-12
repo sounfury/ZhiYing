@@ -19,6 +19,7 @@ from relation_fixtures import relation_fields
 from app.agent.reconcile_agent import ReconcileResult, run_reconcile_agent
 from app.config import Settings
 from app.core.patch_applier import PatchApplier
+from app.core.reconcile_service import reconcile_book
 from app.core.suspects import SuspectsGenerator
 from app.models.book import BookMeta, BookStatus, AnalysisProgress, AnalysisMode
 from app.models.cast import Alias, AliasFrequency, Cast, Person, Gender, Importance
@@ -162,6 +163,48 @@ def test_empty_suspects_skip_reconcile():
 
     # 验证
     assert fs.read_meta(book_id).status == BookStatus.ANALYZED
+    assert fs.read_meta(book_id).analysis_progress.reconcile_done is True
+
+
+def test_semantic_pending_does_not_start_reconcile_agent():
+    """A located-but-semantically-pending relation is not a Final Reconcile case."""
+    tmpdir = tempfile.mkdtemp()
+    fs = Filestore(Path(tmpdir))
+    book_id = "test-pending-review"
+    meta = _setup_book(fs, book_id, num_chapters=1)
+    meta.analysis_progress = AnalysisProgress(chapters_done=[1])
+    fs.write_meta(book_id, meta)
+
+    fs.write_cast(book_id, Cast(persons=[
+        Person(person_id="p001", canonical_name="甲"),
+        Person(person_id="p002", canonical_name="乙"),
+    ]))
+    quote = "这是第1章的正文内容。"
+    fs.write_ledger(book_id, ChapterLedger(
+        chapter_id=1,
+        relations=[Relation(
+            person_a="p001",
+            person_b="p002",
+            **relation_fields("朋友"),
+            evidence=Evidence(
+                chapter_id=1,
+                quote=quote,
+                quote_verified=True,
+                start=0,
+                end=len(quote),
+            ),
+            status="pending",
+            verification_reason="语义证据不足，保持 pending",
+        )],
+    ))
+
+    cfg = Settings(_env_file=None, llm_api_key="", force_reconcile=False)
+    with patch("app.core.reconcile_service.run_reconcile_agent", new_callable=AsyncMock) as agent:
+        outcome = asyncio.run(reconcile_book(meta, fs, cfg))
+
+    agent.assert_not_awaited()
+    assert outcome.status == BookStatus.ANALYZED
+    assert outcome.reconcile_done is True
     assert fs.read_meta(book_id).analysis_progress.reconcile_done is True
 
 

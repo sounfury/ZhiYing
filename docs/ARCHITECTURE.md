@@ -753,7 +753,11 @@ parallel for cid in 1..target_N:
   生成 suspects[]：
     - 同名/别名高度重叠的异 person_id
     - 同 pair 冲突 type / 有向边反向
-    - hard 边缺 quote 等（规则可配）
+    - 明确的 evidence localization failure：缺 quote、quote 未命中、或无法唯一定位到 start/end span
+
+  注意：relation.status=pending 只是语义待确认状态，本身不生成 MissingEvidence suspect。
+  已成功定位原文、但 verifier 因语义不足保持 pending 的关系继续留在 ledger 中，
+  不进入 Final Reconcile。rejected 关系也不生成 evidence repair case。
 
 # Reduce 2：Check/Merge Agent（单独一轮）
   输入：

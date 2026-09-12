@@ -1,0 +1,204 @@
+{
+  "snapshot_version": 1,
+  "chapter_id": 6,
+  "content_sha256": "1426c0f551b053d2a39b5ecbe0f1e9fbdd56bc596720d6ca7728187a36ebc3a7",
+  "ledger": {
+    "chapter_id": 6,
+    "persons": [
+      {
+        "person_id": "ch6_p1",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch6_p2",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch6_p3",
+        "aliases_in_chapter": []
+      }
+    ],
+    "relations": [
+      {
+        "label": "雇主与雇员",
+        "category": "合作",
+        "definition": "一方受雇于另一方、为其经营生意并分享收益、分担损失的关系。",
+        "directed": true,
+        "subject_role": "受雇经商的学徒",
+        "object_role": "商人雇主",
+        "relation_id": "2e1937e6d6d04660a569330e13662a4e",
+        "person_a": "ch6_p1",
+        "person_b": "ch6_p2",
+        "raw_relation": "悉达多来到商人迦摩施瓦弥的宅邸谋职，迦摩施瓦弥指导他清算账目、书写契约，让他分担生意并分给他三分之一盈利、令其承担同等损失。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 6,
+          "quote": "在宅邸中住了不久，悉达多便开始分担迦摩施瓦弥的生意。",
+          "note": "悉达多以商人身份替迦摩施瓦弥打理生意，并约得三分之一盈利。",
+          "quote_verified": true,
+          "start": 1167,
+          "end": 1193
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "朋友",
+        "category": "情感",
+        "definition": "彼此以朋友相称、友好往来的关系。",
+        "directed": false,
+        "subject_role": "朋友",
+        "object_role": "朋友",
+        "relation_id": "2ad5eeaea3aa47dcaa23abc7435db41d",
+        "person_a": "ch6_p1",
+        "person_b": "ch6_p2",
+        "raw_relation": "悉达多与迦摩施瓦弥以朋友相称，悉达多称他为“亲爱的朋友”并劝其不要责备自己。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 6,
+          "quote": "不要责备，亲爱的朋友！责备向来于事无补。",
+          "note": "悉达多对迦摩施瓦弥的称呼，显示二人以朋友相待。",
+          "quote_verified": true,
+          "start": 2044,
+          "end": 2064
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "观念分歧",
+        "category": "冲突",
+        "definition": "双方在观念或主张上相互对立、各自坚持己见的关系。",
+        "directed": false,
+        "subject_role": "争执者",
+        "object_role": "争执者",
+        "relation_id": "9bc2172d82244ef08f1787190e7e52b3",
+        "person_a": "ch6_p1",
+        "person_b": "ch6_p2",
+        "raw_relation": "迦摩施瓦弥试图让悉达多相信自己靠迦摩施瓦弥为生，悉达多则反驳认为自己靠自己维生，并反劝对方向他学习如何思考。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 6,
+          "quote": "商人也曾徒劳地尝试让悉达多相信，他靠迦摩施瓦弥为生。但悉达多认为他靠自己为生。",
+          "note": "二人就“靠谁为生”各执一词。",
+          "quote_verified": true,
+          "start": 2477,
+          "end": 2516
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "情人",
+        "category": "情感",
+        "definition": "双方保持情爱与肉体亲密关系的关系。",
+        "directed": false,
+        "subject_role": "情人",
+        "object_role": "情人",
+        "relation_id": "f4d3b4444b524a379b3740c8cce8732b",
+        "person_a": "ch6_p1",
+        "person_b": "ch6_p3",
+        "raw_relation": "悉达多长期登门拜访迦摩罗，与她欢爱，成为她的情人。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 6,
+          "quote": "他成为她的学生、情人、朋友。",
+          "note": "原文明确二人之间包含情人关系。",
+          "quote_verified": true,
+          "start": 1479,
+          "end": 1493
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "老师与学生",
+        "category": "师徒",
+        "definition": "一方传授技艺或学问、另一方从其学习的关系。",
+        "directed": true,
+        "subject_role": "传授技艺的老师",
+        "object_role": "学习的学生",
+        "relation_id": "964ae3cd9ac3416a836c64e2cf43b2d0",
+        "person_a": "ch6_p3",
+        "person_b": "ch6_p1",
+        "raw_relation": "迦摩罗教会悉达多爱的艺术与《爱经》的根本，悉达多成为她的学生。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 6,
+          "quote": "而迦摩罗则教会他，不付出情欲就难收获情欲这一《爱经》的根本。",
+          "note": "迦摩罗教导悉达多情爱之术，原文称悉达多为她的学生。",
+          "quote_verified": true,
+          "start": 1307,
+          "end": 1337
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "朋友",
+        "category": "情感",
+        "definition": "彼此以朋友相待、相互交谈与劝告的关系。",
+        "directed": false,
+        "subject_role": "朋友",
+        "object_role": "朋友",
+        "relation_id": "6d5e23378f0d4854969aa90495208d24",
+        "person_a": "ch6_p1",
+        "person_b": "ch6_p3",
+        "raw_relation": "悉达多与迦摩罗除情爱和师生关系外，也互为朋友，向她学习、给她建议、接受她的忠告。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 6,
+          "quote": "他成为她的学生、情人、朋友。",
+          "note": "原文明确二人之间也包含朋友关系。",
+          "quote_verified": true,
+          "start": 1479,
+          "end": 1493
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      }
+    ],
+    "events": [],
+    "summary": "悉达多来到城中，受商人迦摩施瓦弥雇佣打理生意并分享盈利，同时长期拜访名妓迦摩罗，成为她的学生、情人与朋友，在情爱与世俗经营的“游戏”中度过时光，内心却始终与真实生活相隔。",
+    "analysis_status": "complete",
+    "warnings": []
+  },
+  "cast_buffer": {
+    "ch6_p1": {
+      "canonical_name": "悉达多",
+      "aliases": [],
+      "bio": "婆罗门出身，曾多年做沙门，后来到城中向商人迦摩施瓦弥谋职经商，并向名妓迦摩罗学习情爱。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 6
+    },
+    "ch6_p2": {
+      "canonical_name": "迦摩施瓦弥",
+      "aliases": [],
+      "bio": "富有的商人，精明谨慎，雇佣悉达多打理生意并使其分享盈利。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 6
+    },
+    "ch6_p3": {
+      "canonical_name": "迦摩罗",
+      "aliases": [],
+      "bio": "美丽聪慧的名妓，教导悉达多爱的艺术，成为他的情人、朋友。",
+      "gender": "female",
+      "importance": "supporting",
+      "source_chapter_id": 6
+    }
+  }
+}

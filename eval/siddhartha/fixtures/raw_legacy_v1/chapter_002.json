@@ -1,0 +1,138 @@
+{
+  "snapshot_version": 1,
+  "chapter_id": 2,
+  "content_sha256": "9f5e3771965a7d90a7282d11d9d3ce82487586537e107b8889e2e10dfc60c0aa",
+  "ledger": {
+    "chapter_id": 2,
+    "persons": [
+      {
+        "person_id": "ch2_p1",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch2_p2",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch2_p3",
+        "aliases_in_chapter": []
+      }
+    ],
+    "relations": [
+      {
+        "label": "挚友",
+        "category": "情感",
+        "definition": "彼此信任、以朋友相称、关系亲近的同伴。",
+        "directed": false,
+        "subject_role": "朋友",
+        "object_role": "朋友",
+        "relation_id": "65437a576d2944d0bcdcfb9a34f07fa9",
+        "person_a": "ch2_p1",
+        "person_b": "ch2_p2",
+        "raw_relation": "悉达多称乔文达为“我最忠诚的朋友”，二人互为挚友。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 2,
+          "quote": "原来你也想，我最忠诚的朋友，走一条新路，去聆听佛陀宣法。",
+          "note": "悉达多如此称呼乔文达，表明两人是亲密的朋友关系。",
+          "quote_verified": true,
+          "start": 4012,
+          "end": 4040
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "同修同伴",
+        "category": "合作",
+        "definition": "共同追随同一位师长修行、生活与乞食的同伴关系。",
+        "directed": false,
+        "subject_role": "同修",
+        "object_role": "同修",
+        "relation_id": "3e3c8448b0234e4a9885fc9b2a16cc63",
+        "person_a": "ch2_p1",
+        "person_b": "ch2_p2",
+        "raw_relation": "乔文达与悉达多同随沙门修行，被称为悉达多的影子，与他生活在一起，走同样的路、受同样的艰辛。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 2,
+          "quote": "乔文达，他的影子，和他生活在一起，也走了同样的路，付出同样的艰辛。",
+          "note": "叙述二人同居同修、如影随形。",
+          "quote_verified": true,
+          "start": 1258,
+          "end": 1291
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "慕名往听宣法",
+        "category": "其他",
+        "definition": "尚未谋面而慕其名，前往求闻其教法、欲亲聆宣法的关系。",
+        "directed": true,
+        "subject_role": "求法者",
+        "object_role": "被求法的觉者",
+        "relation_id": "06fef2665995422884d1efdcfcc7e8d6",
+        "person_a": "ch2_p1",
+        "person_b": "ch2_p3",
+        "raw_relation": "悉达多听说乔达摩（佛陀）宣法后，虽自认已尝其法义最好的果实，仍决定前往亲耳聆听乔达摩的法义。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 2,
+          "quote": "我不再信仰圣贤的言辞。但是好吧，亲爱的，我打算去聆听那人的法义——尽管我坚信，我们已品尝过这法义中最好的果实。",
+          "note": "两人此时尚未见面，悉达多表示将动身去听乔达摩宣法。",
+          "quote_verified": true,
+          "start": 4206,
+          "end": 4261
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      }
+    ],
+    "events": [],
+    "summary": "悉达多与乔文达在沙门处苦修近三年，学习克己与禅定，却认定这些修习只是暂时的麻醉，无法真正证悟涅槃。听闻世尊乔达摩（佛陀）现世宣法，悉达多不顾沙门长老的盛怒，以法术令其屈服后携乔文达离开沙门，前往聆听佛陀的法义。",
+    "analysis_status": "complete",
+    "warnings": []
+  },
+  "cast_buffer": {
+    "ch2_p1": {
+      "canonical_name": "悉达多",
+      "aliases": [
+        "Siddhartha"
+      ],
+      "bio": "婆罗门青年，与乔文达一同成为沙门苦行者，后决定离开沙门之路。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 2
+    },
+    "ch2_p2": {
+      "canonical_name": "乔文达",
+      "aliases": [
+        "Govinda"
+      ],
+      "bio": "悉达多的同伴与挚友，被称为悉达多的影子，一同修行沙门之道。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 2
+    },
+    "ch2_p3": {
+      "canonical_name": "乔达摩",
+      "aliases": [
+        "佛陀",
+        "世尊",
+        "释迦摩尼",
+        "释迦宗族智者"
+      ],
+      "bio": "传闻中现世的世尊佛陀，已证悟涅槃，云游四方传法，弟子众多。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 2
+    }
+  }
+}

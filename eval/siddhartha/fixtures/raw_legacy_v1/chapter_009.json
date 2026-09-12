@@ -1,0 +1,82 @@
+{
+  "snapshot_version": 1,
+  "chapter_id": 9,
+  "content_sha256": "32e9baf9a98457f833976951d1f4651b85088a9c5dcef99d4fff437bc5b0cfa6",
+  "ledger": {
+    "chapter_id": 9,
+    "persons": [
+      {
+        "person_id": "ch9_p1",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch9_p2",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch9_p3",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch9_p4",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch9_p5",
+        "aliases_in_chapter": []
+      }
+    ],
+    "relations": [],
+    "events": [],
+    "summary": "Characters proposed. Now submitting the relations evidenced in the chapter.",
+    "analysis_status": "partial",
+    "warnings": [
+      "未主动提交结束，保留部分结果；建议重跑本章"
+    ]
+  },
+  "cast_buffer": {
+    "ch9_p1": {
+      "canonical_name": "悉达多",
+      "aliases": [],
+      "bio": "曾为沙门，后历经俗世生活，如今来到河边，成为船夫瓦稣迪瓦的同伴与学徒。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 9
+    },
+    "ch9_p2": {
+      "canonical_name": "瓦稣迪瓦",
+      "aliases": [],
+      "bio": "河边的老船夫，善于倾听，二十余年前曾渡悉达多过河。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 9
+    },
+    "ch9_p3": {
+      "canonical_name": "迦摩罗",
+      "aliases": [],
+      "bio": "从前最美的名妓，已皈依佛陀，携子朝觐途中被蛇咬伤而死。",
+      "gender": "female",
+      "importance": "supporting",
+      "source_chapter_id": 9
+    },
+    "ch9_p4": {
+      "canonical_name": "小悉达多",
+      "aliases": [],
+      "bio": "迦摩罗的儿子，面容与悉达多相同。",
+      "gender": "male",
+      "importance": "minor",
+      "source_chapter_id": 9
+    },
+    "ch9_p5": {
+      "canonical_name": "乔达摩",
+      "aliases": [
+        "佛陀",
+        "世尊"
+      ],
+      "bio": "佛陀，僧人团体的导师，病重将入涅槃。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 9
+    }
+  }
+}

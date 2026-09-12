@@ -1,0 +1,171 @@
+{
+  "snapshot_version": 1,
+  "chapter_id": 11,
+  "content_sha256": "f82239271f87d928aaecf0118f0345e09f4c6b933081bc0e8264f2b10af3592c",
+  "ledger": {
+    "chapter_id": 11,
+    "persons": [
+      {
+        "person_id": "ch11_p1",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch11_p2",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch11_p3",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch11_p4",
+        "aliases_in_chapter": []
+      }
+    ],
+    "relations": [
+      {
+        "label": "同住共修的同伴",
+        "category": "情感",
+        "definition": "长期同住、共同生活并相互陪伴修行的关系。",
+        "directed": false,
+        "subject_role": "同伴",
+        "object_role": "同伴",
+        "relation_id": "83bf6462215947bcba8c7029bb57df37",
+        "person_a": "ch11_p1",
+        "person_b": "ch11_p2",
+        "raw_relation": "两人同住河边茅舍，瓦稣迪瓦操舟渡人、编篮为生，与悉达多长久共同生活修行",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 11,
+          "quote": "悉达多坐在老人身边，慢慢说起他从未说过的事。",
+          "note": "二人同处茅舍、日常相伴，为长期共同生活的同伴。",
+          "quote_verified": true,
+          "start": 1316,
+          "end": 1338
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "倾诉者与倾听者",
+        "category": "情感",
+        "definition": "一方主动向另一方倾诉内心痛苦并忏悔，另一方作为专注的倾听者接纳、给予理解与爱的关系。",
+        "directed": true,
+        "subject_role": "倾诉者",
+        "object_role": "倾听者",
+        "relation_id": "a646b4ff3bd54ca798a20235ab69c55d",
+        "person_a": "ch11_p1",
+        "person_b": "ch11_p2",
+        "raw_relation": "悉达多向瓦稣迪瓦倾诉痛苦、惶恐、隐秘的希望并忏悔，瓦稣迪瓦安静倾听、接纳，悉达多视其为倾听大师",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 11,
+          "quote": "回到茅舍后，他迫切要向瓦稣迪瓦倾诉，向这位倾听大师敞开心扉。",
+          "note": "悉达多主动向瓦稣迪瓦求倾诉，瓦稣迪瓦以倾听接纳。",
+          "quote_verified": true,
+          "start": 1227,
+          "end": 1257
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "敬奉如神",
+        "category": "情感",
+        "definition": "一方将另一方敬奉为神或永恒化身、怀有崇敬之情的关系。",
+        "directed": true,
+        "subject_role": "敬奉者",
+        "object_role": "被敬奉者",
+        "relation_id": "cffd753d725a4981aa30b8af0c999e1d",
+        "person_a": "ch11_p1",
+        "person_b": "ch11_p2",
+        "raw_relation": "悉达多将瓦稣迪瓦视为神的化身、永恒的化身，像世人看待诸神般看待他",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 11,
+          "quote": "他感到他看待瓦稣迪瓦，如同世人看待诸神。",
+          "note": "悉达多在倾诉中把瓦稣迪瓦认作神的化身。",
+          "quote_verified": true,
+          "start": 1703,
+          "end": 1723
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "辞行告别",
+        "category": "情感",
+        "definition": "一方在共同修行结束后主动向另一方辞别离去，另一方以礼相送的关系。",
+        "directed": true,
+        "subject_role": "辞行者",
+        "object_role": "送别者",
+        "relation_id": "d5490206ce6942d28577095fe4fe5512",
+        "person_a": "ch11_p2",
+        "person_b": "ch11_p1",
+        "raw_relation": "瓦稣迪瓦在悉达多完成倾听修行后向其辞行，要去林中融入统一，悉达多鞠躬目送告别",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 11,
+          "quote": "让我走吧，我已等候良久，我已做了太久的船夫。现在已结束。祝福你，茅屋，河水；祝福你，悉达多！",
+          "note": "瓦稣迪瓦明确向悉达多辞别，随后离去。",
+          "quote_verified": true,
+          "start": 2849,
+          "end": 2895
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      }
+    ],
+    "events": [],
+    "summary": "悉达多在河边茅舍为思念远方的儿子而伤痛，向老船夫瓦稣迪瓦倾诉忏悔，并视其为倾听大师、神的化身；瓦稣迪瓦引导他倾听河水万千之声，悉达多终于听到\"唵\"、悟得圆满统一，随后瓦稣迪瓦向他辞行、前往林中融入统一。（文中出现的悉达多之父——那位婆罗门——与悉达多之子均未具名，其父子关系因缺专名未立档，待查；迦摩罗、乔文达仅在本章河水的画面中被提及，与悉达多无本章互动。）",
+    "analysis_status": "complete",
+    "warnings": []
+  },
+  "cast_buffer": {
+    "ch11_p1": {
+      "canonical_name": "悉达多",
+      "aliases": [
+        "他"
+      ],
+      "bio": "主人公，在河边茅舍为思念远方儿子而受苦，向老船夫倾诉忏悔，最终在倾听河水中悟得圆满。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 11
+    },
+    "ch11_p2": {
+      "canonical_name": "瓦稣迪瓦",
+      "aliases": [
+        "老船夫",
+        "老人"
+      ],
+      "bio": "河边的老船夫，悉达多的倾听者与同伴；在悉达多完成倾听修行后向其辞别，前往林中融入统一。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 11
+    },
+    "ch11_p3": {
+      "canonical_name": "迦摩罗",
+      "aliases": [],
+      "bio": "本章中作为悉达多所热爱、认识的人之一，出现在他倾听河水时浮现的画面里。",
+      "gender": "unknown",
+      "importance": "minor",
+      "source_chapter_id": 11
+    },
+    "ch11_p4": {
+      "canonical_name": "乔文达",
+      "aliases": [],
+      "bio": "本章中作为悉达多所热爱、认识的人之一，出现在他倾听河水时浮现的画面里。",
+      "gender": "unknown",
+      "importance": "minor",
+      "source_chapter_id": 11
+    }
+  }
+}

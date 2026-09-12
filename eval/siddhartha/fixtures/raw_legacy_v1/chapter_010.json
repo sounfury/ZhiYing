@@ -1,0 +1,232 @@
+{
+  "snapshot_version": 1,
+  "chapter_id": 10,
+  "content_sha256": "792412b75a017c805b212c045ca493dd33035819966325ab8714e3eeba1b3831",
+  "ledger": {
+    "chapter_id": 10,
+    "persons": [
+      {
+        "person_id": "ch10_p1",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch10_p2",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch10_p3",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch10_p4",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch10_p5",
+        "aliases_in_chapter": []
+      }
+    ],
+    "relations": [
+      {
+        "label": "父子",
+        "category": "亲属",
+        "definition": "父亲与儿子的血缘亲子关系，一方为另一方的生父。",
+        "directed": true,
+        "subject_role": "父亲",
+        "object_role": "儿子",
+        "relation_id": "d2255be559ab4bd0b076cd34049378a3",
+        "person_a": "ch10_p1",
+        "person_b": "ch10_p3",
+        "raw_relation": "悉达多唤他儿子，是他的父亲；孩子却咒骂“你不是我父亲”",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 10,
+          "quote": "孩子哭着，瑟缩着出席了母亲的葬礼，又阴郁着，怯生生地听悉达多唤他儿子，欢迎他留在瓦稣迪瓦的茅舍。",
+          "note": "悉达多认领孩子为儿子；后文孩子愤怒否认时咒骂“你不是我父亲”，但父子血缘关系在文本中确立。",
+          "quote_verified": true,
+          "start": 3,
+          "end": 51
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "母子",
+        "category": "亲属",
+        "definition": "母亲与儿子的血缘亲子关系，一方为另一方的生母。",
+        "directed": true,
+        "subject_role": "母亲",
+        "object_role": "儿子",
+        "relation_id": "47b4e0f9a35745c9a8c6c40376a2fb88",
+        "person_a": "ch10_p4",
+        "person_b": "ch10_p3",
+        "raw_relation": "孩子的母亲已举行葬礼，悉达多从他脸上看见迦摩罗的影子",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 10,
+          "quote": "一次，悉达多在孩子脸上看见迦摩罗的影子。",
+          "note": "结合“回他母亲的宅邸”以及那座“曾经属于迦摩罗的漂亮花园”，可知已逝的母亲即迦摩罗。",
+          "quote_verified": true,
+          "start": 1890,
+          "end": 1910
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "旧日恋人",
+        "category": "情感",
+        "definition": "曾经相恋、有过亲密情感与身体关系的男女双方。",
+        "directed": false,
+        "subject_role": "恋人",
+        "object_role": "恋人",
+        "relation_id": "31ed0aedf8ff4e51859d7f8ce09b922b",
+        "person_a": "ch10_p1",
+        "person_b": "ch10_p4",
+        "raw_relation": "年轻时的悉达多曾受迦摩罗的款待，得到她的第一个吻",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 10,
+          "quote": "他清晰地看见他如何受到迦摩罗的款待，如何得到她的第一个吻，如何自负而轻蔑地回顾他的婆罗门岁月。",
+          "note": "这是悉达多对往昔与迦摩罗亲密关系的回忆。",
+          "quote_verified": false,
+          "start": null,
+          "end": null
+        },
+        "status": "pending",
+        "verification_reason": "引用未在本章正文精确匹配，请补充连续原句"
+      },
+      {
+        "label": "挚友",
+        "category": "情感",
+        "definition": "彼此信任、相互扶持、可以坦诚劝诫的亲密朋友关系。",
+        "directed": false,
+        "subject_role": "朋友",
+        "object_role": "朋友",
+        "relation_id": "8c2657b86d6a4ad3babc51677d0ec8dc",
+        "person_a": "ch10_p1",
+        "person_b": "ch10_p2",
+        "raw_relation": "瓦稣迪瓦把朋友叫到一边交谈，二人互相扶持、共同等待",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 10,
+          "quote": "当晚，瓦稣迪瓦把朋友叫到一边，同他交谈。",
+          "note": "二人以“朋友”“亲爱的”相称，瓦稣迪瓦出言劝诫，悉达多诚挚道谢。",
+          "quote_verified": true,
+          "start": 509,
+          "end": 529
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "偷摘果实冒犯长辈",
+        "category": "冲突",
+        "definition": "同住的晚辈对长辈不敬、侵占其财物的冒犯行为。",
+        "directed": true,
+        "subject_role": "冒犯者",
+        "object_role": "被冒犯者",
+        "relation_id": "c0f4cb75bc884ea78b75a6c0b9d79353",
+        "person_a": "ch10_p3",
+        "person_b": "ch10_p2",
+        "raw_relation": "小悉达多冒犯长辈，偷摘瓦稣迪瓦的果子",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 10,
+          "quote": "孩子却仍旧自负而心硬，对他冷漠疏远，不愿劳作，冒犯长辈，偷摘瓦稣迪瓦的果子。",
+          "note": "孩子住在瓦稣迪瓦的茅舍中，却偷摘其果子，构成实际的冒犯互动。",
+          "quote_verified": true,
+          "start": 274,
+          "end": 312
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "旧日恋人",
+        "category": "情感",
+        "definition": "曾经相恋、有过亲密情感与身体关系的男女双方。",
+        "directed": false,
+        "subject_role": "恋人",
+        "object_role": "恋人",
+        "relation_id": "b4605b0c36104c9aa2c54faa846d8c63",
+        "person_a": "ch10_p1",
+        "person_b": "ch10_p4",
+        "raw_relation": "年轻时的悉达多曾受迦摩罗的款待，得到她的第一个吻",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 10,
+          "quote": "他清晰地看见他如何受到迦摩罗的款待，如何得到她的第一个吻",
+          "note": "这是悉达多对往昔与迦摩罗亲密关系的回忆。",
+          "quote_verified": true,
+          "start": 3512,
+          "end": 3540
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      }
+    ],
+    "events": [],
+    "summary": "母亲迦摩罗去世后，十一岁的小悉达多随生父悉达多住进瓦稣迪瓦的茅舍，却心硬骄恣、拒绝父爱；好友瓦稣迪瓦劝悉达多送孩子回城、放手让他走自己的路，悉达多虽明白却难以割舍，最终小悉达多偷船逃走，悉达多追寻无果，在花园门口体悟到爱与伤口的道理。",
+    "analysis_status": "complete",
+    "warnings": []
+  },
+  "cast_buffer": {
+    "ch10_p1": {
+      "canonical_name": "悉达多",
+      "aliases": [],
+      "bio": "曾为婆罗门之子、沙门，后过世俗生活，现为渡口船夫，与瓦稣迪瓦同住茅舍，是孩子的父亲。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 10
+    },
+    "ch10_p2": {
+      "canonical_name": "瓦稣迪瓦",
+      "aliases": [
+        "船夫"
+      ],
+      "bio": "渡口的船夫，悉达多的好友，与他同住茅舍，共同承担渡口与茅舍的工作。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 10
+    },
+    "ch10_p3": {
+      "canonical_name": "小悉达多",
+      "aliases": [
+        "儿子"
+      ],
+      "bio": "悉达多与迦摩罗的十一岁儿子，母亲死后随父亲住在茅舍，心硬骄恣，最终逃走。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 10
+    },
+    "ch10_p4": {
+      "canonical_name": "迦摩罗",
+      "aliases": [],
+      "bio": "已逝的女子，孩子的母亲，年轻时的悉达多曾受其款待并得到她的第一个吻。",
+      "gender": "female",
+      "importance": "supporting",
+      "source_chapter_id": 10
+    },
+    "ch10_p5": {
+      "canonical_name": "迦摩施瓦弥",
+      "aliases": [],
+      "bio": "悉达多回忆往昔世俗生活时提到的名字。",
+      "gender": "male",
+      "importance": "minor",
+      "source_chapter_id": 10
+    }
+  }
+}

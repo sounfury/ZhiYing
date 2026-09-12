@@ -1,0 +1,228 @@
+{
+  "snapshot_version": 1,
+  "chapter_id": 3,
+  "content_sha256": "9e083d1611de4dba38264a011a5070556a57e97edcc99f60337936e184586cf7",
+  "ledger": {
+    "chapter_id": 3,
+    "persons": [
+      {
+        "person_id": "ch3_p1",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch3_p2",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch3_p3",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch3_p4",
+        "aliases_in_chapter": []
+      }
+    ],
+    "relations": [
+      {
+        "label": "朋友",
+        "category": "情感",
+        "definition": "彼此以朋友相称、长期结伴同行、相互关切的关系。",
+        "directed": false,
+        "subject_role": "朋友",
+        "object_role": "朋友",
+        "relation_id": "3c1ae768afa34b60a4c684be6d71c1bd",
+        "person_a": "ch3_p2",
+        "person_b": "ch3_p3",
+        "raw_relation": "乔文达一直是悉达多的朋友，一直紧随他、以他为影；两人是青年时代的朋友，悉达多称乔文达为'我的朋友'。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 3,
+          "quote": "哦，乔文达，你一直是我的朋友，一直紧随我。",
+          "note": "后文又称乔文达为'那曾经是我的影子'，指其长期追随悉达多。",
+          "quote_verified": true,
+          "start": 1907,
+          "end": 1928
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "皈依弟子",
+        "category": "师徒",
+        "definition": "主动请求皈依某人为师并加入其僧团、被其接纳，从而确立的师徒传承关系。",
+        "directed": true,
+        "subject_role": "皈依的弟子",
+        "object_role": "被皈依的师长",
+        "relation_id": "35dc5d007be54c6b9706e565d68aa1c5",
+        "person_a": "ch3_p3",
+        "person_b": "ch3_p1",
+        "raw_relation": "乔文达听法后主动请求'皈依您及您的法义'，祈求加入僧众并被佛陀接纳，成为佛陀的沙门弟子。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 3,
+          "quote": "看哪，腼腆的乔文达也上前一步道：“我也愿皈依您及您的法义。”他祈求加入僧众并被接纳。",
+          "note": "明确请求皈依并被接纳，构成确立的师徒/师承关系。",
+          "quote_verified": true,
+          "start": 1696,
+          "end": 1738
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "敬慕",
+        "category": "情感",
+        "definition": "一方对另一方怀有极深的敬重与爱慕，但不因此归附或皈依其法。",
+        "directed": true,
+        "subject_role": "敬慕者",
+        "object_role": "被敬慕的觉者",
+        "relation_id": "9e87eadf01904792b9ebf316b7ae6081",
+        "person_a": "ch3_p2",
+        "person_b": "ch3_p1",
+        "raw_relation": "悉达多对乔达摩极端敬重与爱慕，从完满安详中认出佛陀，从未如此敬重、爱慕过一个人；但他拒绝皈依其法义，选择独自求道。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 3,
+          "quote": "悉达多从未如此敬重过一个人，从未如此爱慕过一个人。",
+          "note": "紧接着'我将离开你'及'继续我的求道之路'，表明敬慕并不等于皈依。",
+          "quote_verified": true,
+          "start": 1324,
+          "end": 1349
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "当面质疑法义",
+        "category": "交流",
+        "definition": "求道者与说法者之间就教法展开的当面质询、辩难与回应。",
+        "directed": true,
+        "subject_role": "质疑者",
+        "object_role": "被质疑的觉者",
+        "relation_id": "e7b008a86ce54194b1b72b7e51eac51b",
+        "person_a": "ch3_p2",
+        "person_b": "ch3_p1",
+        "raw_relation": "悉达多当面向乔达摩宣说其法义中的异议，指出统一世界中存在'一个断裂之处'，双方就法义进行对话与质询，佛陀以慈蔼谦和作答。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 3,
+          "quote": "在您的法义中，在统一、逻辑完善的万物中却存在一个断裂之处。这一小小的缝隙让这个统一的世界呈现出些许陌生、些许新奇",
+          "note": "悉达多自陈'我的话可能太过放肆'，随后向世尊提出对法义的异议。",
+          "quote_verified": true,
+          "start": 2986,
+          "end": 3042
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "施主与追随者",
+        "category": "信仰",
+        "definition": "在家信徒以财物供养、敬献园林等方式护持某位觉者/教团，并成为其追随者。",
+        "directed": true,
+        "subject_role": "敬献园林的施主与追随者",
+        "object_role": "受献的世尊",
+        "relation_id": "ea398e3129884baea250f55bf973f9dd",
+        "person_a": "ch3_p4",
+        "person_b": "ch3_p1",
+        "raw_relation": "给孤独是世尊忠诚的追随者，并将自己的祗树给孤独园敬献给乔达摩。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 3,
+          "quote": "该园由一位富庶的商人，也是世尊忠诚的追随者，给孤独敬献。",
+          "note": "注明给孤独是'佛陀的第一位施主'（脚注）。",
+          "quote_verified": false,
+          "start": null,
+          "end": null
+        },
+        "status": "pending",
+        "verification_reason": "引用未在本章正文精确匹配，请补充连续原句"
+      },
+      {
+        "label": "施主与追随者",
+        "category": "信仰",
+        "definition": "在家信徒以财物供养、敬献园林等方式护持某位觉者/教团，并成为其追随者。",
+        "directed": true,
+        "subject_role": "敬献园林的施主与追随者",
+        "object_role": "受献的世尊",
+        "relation_id": "ca0138af0c914bf181efc58efa6d9c75",
+        "person_a": "ch3_p4",
+        "person_b": "ch3_p1",
+        "raw_relation": "给孤独是世尊忠诚的追随者，并将祗树给孤独园敬献给乔达摩。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 3,
+          "quote": "该园由一位富庶的商人，也是世尊忠诚的追随者，给孤独",
+          "note": "脚注称给孤独为'佛陀的第一位施主'，名意即施给孤独无助者。",
+          "quote_verified": true,
+          "start": 73,
+          "end": 98
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      }
+    ],
+    "events": [],
+    "summary": "两位青年沙门悉达多与乔文达远道来到舍卫城的祗树给孤独园拜见世尊乔达摩，聆听其宣说四圣谛与八正道；乔文达皈依佛陀加入僧团，成为其弟子，悉达多虽极端敬重佛陀却当面质疑其法义，最终选择独自继续求道之路，与故友乔文达分别。",
+    "analysis_status": "complete",
+    "warnings": []
+  },
+  "cast_buffer": {
+    "ch3_p1": {
+      "canonical_name": "乔达摩",
+      "aliases": [
+        "世尊",
+        "佛陀",
+        "世尊佛陀",
+        "觉者",
+        "至尊"
+      ],
+      "bio": "已证觉成道的佛陀，在祗树给孤独园宣说四圣谛、八正道。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 3
+    },
+    "ch3_p2": {
+      "canonical_name": "悉达多",
+      "aliases": [
+        "婆罗门之子",
+        "林中来的沙门"
+      ],
+      "bio": "求道的青年沙门，与乔文达同行前来拜见佛陀，最终选择独自继续求道之路。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 3
+    },
+    "ch3_p3": {
+      "canonical_name": "乔文达",
+      "aliases": [],
+      "bio": "悉达多青年时代的朋友与追随者，听闻法义后皈依佛陀、加入僧团。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 3
+    },
+    "ch3_p4": {
+      "canonical_name": "给孤独",
+      "aliases": [
+        "给孤独长者",
+        "Anathapindika"
+      ],
+      "bio": "舍卫城富庶的商人，世尊忠诚的追随者，敬献祗树给孤独园。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 3
+    }
+  }
+}

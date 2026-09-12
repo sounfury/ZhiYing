@@ -57,6 +57,26 @@ def test_semantic_verdict_controls_status(status):
     assert rel.status == status
 
 
+def test_semantic_verdict_accepts_include_raw_wrapper():
+    rel = relation()
+    model = Mock()
+    model.with_structured_output.return_value.invoke.return_value = {
+        "raw": Mock(),
+        "parsed": {
+            "verdicts": [
+                {"index": 0, "status": "confirmed", "reason": "原文明确支持"}
+            ]
+        },
+        "parsing_error": None,
+    }
+    with patch("app.agent.relation_verifier.get_reconcile_llm", return_value=model):
+        warnings = asyncio.run(
+            verify_relations([rel], rel.evidence.quote, {"p1": "甲", "p2": "乙"}, None)
+        )
+    assert not warnings
+    assert rel.status == "confirmed"
+
+
 @pytest.mark.parametrize("verdicts", [[],
     [{"index": 9, "status": "confirmed", "reason": "错误索引"}],
     [{"index": 0, "status": "confirmed", "reason": "重复"}] * 2,

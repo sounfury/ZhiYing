@@ -1,0 +1,87 @@
+{
+  "baseline_version": 1,
+  "created_at": "2026-09-12T22:41:18.188089",
+  "pipeline": "legacy_postprocess",
+  "fixture_sha256": "a396117ec1971838a5d00e5c9ff7f6b708b6b12cc7975e42da46531836ba80d4",
+  "fixture_name": "siddhartha-raw-legacy-v1",
+  "output_book_id": "p0-siddhartha-postprocess-legacy-v1-run3",
+  "model": "deepseek-flash",
+  "reconcile_model": "deepseek-flash",
+  "analysis_max_llm_tokens": 400000,
+  "final_status": "reconcile_failed",
+  "reconcile_done": false,
+  "reconcile_degraded": true,
+  "reconcile_warning": "stopped during reconcile",
+  "chapter_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+  ],
+  "chapter_partial_ids": [
+    1,
+    2,
+    4,
+    7,
+    9,
+    11,
+    12
+  ],
+  "relation_count": 52,
+  "confirmed_count": 24,
+  "pending_count": 28,
+  "registry_definition_count": 34,
+  "case_counts": {
+    "relation_normalize_model_candidates": 50,
+    "relation_verify_candidates": 50,
+    "reconcile_suspects": 29
+  },
+  "usage": {
+    "llm_requests": 34,
+    "message_chars": 374070,
+    "input_tokens": 211361,
+    "output_tokens": 9661,
+    "total_tokens": 221022,
+    "stop_reason": "reconcile request budget exceeded (12)"
+  },
+  "phase_stats": {
+    "reconcile": {
+      "requests": 12,
+      "errors": 0,
+      "message_chars": 199649,
+      "input_tokens": 108954,
+      "output_tokens": 1711,
+      "total_tokens": 110665
+    },
+    "relation_normalize": {
+      "requests": 11,
+      "errors": 0,
+      "message_chars": 74238,
+      "input_tokens": 34236,
+      "output_tokens": 3717,
+      "total_tokens": 37953
+    },
+    "relation_verify": {
+      "requests": 11,
+      "errors": 0,
+      "message_chars": 100183,
+      "input_tokens": 68171,
+      "output_tokens": 4233,
+      "total_tokens": 72404
+    }
+  },
+  "stage_seconds": {
+    "rebuild": 0.062,
+    "relations": 34.559,
+    "reconcile": 14.852
+  },
+  "elapsed_seconds": 49.53
+}

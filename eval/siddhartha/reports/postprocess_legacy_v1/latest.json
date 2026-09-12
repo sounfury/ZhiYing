@@ -1,0 +1,1084 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "workspace": "..\\workspace\\p0-siddhartha-postprocess-legacy-v1-run3",
+  "gold_dir": "D:\\projects\\ZhiYing\\eval\\siddhartha",
+  "score": 77.72,
+  "score_components": {
+    "cast_entity_f1": {
+      "value": 94.12,
+      "weight": 0.15
+    },
+    "identity_merge_accuracy": {
+      "value": 87.5,
+      "weight": 0.1
+    },
+    "required_relation_recall": {
+      "value": 50.0,
+      "weight": 0.35
+    },
+    "forbidden_relation_avoidance": {
+      "value": 87.5,
+      "weight": 0.15
+    },
+    "evidence_exact_hit_rate": {
+      "value": 96.15,
+      "weight": 0.1
+    },
+    "relation_dedup_quality": {
+      "value": 96.15,
+      "weight": 0.1
+    },
+    "chapter_output_coverage": {
+      "value": 100.0,
+      "weight": 0.05
+    }
+  },
+  "cast": {
+    "missing": false,
+    "gold_entities": 8,
+    "predicted_nodes": 9,
+    "resolved_nodes": 9,
+    "covered_gold_entities": 8,
+    "entity_precision": 88.89,
+    "entity_recall": 100.0,
+    "entity_f1": 94.12,
+    "identity_merge_accuracy": 87.5,
+    "duplicate_entity_groups": {
+      "乔达摩": [
+        "p003",
+        "p005"
+      ]
+    },
+    "unresolved_nodes": [],
+    "embedded_alias_conflicts": []
+  },
+  "relations": {
+    "required_total": 24,
+    "required_hit": 12,
+    "required_recall": 50.0,
+    "optional_total": 15,
+    "optional_hit": 2,
+    "optional_coverage": 13.33,
+    "forbidden_total": 8,
+    "forbidden_violations": 1,
+    "forbidden_avoidance": 87.5,
+    "adjudicated_precision": 93.75,
+    "unscored_prediction_count": 36,
+    "unresolved_relation_endpoints": 0
+  },
+  "evidence": {
+    "prediction_relations_with_evidence": 52,
+    "exact_quote_hits": 50,
+    "exact_hit_rate": 96.15,
+    "invalid_quotes": [
+      {
+        "chapter_id": 3,
+        "relation_index": 5,
+        "a": "给孤独",
+        "b": "乔达摩",
+        "label": "施主与追随者",
+        "quote": "该园由一位富庶的商人，也是世尊忠诚的追随者，给孤独敬献。"
+      },
+      {
+        "chapter_id": 10,
+        "relation_index": 3,
+        "a": "悉达多",
+        "b": "迦摩罗",
+        "label": "旧日恋人",
+        "quote": "他清晰地看见他如何受到迦摩罗的款待，如何得到她的第一个吻，如何自负而轻蔑地回顾他的婆罗门岁月。"
+      }
+    ]
+  },
+  "dedup": {
+    "prediction_relation_count": 52,
+    "duplicate_group_count": 2,
+    "duplicate_excess_edges": 2,
+    "quality": 96.15
+  },
+  "coverage": {
+    "expected_chapters": 12,
+    "present_ledgers": 12,
+    "missing_ledgers": [],
+    "chapter_coverage": 100.0
+  },
+  "chapters": [
+    {
+      "chapter_id": 1,
+      "title": "婆罗门之子",
+      "ledger_present": true,
+      "prediction_relation_count": 3,
+      "required": [
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "乔文达",
+            "label": "朋友",
+            "kind": "friend"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "朋友"
+          ]
+        }
+      ],
+      "optional": [
+        {
+          "gold": {
+            "a": "乔文达",
+            "b": "悉达多",
+            "label": "追随",
+            "kind": "follow"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "追随"
+          ]
+        }
+      ],
+      "forbidden": [],
+      "duplicate_groups": {}
+    },
+    {
+      "chapter_id": 2,
+      "title": "沙门",
+      "ledger_present": true,
+      "prediction_relation_count": 3,
+      "required": [
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "乔文达",
+            "label": "同修挚友",
+            "kind": "friend"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "朋友"
+          ]
+        }
+      ],
+      "optional": [],
+      "forbidden": [
+        {
+          "pair": [
+            "悉达多",
+            "乔达摩"
+          ],
+          "forbidden_labels": [
+            "师徒",
+            "弟子",
+            "皈依"
+          ],
+          "violated": false,
+          "prediction_labels": [],
+          "reason": "本章乔达摩仅以传闻出现，悉达多尚未与其见面。"
+        }
+      ],
+      "duplicate_groups": {}
+    },
+    {
+      "chapter_id": 3,
+      "title": "乔达摩",
+      "ledger_present": true,
+      "prediction_relation_count": 6,
+      "required": [
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "乔文达",
+            "label": "朋友",
+            "kind": "friend"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "朋友"
+          ]
+        },
+        {
+          "gold": {
+            "a": "乔达摩",
+            "b": "乔文达",
+            "label": "师徒",
+            "kind": "formal_teacher"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        },
+        {
+          "gold": {
+            "a": "给孤独",
+            "b": "乔达摩",
+            "label": "布施供养",
+            "kind": "donation"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "施主与追随者",
+            "施主与追随者"
+          ]
+        }
+      ],
+      "optional": [
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "乔达摩",
+            "label": "问法论道",
+            "kind": "discourse"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "forbidden": [
+        {
+          "pair": [
+            "悉达多",
+            "乔达摩"
+          ],
+          "forbidden_labels": [
+            "师徒",
+            "弟子",
+            "皈依"
+          ],
+          "violated": false,
+          "prediction_labels": [],
+          "reason": "悉达多明确表示朋友将留下而自己继续求道，不能因听法和敬仰推断为正式师徒。"
+        }
+      ],
+      "duplicate_groups": {
+        "('donation', '给孤独', '乔达摩')": 2
+      }
+    },
+    {
+      "chapter_id": 4,
+      "title": "觉醒",
+      "ledger_present": true,
+      "prediction_relation_count": 3,
+      "required": [
+        {
+          "gold": {
+            "a": "乔达摩",
+            "b": "悉达多",
+            "label": "精神启发者",
+            "kind": "mentor"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "optional": [],
+      "forbidden": [
+        {
+          "pair": [
+            "乔达摩",
+            "悉达多"
+          ],
+          "forbidden_labels": [
+            "正式师徒",
+            "皈依师徒",
+            "僧团师徒"
+          ],
+          "violated": true,
+          "prediction_labels": [
+            "师徒"
+          ],
+          "reason": "原文虽称恩师，但上一章已明确悉达多未皈依。"
+        }
+      ],
+      "duplicate_groups": {}
+    },
+    {
+      "chapter_id": 5,
+      "title": "迦摩罗",
+      "ledger_present": true,
+      "prediction_relation_count": 6,
+      "required": [
+        {
+          "gold": {
+            "a": "迦摩罗",
+            "b": "悉达多",
+            "label": "欢爱之术老师",
+            "kind": "skill_teacher_love"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "师生（欢爱之师）"
+          ]
+        }
+      ],
+      "optional": [
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "迦摩罗",
+            "label": "朋友",
+            "kind": "friend"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        },
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "迦摩罗",
+            "label": "相互吸引",
+            "kind": "attraction"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "forbidden": [
+        {
+          "pair": [
+            "悉达多",
+            "迦摩施瓦弥"
+          ],
+          "forbidden_labels": [
+            "商业伙伴",
+            "雇佣",
+            "师徒"
+          ],
+          "violated": false,
+          "prediction_labels": [],
+          "reason": "本章只由迦摩罗引荐，悉达多尚未与迦摩施瓦弥正式会面。"
+        }
+      ],
+      "duplicate_groups": {}
+    },
+    {
+      "chapter_id": 6,
+      "title": "尘世间",
+      "ledger_present": true,
+      "prediction_relation_count": 6,
+      "required": [
+        {
+          "gold": {
+            "a": "迦摩罗",
+            "b": "悉达多",
+            "label": "老师",
+            "kind": "skill_teacher_love"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "师生（欢爱之师）"
+          ]
+        },
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "迦摩罗",
+            "label": "情人",
+            "kind": "lover"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "情爱（恋人）"
+          ]
+        },
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "迦摩罗",
+            "label": "朋友",
+            "kind": "friend"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "朋友"
+          ]
+        },
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "迦摩施瓦弥",
+            "label": "商业共事",
+            "kind": "business"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "optional": [
+        {
+          "gold": {
+            "a": "迦摩施瓦弥",
+            "b": "悉达多",
+            "label": "经商指导",
+            "kind": "business"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "forbidden": [],
+      "duplicate_groups": {}
+    },
+    {
+      "chapter_id": 7,
+      "title": "轮回",
+      "ledger_present": true,
+      "prediction_relation_count": 5,
+      "required": [
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "迦摩罗",
+            "label": "情人",
+            "kind": "lover"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "情爱（恋人）"
+          ]
+        }
+      ],
+      "optional": [
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "迦摩罗",
+            "label": "使其怀孕",
+            "kind": "father_son"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        },
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "迦摩施瓦弥",
+            "label": "商业关系",
+            "kind": "business"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "forbidden": [],
+      "duplicate_groups": {}
+    },
+    {
+      "chapter_id": 8,
+      "title": "在河边",
+      "ledger_present": true,
+      "prediction_relation_count": 5,
+      "required": [
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "乔文达",
+            "label": "青年时代朋友",
+            "kind": "friend"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "朋友"
+          ]
+        },
+        {
+          "gold": {
+            "a": "乔达摩",
+            "b": "乔文达",
+            "label": "师徒",
+            "kind": "formal_teacher"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "optional": [
+        {
+          "gold": {
+            "a": "乔文达",
+            "b": "悉达多",
+            "label": "守候",
+            "kind": "guard"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "forbidden": [
+        {
+          "pair": [
+            "乔达摩",
+            "悉达多"
+          ],
+          "forbidden_labels": [
+            "师徒",
+            "弟子",
+            "皈依"
+          ],
+          "violated": false,
+          "prediction_labels": [],
+          "reason": "悉达多回忆的是相遇与告别，他没有成为乔达摩弟子。"
+        }
+      ],
+      "duplicate_groups": {}
+    },
+    {
+      "chapter_id": 9,
+      "title": "船夫",
+      "ledger_present": true,
+      "prediction_relation_count": 0,
+      "required": [
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "瓦稣迪瓦",
+            "label": "朋友",
+            "kind": "friend"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        },
+        {
+          "gold": {
+            "a": "迦摩罗",
+            "b": "小悉达多",
+            "label": "母子",
+            "kind": "mother_son"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        },
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "小悉达多",
+            "label": "父子",
+            "kind": "father_son"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        },
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "迦摩罗",
+            "label": "昔日恋人",
+            "kind": "lover"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        },
+        {
+          "gold": {
+            "a": "迦摩罗",
+            "b": "乔达摩",
+            "label": "皈依信徒",
+            "kind": "religious_follower"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "optional": [
+        {
+          "gold": {
+            "a": "瓦稣迪瓦",
+            "b": "迦摩罗",
+            "label": "施救",
+            "kind": "rescue"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        },
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "瓦稣迪瓦",
+            "label": "摆渡学艺",
+            "kind": "craft_guidance"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "forbidden": [
+        {
+          "pair": [
+            "瓦稣迪瓦",
+            "悉达多"
+          ],
+          "forbidden_labels": [
+            "正式师徒",
+            "宗教师徒",
+            "皈依师徒"
+          ],
+          "violated": false,
+          "prediction_labels": [],
+          "reason": "瓦稣迪瓦明确否认自己是导师，核心教导来自河水。"
+        }
+      ],
+      "duplicate_groups": {}
+    },
+    {
+      "chapter_id": 10,
+      "title": "儿子",
+      "ledger_present": true,
+      "prediction_relation_count": 6,
+      "required": [
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "小悉达多",
+            "label": "父子",
+            "kind": "father_son"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        },
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "瓦稣迪瓦",
+            "label": "朋友",
+            "kind": "friend"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "朋友"
+          ]
+        }
+      ],
+      "optional": [
+        {
+          "gold": {
+            "a": "小悉达多",
+            "b": "悉达多",
+            "label": "憎恨与反抗",
+            "kind": "conflict"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        },
+        {
+          "gold": {
+            "a": "瓦稣迪瓦",
+            "b": "小悉达多",
+            "label": "担忧",
+            "kind": "care"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "forbidden": [],
+      "duplicate_groups": {
+        "('lover', '悉达多', '迦摩罗')": 2
+      }
+    },
+    {
+      "chapter_id": 11,
+      "title": "唵",
+      "ledger_present": true,
+      "prediction_relation_count": 4,
+      "required": [
+        {
+          "gold": {
+            "a": "瓦稣迪瓦",
+            "b": "悉达多",
+            "label": "精神引导",
+            "kind": "mentor"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "optional": [
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "瓦稣迪瓦",
+            "label": "倾诉与倾听",
+            "kind": "listen_support"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "倾诉者与倾听者"
+          ]
+        }
+      ],
+      "forbidden": [
+        {
+          "pair": [
+            "瓦稣迪瓦",
+            "悉达多"
+          ],
+          "forbidden_labels": [
+            "正式师徒",
+            "宗教师徒"
+          ],
+          "violated": false,
+          "prediction_labels": [],
+          "reason": "这里是精神引导与共同倾听，不应把关系窄化为正式师徒。"
+        }
+      ],
+      "duplicate_groups": {}
+    },
+    {
+      "chapter_id": 12,
+      "title": "乔文达",
+      "ledger_present": true,
+      "prediction_relation_count": 5,
+      "required": [
+        {
+          "gold": {
+            "a": "悉达多",
+            "b": "乔文达",
+            "label": "青年好友",
+            "kind": "friend"
+          },
+          "hit": true,
+          "matched_prediction_labels": [
+            "朋友"
+          ]
+        },
+        {
+          "gold": {
+            "a": "乔达摩",
+            "b": "乔文达",
+            "label": "师徒",
+            "kind": "formal_teacher"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "optional": [
+        {
+          "gold": {
+            "a": "瓦稣迪瓦",
+            "b": "悉达多",
+            "label": "前辈与师长",
+            "kind": "mentor"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        },
+        {
+          "gold": {
+            "a": "乔文达",
+            "b": "悉达多",
+            "label": "敬爱与敬意",
+            "kind": "respect"
+          },
+          "hit": false,
+          "matched_prediction_labels": []
+        }
+      ],
+      "forbidden": [
+        {
+          "pair": [
+            "乔达摩",
+            "悉达多"
+          ],
+          "forbidden_labels": [
+            "师徒",
+            "弟子",
+            "皈依"
+          ],
+          "violated": false,
+          "prediction_labels": [],
+          "reason": "悉达多尊敬并认同乔达摩，但始终没有成为其弟子。"
+        }
+      ],
+      "duplicate_groups": {}
+    }
+  ],
+  "unscored_predictions": [
+    {
+      "chapter_id": 1,
+      "index": 2,
+      "a": "乔文达",
+      "b": "悉达多",
+      "label": "倾慕之爱",
+      "kind": "attraction"
+    },
+    {
+      "chapter_id": 2,
+      "index": 2,
+      "a": "悉达多",
+      "b": "乔文达",
+      "label": "同修同伴",
+      "kind": "other:同修同伴"
+    },
+    {
+      "chapter_id": 2,
+      "index": 3,
+      "a": "悉达多",
+      "b": "乔达摩",
+      "label": "慕名往听宣法",
+      "kind": "other:慕名往听宣法"
+    },
+    {
+      "chapter_id": 3,
+      "index": 2,
+      "a": "乔文达",
+      "b": "乔达摩",
+      "label": "皈依弟子",
+      "kind": "religious_follower"
+    },
+    {
+      "chapter_id": 3,
+      "index": 3,
+      "a": "悉达多",
+      "b": "乔达摩",
+      "label": "倾慕之爱",
+      "kind": "other:倾慕之爱"
+    },
+    {
+      "chapter_id": 3,
+      "index": 4,
+      "a": "悉达多",
+      "b": "乔达摩",
+      "label": "当面质疑法义",
+      "kind": "other:当面质疑法义"
+    },
+    {
+      "chapter_id": 4,
+      "index": 2,
+      "a": "乔文达",
+      "b": "乔达摩",
+      "label": "皈依弟子",
+      "kind": "religious_follower"
+    },
+    {
+      "chapter_id": 4,
+      "index": 3,
+      "a": "悉达多",
+      "b": "乔文达",
+      "label": "同修同伴",
+      "kind": "other:同修同伴"
+    },
+    {
+      "chapter_id": 5,
+      "index": 2,
+      "a": "悉达多",
+      "b": "迦摩罗",
+      "label": "情爱（恋人）",
+      "kind": "lover"
+    },
+    {
+      "chapter_id": 5,
+      "index": 3,
+      "a": "悉达多",
+      "b": "乔文达",
+      "label": "同修同伴",
+      "kind": "other:同修同伴"
+    },
+    {
+      "chapter_id": 5,
+      "index": 4,
+      "a": "悉达多",
+      "b": "乔达摩",
+      "label": "当面质疑法义",
+      "kind": "other:当面质疑法义"
+    },
+    {
+      "chapter_id": 5,
+      "index": 5,
+      "a": "迦摩罗",
+      "b": "迦摩施瓦弥",
+      "label": "相识引荐",
+      "kind": "other:相识引荐"
+    },
+    {
+      "chapter_id": 5,
+      "index": 6,
+      "a": "悉达多",
+      "b": "迦摩施瓦弥",
+      "label": "引荐待雇（未谋面）",
+      "kind": "other:引荐待雇未谋面"
+    },
+    {
+      "chapter_id": 6,
+      "index": 1,
+      "a": "悉达多",
+      "b": "迦摩施瓦弥",
+      "label": "雇主与雇员",
+      "kind": "craft_guidance"
+    },
+    {
+      "chapter_id": 6,
+      "index": 2,
+      "a": "悉达多",
+      "b": "迦摩施瓦弥",
+      "label": "朋友",
+      "kind": "friend"
+    },
+    {
+      "chapter_id": 6,
+      "index": 3,
+      "a": "悉达多",
+      "b": "迦摩施瓦弥",
+      "label": "观念分歧",
+      "kind": "other:观念分歧"
+    },
+    {
+      "chapter_id": 7,
+      "index": 2,
+      "a": "悉达多",
+      "b": "迦摩施瓦弥",
+      "label": "生意往来",
+      "kind": "other:生意往来"
+    },
+    {
+      "chapter_id": 7,
+      "index": 3,
+      "a": "悉达多",
+      "b": "乔文达",
+      "label": "同修同伴",
+      "kind": "other:同修同伴"
+    },
+    {
+      "chapter_id": 7,
+      "index": 4,
+      "a": "悉达多",
+      "b": "乔达摩",
+      "label": "当面质疑法义",
+      "kind": "other:当面质疑法义"
+    },
+    {
+      "chapter_id": 7,
+      "index": 5,
+      "a": "迦摩罗",
+      "b": "乔达摩",
+      "label": "施主与追随者",
+      "kind": "donation"
+    },
+    {
+      "chapter_id": 8,
+      "index": 2,
+      "a": "乔文达",
+      "b": "乔达摩",
+      "label": "皈依弟子",
+      "kind": "religious_follower"
+    },
+    {
+      "chapter_id": 8,
+      "index": 3,
+      "a": "悉达多",
+      "b": "迦摩罗",
+      "label": "师生（欢爱之师）",
+      "kind": "skill_teacher_love"
+    },
+    {
+      "chapter_id": 8,
+      "index": 4,
+      "a": "悉达多",
+      "b": "迦摩施瓦弥",
+      "label": "雇主与雇员",
+      "kind": "craft_guidance"
+    },
+    {
+      "chapter_id": 8,
+      "index": 5,
+      "a": "悉达多",
+      "b": "乔达摩",
+      "label": "相遇又告别",
+      "kind": "farewell"
+    },
+    {
+      "chapter_id": 10,
+      "index": 1,
+      "a": "悉达多",
+      "b": "小悉达多",
+      "label": "亲子",
+      "kind": "mother_son"
+    },
+    {
+      "chapter_id": 10,
+      "index": 2,
+      "a": "迦摩罗",
+      "b": "小悉达多",
+      "label": "亲子",
+      "kind": "mother_son"
+    },
+    {
+      "chapter_id": 10,
+      "index": 3,
+      "a": "悉达多",
+      "b": "迦摩罗",
+      "label": "旧日恋人",
+      "kind": "lover"
+    },
+    {
+      "chapter_id": 10,
+      "index": 5,
+      "a": "小悉达多",
+      "b": "瓦稣迪瓦",
+      "label": "偷摘果实冒犯长辈",
+      "kind": "offense"
+    },
+    {
+      "chapter_id": 10,
+      "index": 6,
+      "a": "悉达多",
+      "b": "迦摩罗",
+      "label": "情爱（恋人）",
+      "kind": "lover"
+    },
+    {
+      "chapter_id": 11,
+      "index": 1,
+      "a": "悉达多",
+      "b": "瓦稣迪瓦",
+      "label": "同住共修的同伴",
+      "kind": "cohabit"
+    },
+    {
+      "chapter_id": 11,
+      "index": 3,
+      "a": "悉达多",
+      "b": "瓦稣迪瓦",
+      "label": "敬奉如神",
+      "kind": "other:敬奉如神"
+    },
+    {
+      "chapter_id": 11,
+      "index": 4,
+      "a": "瓦稣迪瓦",
+      "b": "悉达多",
+      "label": "辞行告别",
+      "kind": "farewell"
+    },
+    {
+      "chapter_id": 12,
+      "index": 2,
+      "a": "乔文达",
+      "b": "乔达摩",
+      "label": "皈依弟子",
+      "kind": "religious_follower"
+    },
+    {
+      "chapter_id": 12,
+      "index": 3,
+      "a": "悉达多",
+      "b": "瓦稣迪瓦",
+      "label": "师徒",
+      "kind": "mentor"
+    },
+    {
+      "chapter_id": 12,
+      "index": 4,
+      "a": "悉达多",
+      "b": "迦摩罗",
+      "label": "师生（欢爱之师）",
+      "kind": "skill_teacher_love"
+    },
+    {
+      "chapter_id": 12,
+      "index": 5,
+      "a": "悉达多",
+      "b": "乔达摩",
+      "label": "信念同道",
+      "kind": "other:信念同道"
+    }
+  ],
+  "scoring_note": "Gold is intentionally not exhaustive for every event-like/open relation. Therefore broad prediction precision is not reported. adjudicated_precision only uses predictions explicitly covered by required/optional/forbidden Gold."
+}

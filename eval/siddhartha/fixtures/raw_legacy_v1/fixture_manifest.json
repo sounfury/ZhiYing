@@ -1,0 +1,114 @@
+{
+  "fixture_version": 1,
+  "name": "siddhartha-raw-legacy-v1",
+  "created_at": "2026-09-12T22:29:13.141234",
+  "source_book_id": "bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e",
+  "capture_book_id": "p0-siddhartha-raw-capture",
+  "chapter_ids": [
+    1,
+    2,
+    3,
+    4,
+    5,
+    6,
+    7,
+    8,
+    9,
+    10,
+    11,
+    12
+  ],
+  "chapter_content_sha256": {
+    "1": "ed3c450d3591933ba594edc6d6a326436478e1744eedb00a653078d3a88010c7",
+    "2": "9f5e3771965a7d90a7282d11d9d3ce82487586537e107b8889e2e10dfc60c0aa",
+    "3": "9e083d1611de4dba38264a011a5070556a57e97edcc99f60337936e184586cf7",
+    "4": "ea245ccf58e8bfa918b48d2afdbdde714b3f7c3def72c53dce35f2c4fcc020f8",
+    "5": "c63b2d945066153559fdc3bc8886bc44246799796bce97a36c7f5e0960068a79",
+    "6": "1426c0f551b053d2a39b5ecbe0f1e9fbdd56bc596720d6ca7728187a36ebc3a7",
+    "7": "45f2b35a5d584724d18ccb4666692f599780aef0092ed7ec080f3d5826281a5c",
+    "8": "0e366f8ae747b9a484007b590412921c313035ccfd97dc9622c60e8c4d719f4b",
+    "9": "32e9baf9a98457f833976951d1f4651b85088a9c5dcef99d4fff437bc5b0cfa6",
+    "10": "792412b75a017c805b212c045ca493dd33035819966325ab8714e3eeba1b3831",
+    "11": "f82239271f87d928aaecf0118f0345e09f4c6b933081bc0e8264f2b10af3592c",
+    "12": "fd37fadf730f9c4e29aeba0c20a369ede033e7d679be1c626ba1cac2239764ce"
+  },
+  "files": {
+    "base_cast.json": "11da4cb6ec27270d3872c613a8d417ee1465f1c8fcccc8bce741ff1cd4cb9b68",
+    "chapter_001.json": "ab8575a9df3fc423ea59962a29af0e3dc0dd1b7b852b32cc4ad6ebc8f5661d81",
+    "chapter_002.json": "d64f50dd6200eb1494cc4a36518fd4bdea4acd8f00c3e55eaad965914a977409",
+    "chapter_003.json": "9f6a5ef934eaac90e96bf29269ea996848201ff35e5afe9ac25cb43f9c5c35b5",
+    "chapter_004.json": "aba1542d5c3ea790e76d56acf475ce7327e01957525fd576034f5c28f492fc93",
+    "chapter_005.json": "b7d02ba1d6880c1d04905d1659b5241c4e1d11f5ceaee72efe4c60834ae6defd",
+    "chapter_006.json": "7f7aa79e9f62822bb5b1c66c2a7da4dbfea1c2bfc235d5d1668847f549fa919a",
+    "chapter_007.json": "db4b788e5c538be01db87b18965ffa09e1e0948cc9f039dca0b77c2269b0a479",
+    "chapter_008.json": "556c3ddb2881a0463ffd765790133a496d5800c116fb56d4fda312092660331c",
+    "chapter_009.json": "a9c13b992835dc0e508de6364155d676a5401f8f854169d3c58808e7c6c9cc80",
+    "chapter_010.json": "f98b5e0c1701db605144a42e1f7615834bec662c07ba364d386a4652c1dd34d5",
+    "chapter_011.json": "6a425d7509e864fb8b8559b01867126ea75280292e17e7d5f78edcad8619d30a",
+    "chapter_012.json": "30daded5b530142a183aded5e07a7938d5eec69b3875443d523f0ca7577e7522"
+  },
+  "fixture_sha256": "a396117ec1971838a5d00e5c9ff7f6b708b6b12cc7975e42da46531836ba80d4",
+  "capture_model": "deepseek-flash",
+  "capture_metrics": {
+    "elapsed_seconds": 77.839,
+    "requested_chapters": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "attempted_chapters": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "reused_chapters": [],
+    "attempt_counts": {
+      "1": 1,
+      "2": 1,
+      "3": 1,
+      "4": 1,
+      "5": 1,
+      "6": 1,
+      "7": 1,
+      "8": 1,
+      "9": 1,
+      "10": 1,
+      "11": 1,
+      "12": 1
+    },
+    "usage": {
+      "llm_requests": 41,
+      "input_tokens": 350561,
+      "output_tokens": 62466,
+      "total_tokens": 413027,
+      "stop_reason": ""
+    },
+    "phase_stats": {
+      "chapter": {
+        "requests": 41,
+        "errors": 0,
+        "input_tokens": 350561,
+        "output_tokens": 62466,
+        "total_tokens": 413027
+      }
+    }
+  }
+}

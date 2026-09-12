@@ -1,0 +1,121 @@
+{
+  "snapshot_version": 1,
+  "chapter_id": 1,
+  "content_sha256": "ed3c450d3591933ba594edc6d6a326436478e1744eedb00a653078d3a88010c7",
+  "ledger": {
+    "chapter_id": 1,
+    "persons": [
+      {
+        "person_id": "ch1_p1",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch1_p2",
+        "aliases_in_chapter": []
+      }
+    ],
+    "relations": [
+      {
+        "label": "好友",
+        "category": "情感",
+        "definition": "自小一同长大、情谊深厚的同伴关系，彼此视为朋友。",
+        "directed": false,
+        "subject_role": "朋友",
+        "object_role": "朋友",
+        "relation_id": "ff3ffee79de0426fab35fdc4dc8131f0",
+        "person_a": "ch1_p1",
+        "person_b": "ch1_p2",
+        "raw_relation": "悉达多与他的好友、同为婆罗门之子的乔文达一道长大，一同修习辩论、参禅与冥想。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 1,
+          "quote": "与他的好友，同为婆罗门之子的乔文达一道长大。",
+          "note": "乔文达是悉达多的好友，二人同修辩论、参禅、冥想。",
+          "quote_verified": true,
+          "start": 60,
+          "end": 82
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "倾慕之爱",
+        "category": "情感",
+        "definition": "一方对另一方怀着深切的爱慕与崇敬，视对方为精神上最高贵者。",
+        "directed": true,
+        "subject_role": "爱慕者",
+        "object_role": "被爱慕者",
+        "relation_id": "3d3a9b82b52a4554851c50fc05f2c555",
+        "person_a": "ch1_p2",
+        "person_b": "ch1_p1",
+        "raw_relation": "乔文达最爱悉达多，爱他的目光、嗓音、步态与他一切的言行，更爱他的精神。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 1,
+          "quote": "而最爱他的人是乔文达。他爱悉达多的目光和仁慈的嗓音；他爱他的步态，他行动时的优雅完美。",
+          "note": "乔文达对悉达多的爱涵盖其外貌、言行与精神。",
+          "quote_verified": true,
+          "start": 437,
+          "end": 480
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "追随",
+        "category": "情感",
+        "definition": "一方自愿跟随、侍奉另一方，甘为其随从与影子。",
+        "directed": true,
+        "subject_role": "追随者",
+        "object_role": "被追随者",
+        "relation_id": "7c15806f71ad44f4a9c6989a5774fd69",
+        "person_a": "ch1_p2",
+        "person_b": "ch1_p1",
+        "raw_relation": "乔文达决意追随悉达多，即便悉达多成神，他仍要做他的朋友、随从、仆人、侍卫和影子。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 1,
+          "quote": "他仍要做他的朋友，他的随从，他的仆人，他的侍卫，他的影子。",
+          "note": "乔文达立志追随悉达多，甘为随从、仆人、侍卫与影子。",
+          "quote_verified": true,
+          "start": 667,
+          "end": 696
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      }
+    ],
+    "events": [],
+    "summary": "婆罗门之子悉达多与好友乔文达一同长大，深受众人爱戴却内心不宁，渴望寻得阿特曼；他决意离家成为沙门，苦候一夜后获父亲允准，破晓时乔文达追随他一同踏上朝圣之路。",
+    "analysis_status": "complete",
+    "warnings": []
+  },
+  "cast_buffer": {
+    "ch1_p1": {
+      "canonical_name": "悉达多",
+      "aliases": [
+        "Siddhartha"
+      ],
+      "bio": "俊美的婆罗门之子，渴慕知识，后决意离家成为沙门。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 1
+    },
+    "ch1_p2": {
+      "canonical_name": "乔文达",
+      "aliases": [
+        "Govinda"
+      ],
+      "bio": "婆罗门之子，悉达多的好友，深爱并追随悉达多。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 1
+    }
+  }
+}

@@ -1,0 +1,206 @@
+{
+  "snapshot_version": 1,
+  "chapter_id": 7,
+  "content_sha256": "45f2b35a5d584724d18ccb4666692f599780aef0092ed7ec080f3d5826281a5c",
+  "ledger": {
+    "chapter_id": 7,
+    "persons": [
+      {
+        "person_id": "ch7_p1",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch7_p2",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch7_p3",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch7_p4",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch7_p5",
+        "aliases_in_chapter": []
+      }
+    ],
+    "relations": [
+      {
+        "label": "情人",
+        "category": "情感",
+        "definition": "保持亲密情爱与肉体关系、彼此最为亲近的一对男女，双方角色对等。",
+        "directed": false,
+        "subject_role": "情人",
+        "object_role": "情人",
+        "relation_id": "546c53ff78a446b58bc5c72a69ff293e",
+        "person_a": "ch7_p1",
+        "person_b": "ch7_p2",
+        "raw_relation": "悉达多与迦摩罗知近，是她狂热相拥做爱的情人，彼此是对方最亲近的人。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 7,
+          "quote": "她狂热地紧紧拥抱他，流着泪亲他、咬他",
+          "note": "结合“只有迦摩罗与他知近”可知二人是情人关系。",
+          "quote_verified": true,
+          "start": 2139,
+          "end": 2157
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "生意往来",
+        "category": "合作",
+        "definition": "因共同经商、生意交涉而联系在一起的人，彼此扮演生意伙伴或生意往来者的角色。",
+        "directed": false,
+        "subject_role": "生意往来者",
+        "object_role": "生意往来者",
+        "relation_id": "9329a0874dc1463bb33379d4c4e291e4",
+        "person_a": "ch7_p1",
+        "person_b": "ch7_p3",
+        "raw_relation": "悉达多与商人迦摩施瓦弥有生意往来，当迦摩施瓦弥为生意烦恼愤怒时，悉达多轻蔑地袖手旁观。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 7,
+          "quote": "当迦摩施瓦弥不安、愤怒，自觉被冒犯或为生意烦恼时，他总是轻蔑地袖手旁观。",
+          "note": "悉达多对迦摩施瓦弥生意烦恼的态度显示两人存在生意关联。",
+          "quote_verified": true,
+          "start": 718,
+          "end": 754
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "昔日同伴",
+        "category": "友谊",
+        "definition": "曾一同行走、结伴求道或相处，后分别的同伴关系。",
+        "directed": false,
+        "subject_role": "昔日同伴",
+        "object_role": "昔日同伴",
+        "relation_id": "173ce3860d404c1eab3068456fc385a0",
+        "person_a": "ch7_p1",
+        "person_b": "ch7_p5",
+        "raw_relation": "悉达多曾与乔文达同行求道，后与其告别，乔文达成为他回忆中的昔日同伴。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 7,
+          "quote": "在聆听乔达摩宣法、告别乔文达后的岁月",
+          "note": "表明悉达多与乔文达曾同行而后告别。",
+          "quote_verified": true,
+          "start": 224,
+          "end": 242
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "闻法者与觉者",
+        "category": "信仰",
+        "definition": "一方曾听闻另一方宣说教法，最终又离之而去的求道者与觉者之间的关系。",
+        "directed": true,
+        "subject_role": "求道者/闻法者",
+        "object_role": "觉者/说法者",
+        "relation_id": "571f6581e5c34897a7b08752da4cd328",
+        "person_a": "ch7_p1",
+        "person_b": "ch7_p4",
+        "raw_relation": "悉达多曾聆听乔达摩宣法，后离开世尊佛陀；他并非佛陀的弟子。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 7,
+          "quote": "在他离开世尊佛陀，踏入无常时",
+          "note": "悉达多听过佛陀说法但选择离开，不构成收徒拜师。",
+          "quote_verified": true,
+          "start": 3204,
+          "end": 3218
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "皈依意愿",
+        "category": "信仰",
+        "definition": "一方表达出追随、供养并皈依另一方教义的心愿。",
+        "directed": true,
+        "subject_role": "发愿皈依者",
+        "object_role": "皈依对象",
+        "relation_id": "bebed7033bca4d71aa235d22a7d04897",
+        "person_a": "ch7_p2",
+        "person_b": "ch7_p4",
+        "raw_relation": "迦摩罗表示日后或许不久就要追随佛陀，把花园献给他，皈依他的教义。",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 7,
+          "quote": "日后，或许不久，我也要追随佛陀。我要把我的花园献给他，皈依他的教义。",
+          "note": "此为迦摩罗口述的意图与心愿，尚未实现。",
+          "quote_verified": true,
+          "start": 2082,
+          "end": 2116
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      }
+    ],
+    "events": [],
+    "summary": "悉达多沉溺于财富、淫乐与赌博的世俗轮回，日渐疲惫衰老，唯一珍惜的只有情人迦摩罗。一夜与迦摩罗最后一聚后，他梦见笼中知更鸟死去，遂顿悟游戏终结，告别花园与城邑一去不返；迦摩罗放飞了笼中的知更鸟，闭门谢客，并发现自己已怀有悉达多的身孕。",
+    "analysis_status": "complete",
+    "warnings": []
+  },
+  "cast_buffer": {
+    "ch7_p1": {
+      "canonical_name": "悉达多",
+      "aliases": [],
+      "bio": "曾为沙门、求道者，后沉溺于财富、淫乐与赌博的世俗生活，最终离开城邑一去不返。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 7
+    },
+    "ch7_p2": {
+      "canonical_name": "迦摩罗",
+      "aliases": [],
+      "bio": "与悉达多知近的情人，放走笼中知更鸟后闭门谢客，并发现自己怀了身孕。",
+      "gender": "female",
+      "importance": "main",
+      "source_chapter_id": 7
+    },
+    "ch7_p3": {
+      "canonical_name": "迦摩施瓦弥",
+      "aliases": [],
+      "bio": "商人，悉达多在世俗生活中的生意往来者。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 7
+    },
+    "ch7_p4": {
+      "canonical_name": "乔达摩",
+      "aliases": [
+        "佛陀",
+        "世尊"
+      ],
+      "bio": "世尊佛陀，悉达多曾聆听其宣法后离去；迦摩罗亦表示要追随他。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 7
+    },
+    "ch7_p5": {
+      "canonical_name": "乔文达",
+      "aliases": [],
+      "bio": "悉达多昔日的同伴，悉达多曾与其告别。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 7
+    }
+  }
+}

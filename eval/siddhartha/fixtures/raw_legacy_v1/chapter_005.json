@@ -1,0 +1,234 @@
+{
+  "snapshot_version": 1,
+  "chapter_id": 5,
+  "content_sha256": "c63b2d945066153559fdc3bc8886bc44246799796bce97a36c7f5e0960068a79",
+  "ledger": {
+    "chapter_id": 5,
+    "persons": [
+      {
+        "person_id": "ch5_p1",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch5_p2",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch5_p3",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch5_p4",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch5_p5",
+        "aliases_in_chapter": []
+      }
+    ],
+    "relations": [
+      {
+        "label": "师生（欢爱之师）",
+        "category": "教化",
+        "definition": "一方传授某门技艺或知识，另一方拜其为师、从其学习，并承认对方的教师身份。",
+        "directed": true,
+        "subject_role": "学生",
+        "object_role": "老师",
+        "relation_id": "d8782709359d474796c0c42be5cab59a",
+        "person_a": "ch5_p1",
+        "person_b": "ch5_p2",
+        "raw_relation": "悉达多请求迦摩罗做他的朋友和老师，向她学习欢爱之事；迦摩罗应允并开始教导他",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 5,
+          "quote": "“是为了说这个。也为感谢你的美貌，迦摩罗。如若不冒犯你，我想请求你做我的朋友和老师。因为对你所熟稔的艺术，我一无所知。”",
+          "note": "后文悉达多吻别时称她“我的老师”，印证师生关系。",
+          "quote_verified": true,
+          "start": 3715,
+          "end": 3775
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "情爱（恋人）",
+        "category": "情感",
+        "definition": "双方以亲吻、爱欲等方式互诉情意，结成的情人式亲密关系。",
+        "directed": false,
+        "subject_role": "情人",
+        "object_role": "情人",
+        "relation_id": "878403c5808e4ab3bf8749e0d81b4e59",
+        "person_a": "ch5_p1",
+        "person_b": "ch5_p2",
+        "raw_relation": "悉达多以诗求吻，迦摩罗应允并与她长久亲吻，允他备齐衣鞋钱财后再来相见，二人互称朋友",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 5,
+          "quote": "说着她用眼神示意他走上前来。他将脸俯在她的脸上，又将嘴唇印在她那宛如新鲜开裂的无花果般的朱唇上。长久地，他亲吻着迦摩罗。",
+          "note": "此后二人以“朋友”“亲爱的迦摩罗”相称，并有再度相见之约。",
+          "quote_verified": true,
+          "start": 5208,
+          "end": 5268
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "旧日同伴（已分别）",
+        "category": "友谊",
+        "definition": "曾共同行走、同行的伙伴关系，后因各自道路不同而分离。",
+        "directed": false,
+        "subject_role": "同伴",
+        "object_role": "同伴",
+        "relation_id": "c7fb2388bdc6493a9621fcd0949b4570",
+        "person_a": "ch5_p1",
+        "person_b": "ch5_p3",
+        "raw_relation": "乔文达是悉达多昔日同行的求道同伴，二人在祗树给孤独园告别，此后分离；乔文达忧伤地质问悉达多为何离开他（梦中）",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 5,
+          "quote": "他曾在那里聆听佛陀神圣的法义，同乔文达告别，与世尊交谈。",
+          "note": "本章乔文达仅见于回忆与梦中，现实中已与悉达多分别。",
+          "quote_verified": true,
+          "start": 691,
+          "end": 719
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "闻法者与说法者",
+        "category": "教化",
+        "definition": "一方宣说教法，另一方言听并与之议论法义，但并未拜师皈依的关系。",
+        "directed": true,
+        "subject_role": "闻法与质疑者",
+        "object_role": "说法者",
+        "relation_id": "8fe8f7e3c94e4fe58cd619e126c17a5d",
+        "person_a": "ch5_p1",
+        "person_b": "ch5_p4",
+        "raw_relation": "悉达多曾在祗树给孤独园聆听乔达摩（佛陀）的神圣法义，并与世尊交谈；他认为佛陀的彻悟纪事才是不可传授的珍宝，未随其留下出家",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 5,
+          "quote": "他记起他曾对世尊佛陀说过的字字句句。他惊讶地意识到，自己所言的“珍宝”，当时无从体会。",
+          "note": "本章为回忆，非现场互动；他提及听闻法义后与乔文达告别离园。",
+          "quote_verified": true,
+          "start": 719,
+          "end": 762
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "相识引荐",
+        "category": "社交合作",
+        "definition": "一方与有势力者相识，并能向其引荐他人、谋取差事的关系。",
+        "directed": true,
+        "subject_role": "引荐者",
+        "object_role": "被托付的富商",
+        "relation_id": "c64cf7d2612e47d6991262dc82b97263",
+        "person_a": "ch5_p2",
+        "person_b": "ch5_p5",
+        "raw_relation": "迦摩罗托人向城中最富庶的商人迦摩施瓦弥引荐悉达多，请他收用悉达多做事",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 5,
+          "quote": "放机灵点儿，麦褐色的沙门！我托人向他引荐了你。你要对他客气些，他很有权势。",
+          "note": "迦摩罗对迦摩施瓦弥的性情与权势十分熟悉，显示二人相识。",
+          "quote_verified": true,
+          "start": 6174,
+          "end": 6211
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "引荐待雇（未谋面）",
+        "category": "社交合作",
+        "definition": "经第三方引荐而产生的雇主与求事者之间的待见、待雇关系。",
+        "directed": true,
+        "subject_role": "求事者（被引荐）",
+        "object_role": "富商（雇主）",
+        "relation_id": "f588b6e857ef4ebca9884daa7b5da503",
+        "person_a": "ch5_p1",
+        "person_b": "ch5_p5",
+        "raw_relation": "经迦摩罗引荐，富商迦摩施瓦弥正在等候悉达多，若讨其欢心便可替他做事，但本章二人尚未照面",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 5,
+          "quote": "“一切都很顺利。”迦摩罗迎向他，“迦摩施瓦弥正在等你。他是城中最富庶的商人。如果你讨他欢心，便可替他做事。",
+          "note": "本章仅止于约定引荐，双方未实际相见或互动。",
+          "quote_verified": true,
+          "start": 6121,
+          "end": 6174
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      }
+    ],
+    "events": [],
+    "summary": "悉达多告别沙门之路进城，途中在梦中再见昔日同伴乔文达，并回想起与佛陀乔达摩说法交谈的往事。他结识城中名妓迦摩罗，向这名美丽的女人拜师学习欢爱之事，并以诗赢得一吻；迦摩罗又将他引荐给富商迦摩施瓦弥，为他谋取差事。待查：本章未明说乔文达在祗树给孤独园是否正式师从乔达摩；林苑船夫、理发店伙计与村舍妇人皆无名，不计入人物。",
+    "analysis_status": "complete",
+    "warnings": []
+  },
+  "cast_buffer": {
+    "ch5_p1": {
+      "canonical_name": "悉达多",
+      "aliases": [
+        "沙门",
+        "婆罗门之子"
+      ],
+      "bio": "婆罗门之子，曾为沙门三年余，告别沙门之路后进城，向迦摩罗学习欢爱并向商人求事。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 5
+    },
+    "ch5_p2": {
+      "canonical_name": "迦摩罗",
+      "aliases": [],
+      "bio": "城中名妓，林苑的女主人，美艳聪慧，成为悉达多欢爱之事的老师并把他引荐给富商。",
+      "gender": "female",
+      "importance": "main",
+      "source_chapter_id": 5
+    },
+    "ch5_p3": {
+      "canonical_name": "乔文达",
+      "aliases": [],
+      "bio": "悉达多昔日同行的求道同伴，已与他在祗树给孤独园分别，出现在悉达多的回忆与梦中。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 5
+    },
+    "ch5_p4": {
+      "canonical_name": "乔达摩",
+      "aliases": [
+        "佛陀",
+        "世尊"
+      ],
+      "bio": "正觉成道的佛陀，悉达多曾在祗树给孤独园聆听其法义并与之交谈。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 5
+    },
+    "ch5_p5": {
+      "canonical_name": "迦摩施瓦弥",
+      "aliases": [],
+      "bio": "城中最富庶的商人，年事渐高，经迦摩罗引荐，正等候接见悉达多。",
+      "gender": "male",
+      "importance": "minor",
+      "source_chapter_id": 5
+    }
+  }
+}

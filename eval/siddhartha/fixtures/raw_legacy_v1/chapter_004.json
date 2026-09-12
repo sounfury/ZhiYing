@@ -1,0 +1,136 @@
+{
+  "snapshot_version": 1,
+  "chapter_id": 4,
+  "content_sha256": "ea245ccf58e8bfa918b48d2afdbdde714b3f7c3def72c53dce35f2c4fcc020f8",
+  "ledger": {
+    "chapter_id": 4,
+    "persons": [
+      {
+        "person_id": "ch4_p1",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch4_p2",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch4_p3",
+        "aliases_in_chapter": []
+      }
+    ],
+    "relations": [
+      {
+        "label": "师徒",
+        "category": "师承",
+        "definition": "一方曾从另一方受教、以之为师的师生关系。",
+        "directed": true,
+        "subject_role": "弟子",
+        "object_role": "恩师",
+        "relation_id": "0129ef8fc8ac47fea2ed986abf40276b",
+        "person_a": "ch4_p1",
+        "person_b": "ch4_p3",
+        "raw_relation": "悉达多视世尊佛陀为自己最后一位恩师，但佛陀的法义未能挽留他、折服他",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 4,
+          "quote": "他的最后一位恩师是神圣的世尊佛陀。但佛陀的法义也无法挽留他，折服他。",
+          "note": "悉达多承认佛陀是其最后一位恩师，但最终未被其法义折服而选择离开。",
+          "quote_verified": true,
+          "start": 230,
+          "end": 264
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "皈依弟子",
+        "category": "宗教",
+        "definition": "一方皈依佛门、成为佛教僧团一员并追随、尊奉佛陀为师的关系。",
+        "directed": true,
+        "subject_role": "皈依弟子",
+        "object_role": "师尊",
+        "relation_id": "889e2467d35a4b04b6498ed200abd808",
+        "person_a": "ch4_p2",
+        "person_b": "ch4_p3",
+        "raw_relation": "乔文达皈依佛门，成为佛陀僧团中的僧人，以佛陀为师尊",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 4,
+          "quote": "乔文达已皈依佛门，万千僧人是他的弟兄，他们着同样的僧服，信共同的信仰，说相同的话。",
+          "note": "乔文达皈依佛门，属于佛陀的僧团。",
+          "quote_verified": true,
+          "start": 1876,
+          "end": 1917
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "同伴",
+        "category": "情谊",
+        "definition": "曾共同出行、相处并因此彼此关联的同行伙伴关系。",
+        "directed": false,
+        "subject_role": "同伴",
+        "object_role": "同伴",
+        "relation_id": "640b616fafa945149d2bfc9860ca83e6",
+        "person_a": "ch4_p1",
+        "person_b": "ch4_p2",
+        "raw_relation": "悉达多与乔文达曾同在祗园，悉达多离开时乔文达仍停留该处，二人为同行同伴",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 4,
+          "quote": "当悉达多离开觉者佛陀栖居的祗园，离开乔文达停留的祗园时，他意识到他将自己过去的生活也抛在了身后的祗园。",
+          "note": "二人曾同在祗园，此处悉达多离开而乔文达停留原处，暗示二人为同行同伴。",
+          "quote_verified": true,
+          "start": 3,
+          "end": 54
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      }
+    ],
+    "events": [],
+    "summary": "悉达多离开佛陀的祗园，与留在彼处皈依佛门的同伴乔文达分别，独自沉思，最终觉悟到自己一直忽视了\"我\"，决定不再苦修、拜自己为师，认识真正的自我，断绝归家之念，踏上自我之路。",
+    "analysis_status": "complete",
+    "warnings": []
+  },
+  "cast_buffer": {
+    "ch4_p1": {
+      "canonical_name": "悉达多",
+      "aliases": [
+        "Siddhartha"
+      ],
+      "bio": "婆罗门之子，历经苦修与沙门生活后离开佛陀的祗园，踏上认识自我之路。",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 4
+    },
+    "ch4_p2": {
+      "canonical_name": "乔文达",
+      "aliases": [
+        "Govinda"
+      ],
+      "bio": "悉达多的同伴，后皈依佛门，成为佛陀的僧人。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 4
+    },
+    "ch4_p3": {
+      "canonical_name": "佛陀",
+      "aliases": [
+        "世尊佛陀",
+        "觉者佛陀"
+      ],
+      "bio": "神圣的觉者，悉达多最后一位恩师，乔文达皈依其门下。",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 4
+    }
+  }
+}

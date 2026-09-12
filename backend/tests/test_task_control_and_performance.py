@@ -98,6 +98,28 @@ def test_long_request_emits_heartbeat():
     asyncio.run(run())
 
 
+def test_llm_control_counts_message_characters_per_request():
+    async def run():
+        events = []
+
+        async def sink(data):
+            events.append(data)
+
+        control = LLMControl(
+            stop_event=asyncio.Event(), max_requests=10, heartbeat_seconds=0, event_sink=sink
+        )
+        model = _Model(lambda _: _Response(total=2))
+        await invoke_controlled(model, ["abc", "中文"], control=control, phase="chapter")
+
+        assert control.message_chars == 5
+        assert control.phase_message_chars["chapter"] == 5
+        start = next(event for event in events if event.get("kind") == "llm_request_start")
+        assert start["request_message_chars"] == 5
+        assert start["message_chars"] == 5
+
+    asyncio.run(run())
+
+
 def _make_book(tmp_path, chapters: int) -> Filestore:
     fs = Filestore(tmp_path)
     fs.create_book_dir("b")

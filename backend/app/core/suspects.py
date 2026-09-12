@@ -95,10 +95,41 @@ def detect_relation_conflicts(ledgers: list[ChapterLedger]) -> list[RelationConf
     return results
 
 
+def _has_evidence_localization_failure(relation) -> bool:
+    """Return true only for an explicit evidence-location problem.
+
+    ``pending`` is a semantic review state, not evidence that the quote is bad.
+    Final Reconcile should only see evidence cases when deterministic location
+    actually failed: the quote is missing, not found, or could not be narrowed
+    to one concrete span. Rejected relations no longer need evidence repair.
+    """
+    if relation.status == "rejected":
+        return False
+
+    evidence = relation.evidence
+    if not evidence.quote.strip():
+        return True
+    if evidence.quote_verified is False:
+        return True
+    if evidence.quote_verified is True and (evidence.start is None or evidence.end is None):
+        return True
+    return False
+
+
 def detect_missing_evidence(ledgers: list[ChapterLedger]) -> list[MissingEvidence]:
-    return [MissingEvidence(person_a=r.person_a, person_b=r.person_b, label=r.label,
-                           chapter_id=ledger.chapter_id, reason=r.verification_reason)
-            for ledger in ledgers for r in ledger.relations if r.status == "pending"]
+    """Detect real evidence localization failures, not ordinary semantic pending."""
+    return [
+        MissingEvidence(
+            person_a=r.person_a,
+            person_b=r.person_b,
+            label=r.label,
+            chapter_id=ledger.chapter_id,
+            reason=r.verification_reason or "证据无法唯一定位",
+        )
+        for ledger in ledgers
+        for r in ledger.relations
+        if _has_evidence_localization_failure(r)
+    ]
 
 
 # ── SuspectsGenerator ──

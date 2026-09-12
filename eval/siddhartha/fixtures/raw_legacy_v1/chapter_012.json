@@ -1,0 +1,215 @@
+{
+  "snapshot_version": 1,
+  "chapter_id": 12,
+  "content_sha256": "fd37fadf730f9c4e29aeba0c20a369ede033e7d679be1c626ba1cac2239764ce",
+  "ledger": {
+    "chapter_id": 12,
+    "persons": [
+      {
+        "person_id": "ch12_p1",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch12_p2",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch12_p3",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch12_p4",
+        "aliases_in_chapter": []
+      },
+      {
+        "person_id": "ch12_p5",
+        "aliases_in_chapter": []
+      }
+    ],
+    "relations": [
+      {
+        "label": "旧友",
+        "category": "情感",
+        "definition": "年少时相识相交、情谊深厚的同伴；重逢后仍以朋友相称、彼此关怀。",
+        "directed": false,
+        "subject_role": "朋友",
+        "object_role": "朋友",
+        "relation_id": "5a6265247dd0437596db7cbd9c8bd4ac",
+        "person_a": "ch12_p1",
+        "person_b": "ch12_p2",
+        "raw_relation": "乔文达与悉达多是年轻时的好友，年老重逢，乔文达向悉达多请教并致意",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 12,
+          "quote": "他向年轻时的好友提出诸多问题，而悉达多则向他讲述自己的生活。",
+          "note": "此处明确点出两人是年轻时的好友",
+          "quote_verified": true,
+          "start": 718,
+          "end": 748
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "弟子",
+        "category": "师承",
+        "definition": "受某位导师教导、追随其法义并以其弟子身份行事的从属关系。",
+        "directed": true,
+        "subject_role": "弟子",
+        "object_role": "师父",
+        "relation_id": "04d85283243d430eaf8a72452eaac1a3",
+        "person_a": "ch12_p1",
+        "person_b": "ch12_p5",
+        "raw_relation": "乔文达是乔达摩的弟子，一生穿乔达摩弟子的僧服，遵循僧规",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 12,
+          "quote": "可敬的人，你已年迈，仍穿着乔达摩弟子的僧服。",
+          "note": "悉达多指出乔文达身为乔达摩弟子的身份",
+          "quote_verified": true,
+          "start": 210,
+          "end": 232
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "师长",
+        "category": "师承",
+        "definition": "以某人为前辈师长并跟随其学习、受其启迪的师承关系。",
+        "directed": true,
+        "subject_role": "师长",
+        "object_role": "后学",
+        "relation_id": "e0c9f498845a4ef6a5d53cd147e678e2",
+        "person_a": "ch12_p3",
+        "person_b": "ch12_p2",
+        "raw_relation": "悉达多把船夫瓦稣迪瓦视为前辈和师长，自认从他身上所学最多",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 12,
+          "quote": "但我所学最多的，是跟随这条河和我的前辈，船夫瓦稣迪瓦。",
+          "note": "悉达多自述向瓦稣迪瓦学习最多",
+          "quote_verified": true,
+          "start": 976,
+          "end": 1003
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "师生",
+        "category": "师承",
+        "definition": "曾以传授者身份教导他人、被对方称作老师的师生关系。",
+        "directed": true,
+        "subject_role": "老师",
+        "object_role": "学生",
+        "relation_id": "e318d7de32e348e8b507ae903a7b4ddb",
+        "person_a": "ch12_p4",
+        "person_b": "ch12_p2",
+        "raw_relation": "名妓迦摩罗曾长期做过悉达多的老师",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 12,
+          "quote": "很长时间，一位美艳的名妓做过我的老师。",
+          "note": "悉达多自述迦摩罗曾是他的老师",
+          "quote_verified": true,
+          "start": 901,
+          "end": 920
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      },
+      {
+        "label": "信念同道",
+        "category": "思想",
+        "definition": "虽言辞表达不同，但在根本信念上彼此认同、方向一致的精神同道关系。",
+        "directed": false,
+        "subject_role": "同道",
+        "object_role": "同道",
+        "relation_id": "f1edd30a21174c62b744f8ba82618b0f",
+        "person_a": "ch12_p2",
+        "person_b": "ch12_p5",
+        "raw_relation": "悉达多自认与乔达摩信念一致，敬重其生命与为人",
+        "predicate": null,
+        "normalization_status": "pending",
+        "normalization_reason": "尚未归一化",
+        "evidence": {
+          "chapter_id": 12,
+          "quote": "我知道，我同乔达摩信念一致。他怎会不了解爱。",
+          "note": "悉达多自述与佛陀信念一致",
+          "quote_verified": true,
+          "start": 3494,
+          "end": 3516
+        },
+        "status": "pending",
+        "verification_reason": "原文已定位，等待语义验证"
+      }
+    ],
+    "events": [],
+    "summary": "年迈的僧人乔文达在渡口重遇年轻时的好友悉达多，一夜留宿并聆听他关于智慧、时间与爱世界的言辞；临别时悉达多让他亲吻自己的额头，乔文达在那一刻见到万千面孔之河与圆成者之笑，怀着矛盾与敬意深深鞠躬离去。",
+    "analysis_status": "complete",
+    "warnings": []
+  },
+  "cast_buffer": {
+    "ch12_p1": {
+      "canonical_name": "乔文达",
+      "aliases": [
+        "乔文达"
+      ],
+      "bio": "年迈的僧人，乔达摩弟子，悉达多年轻时的好友",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 12
+    },
+    "ch12_p2": {
+      "canonical_name": "悉达多",
+      "aliases": [
+        "悉达多"
+      ],
+      "bio": "船夫，乔文达年轻时的好友，曾为求道者",
+      "gender": "male",
+      "importance": "main",
+      "source_chapter_id": 12
+    },
+    "ch12_p3": {
+      "canonical_name": "瓦稣迪瓦",
+      "aliases": [
+        "瓦稣迪瓦"
+      ],
+      "bio": "船夫，悉达多的前辈与师长，已故/离去的圣人",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 12
+    },
+    "ch12_p4": {
+      "canonical_name": "迦摩罗",
+      "aliases": [
+        "迦摩罗"
+      ],
+      "bio": "名妓，曾赠林苑给乔达摩弟子，做过悉达多的老师",
+      "gender": "female",
+      "importance": "supporting",
+      "source_chapter_id": 12
+    },
+    "ch12_p5": {
+      "canonical_name": "乔达摩",
+      "aliases": [
+        "乔达摩",
+        "世尊",
+        "佛陀"
+      ],
+      "bio": "佛陀，乔文达之师，已圆寂",
+      "gender": "male",
+      "importance": "supporting",
+      "source_chapter_id": 12
+    }
+  }
+}

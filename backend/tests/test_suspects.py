@@ -175,8 +175,8 @@ def test_missing_evidence_hard_no_quote():
     assert results[0].chapter_id == 3
 
 
-def test_pending_soft_relation_reported():
-    """待确认的 soft 关系也需要校对，不再只检查 hard。"""
+def test_missing_evidence_soft_no_quote_reported():
+    """Soft relation with a real missing quote is still an evidence case."""
     ledger = ChapterLedger(
         chapter_id=3,
         relations=[Relation(
@@ -186,6 +186,83 @@ def test_pending_soft_relation_reported():
     )
     results = detect_missing_evidence([ledger])
     assert len(results) == 1
+
+
+def test_semantic_pending_with_located_quote_is_not_missing_evidence():
+    """Semantic pending stays in the ledger and must not become a Final case."""
+    ledger = ChapterLedger(
+        chapter_id=3,
+        relations=[Relation(
+            person_a="p001", person_b="p005", **relation_fields("朋友"),
+            evidence=Evidence(
+                chapter_id=3,
+                quote="甲与乙仍是朋友。",
+                quote_verified=True,
+                start=10,
+                end=18,
+            ),
+            status="pending",
+            verification_reason="原文已定位，等待语义验证",
+        )],
+    )
+    assert detect_missing_evidence([ledger]) == []
+
+
+def test_twenty_ordinary_pending_relations_do_not_create_final_cases():
+    """Phase 1 acceptance: ordinary pending review state is not a suspect source."""
+    relations = []
+    for i in range(20):
+        relations.append(Relation(
+            person_a=f"p{i:03d}",
+            person_b=f"p{i + 100:03d}",
+            **relation_fields("朋友"),
+            evidence=Evidence(
+                chapter_id=3,
+                quote=f"证据原句{i}",
+                quote_verified=True,
+                start=i * 10,
+                end=i * 10 + 5,
+            ),
+            status="pending",
+            verification_reason="语义证据不足，保持 pending",
+        ))
+    ledger = ChapterLedger(chapter_id=3, relations=relations)
+    assert detect_missing_evidence([ledger]) == []
+
+
+def test_duplicate_quote_location_failure_is_still_reported():
+    """A quote that exists but has no unique span remains a real evidence anomaly."""
+    ledger = ChapterLedger(
+        chapter_id=3,
+        relations=[Relation(
+            person_a="p001", person_b="p005", **relation_fields("朋友"),
+            evidence=Evidence(
+                chapter_id=3,
+                quote="重复原句",
+                quote_verified=True,
+                start=None,
+                end=None,
+            ),
+            status="pending",
+            verification_reason="引用出现多次，请补充上下文以唯一定位",
+        )],
+    )
+    results = detect_missing_evidence([ledger])
+    assert len(results) == 1
+    assert results[0].reason == "引用出现多次，请补充上下文以唯一定位"
+
+
+def test_rejected_relation_does_not_create_evidence_repair_case():
+    ledger = ChapterLedger(
+        chapter_id=3,
+        relations=[Relation(
+            person_a="p001", person_b="p005", **relation_fields("朋友"),
+            evidence=Evidence(chapter_id=3, quote="", quote_verified=False),
+            status="rejected",
+            verification_reason="关系已明确否定",
+        )],
+    )
+    assert detect_missing_evidence([ledger]) == []
 
 
 # ── SuspectsGenerator ──

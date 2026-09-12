@@ -33,7 +33,7 @@ class RelationConflict(BaseModel):
 
 
 class MissingEvidence(BaseModel):
-    """待确认关系或缺少证据的复查提示。"""
+    """证据缺失、未命中或无法唯一定位时的复查提示。"""
     person_a: str
     person_b: str
     label: str

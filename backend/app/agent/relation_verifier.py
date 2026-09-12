@@ -92,7 +92,7 @@ async def verify_relations(
                     phase="relation_verify",
                     context=f"batch={batch_no}/{len(batches)} items={len(batch)}",
                 )
-            result = VerdictBatch.model_validate(result)
+            result = VerdictBatch.model_validate(structured_parsed(result))
             expected = {i for i, _ in batch}
             indices = [v.index for v in result.verdicts]
             if len(indices) != len(expected) or set(indices) != expected:
