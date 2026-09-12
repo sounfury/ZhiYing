@@ -7,9 +7,9 @@
 
 | 文档 | 说明 |
 |------|------|
-| [docs/PRD.md](./docs/PRD.md) | 产品需求与设计思路 |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 技术架构 |
-| [docs/aggregator-design.md](./docs/aggregator-design.md) | 汇总出图 |
+| [docs/PRD.md](./docs/PRD.md) | 产品目标与长期需求 SSOT |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 当前技术架构；关系后处理 V2 落地后同步重写 |
+| [重构方案.md](./重构方案.md) | 当前关系后处理 / Identity / Display Policy V2 目标方案 |
 
 ## 状态
 
