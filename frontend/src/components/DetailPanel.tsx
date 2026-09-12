@@ -121,19 +121,21 @@ export function DetailPanel({
             {nameOf(selectedEdge.person_a)} ↔ {nameOf(selectedEdge.person_b)}
           </h3>
           {selectedEdge.tags.map((t) => (
-            <div key={t.type} className={`tag tier-${t.tier}`}>
+            <div key={t.key} className="tag">
               <div className="tag-head">
-                <strong>{t.type}</strong>
+                <strong>{t.label}</strong>
                 <span>
-                  {t.tier}
+                  {t.category}
                   {t.directed ? ' · 有向' : ''}
-                  {t.suppressed ? ' · 已压制' : ''}
                 </span>
               </div>
               <div className="tag-meta">
-                分 {t.display_score.toFixed(1)} ·{' '}
+                展示排序 {t.display_score.toFixed(1)} ·{' '}
                 {t.chapter_ids.map((id) => chapterLabel(id)).join('、')}
               </div>
+              <p className="hint">{t.subject_role} {t.directed ? "→" : "↔"} {t.object_role}</p>
+              {t.raw_relations.map((text) => <p key={text}>{text}</p>)}
+              {t.normalization_status === "pending" && <p className="hint">证据已确认，类型待归一化</p>}
               {t.evidences.length > 0 && (
                 <ul className="quotes">
                   {t.evidences.map((ev, i) => (

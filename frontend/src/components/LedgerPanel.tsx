@@ -81,6 +81,8 @@ export function LedgerPanel({
             {ledger.persons.length} 人 · {ledger.relations.length} 条关系
             {ledger.events.length ? ` · ${ledger.events.length} 则事件` : ''}
           </p>
+          {ledger.analysis_status === 'partial' && <p className="hint">本章仅部分完成，建议重跑。</p>}
+          {ledger.warnings?.map((warning, i) => <p className="hint" key={i}>{warning}</p>)}
 
           {ledger.summary && (
             <section className="ledger-block">
@@ -110,8 +112,8 @@ export function LedgerPanel({
           {ledger.relations.length > 0 && (
             <section className="ledger-block">
               <h3>关系</h3>
-              {ledger.relations.map((rel, i) => (
-                <div key={`${rel.person_a}-${rel.person_b}-${rel.type}-${i}`} className={`tag tier-${rel.tier}`}>
+              {ledger.relations.map((rel) => (
+                <div key={rel.relation_id} className="tag">
                   <div className="tag-head">
                     <strong>
                       <button type="button" className="linkish" onClick={() => onFocusPerson(rel.person_a)}>
@@ -122,17 +124,21 @@ export function LedgerPanel({
                         {nameOf(rel.person_b)}
                       </button>
                       {' · '}
-                      {rel.type}
+                      {rel.label}
                     </strong>
                     <span>
-                      {rel.tier}
+                      {rel.status === 'confirmed' ? '已确认' : rel.status === 'rejected' ? '已否定' : '待确认'}
                       {rel.directed ? ' · 有向' : ''}
                     </span>
                   </div>
+                  <p className="hint">{rel.category} · {rel.subject_role} {rel.directed ? "→" : "↔"} {rel.object_role}</p>
+                  <p>{rel.raw_relation}</p>
+                  {rel.normalization_status === "pending" && <p className="hint">类型待归一化 · {rel.normalization_reason}</p>}
                   {rel.evidence.quote && (
                     <p className="ledger-quote">「{rel.evidence.quote}」</p>
                   )}
                   {rel.evidence.note && <p className="hint">{rel.evidence.note}</p>}
+                  {rel.verification_reason && <p className="hint">{rel.verification_reason}</p>}
                 </div>
               ))}
             </section>

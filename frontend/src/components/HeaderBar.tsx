@@ -52,6 +52,7 @@ export function HeaderBar({
             {' · '}
             {statusLabel(selectedBook.status)}
             {progressBit}
+            {graph?.pending_relation_count ? ` · ${graph.pending_relation_count} 条关系待确认` : ''}
           </span>
         </div>
       ) : (

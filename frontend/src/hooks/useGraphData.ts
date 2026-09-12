@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { getGraph, type GraphData } from '../api'
 import type { GraphFilters } from '../types'
 
@@ -16,10 +16,18 @@ export function useGraphData(
 ) {
   const [graph, setGraph] = useState<GraphData | null>(null)
   const [graphLoading, setGraphLoading] = useState(false)
+  const requestSeq = useRef(0)
+
+  useEffect(() => {
+    requestSeq.current += 1
+    setGraph(null)
+    setGraphLoading(false)
+  }, [bookId])
 
   const loadGraph = useCallback(
     async (): Promise<{ error: string; msg: string }> => {
       if (!bookId) return { error: '', msg: '' }
+      const seq = ++requestSeq.current
       setGraphLoading(true)
 
       try {
@@ -32,11 +40,12 @@ export function useGraphData(
           to_chapter: filters.toChapter === '' ? undefined : filters.toChapter,
           single_chapter: filters.singleChapterOnly,
           min_appearance: filters.minAppearance,
-          type_filter: filters.typeFilter.length
+          category_filter: filters.categoryFilter.length ? filters.categoryFilter.join(',') : undefined,
+          predicate_filter: filters.typeFilter.length
             ? filters.typeFilter.join(',')
             : undefined,
-          include_suppressed: filters.includeSuppressed,
         })
+        if (seq !== requestSeq.current) return { error: '', msg: '' }
         setGraph(data)
 
         let rangeLabel = ' · 无章数据'
@@ -55,10 +64,11 @@ export function useGraphData(
 
         return { error: '', msg }
       } catch (e) {
+        if (seq !== requestSeq.current) return { error: '', msg: '' }
         setGraph(null)
         return { error: e instanceof Error ? e.message : String(e), msg: '' }
       } finally {
-        setGraphLoading(false)
+        if (seq === requestSeq.current) setGraphLoading(false)
       }
     },
     [
@@ -66,8 +76,8 @@ export function useGraphData(
       filters.toChapter,
       filters.singleChapterOnly,
       filters.minAppearance,
-      filters.includeSuppressed,
       filters.typeFilter,
+      filters.categoryFilter,
       chapterLabel,
     ],
   )

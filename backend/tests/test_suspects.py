@@ -7,6 +7,7 @@ from pathlib import Path
 # 确保 backend 包在 path 中
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from relation_fixtures import relation_fields
 from app.core.suspects import (
     detect_cast_conflicts,
     detect_relation_conflicts,
@@ -94,27 +95,24 @@ def test_cast_conflict_both_rules_single_entry():
 # ── detect_relation_conflicts ──
 
 
-def test_relation_conflict_type_clash():
+def test_different_semantics_can_coexist():
     """类型冲突：同一无向对在不同章给了不同 hard type。"""
     ch3 = ChapterLedger(
         chapter_id=3,
         relations=[Relation(
-            person_a="p001", person_b="p005", type="表亲",
+            person_a="p001", person_b="p005", **relation_fields("表亲"),
             evidence=Evidence(chapter_id=3),
         )],
     )
     ch5 = ChapterLedger(
         chapter_id=5,
         relations=[Relation(
-            person_a="p001", person_b="p005", type="夫妻",
+            person_a="p001", person_b="p005", **relation_fields("夫妻"),
             evidence=Evidence(chapter_id=5),
         )],
     )
     conflicts = detect_relation_conflicts([ch3, ch5])
-    assert len(conflicts) == 1
-    assert conflicts[0].conflict_type == "type_clash"
-    assert 3 in conflicts[0].chapters
-    assert 5 in conflicts[0].chapters
+    assert not conflicts
 
 
 def test_relation_conflict_direction_clash():
@@ -122,20 +120,20 @@ def test_relation_conflict_direction_clash():
     ch3 = ChapterLedger(
         chapter_id=3,
         relations=[Relation(
-            person_a="p001", person_b="p002", type="师徒",
+            person_a="p001", person_b="p002", **relation_fields("师徒"),
             evidence=Evidence(chapter_id=3),
         )],
     )
     ch5 = ChapterLedger(
         chapter_id=5,
         relations=[Relation(
-            person_a="p002", person_b="p001", type="师徒",
+            person_a="p002", person_b="p001", **relation_fields("师徒"),
             evidence=Evidence(chapter_id=5),
         )],
     )
     conflicts = detect_relation_conflicts([ch3, ch5])
     assert len(conflicts) == 1
-    assert conflicts[0].conflict_type == "direction_clash"
+    assert conflicts[0].conflict_type == "direction_review"
 
 
 def test_relation_no_conflict():
@@ -143,14 +141,14 @@ def test_relation_no_conflict():
     ch3 = ChapterLedger(
         chapter_id=3,
         relations=[Relation(
-            person_a="p001", person_b="p005", type="夫妻",
+            person_a="p001", person_b="p005", **relation_fields("夫妻"),
             evidence=Evidence(chapter_id=3),
         )],
     )
     ch5 = ChapterLedger(
         chapter_id=5,
         relations=[Relation(
-            person_a="p001", person_b="p005", type="夫妻",
+            person_a="p001", person_b="p005", **relation_fields("夫妻"),
             evidence=Evidence(chapter_id=5),
         )],
     )
@@ -166,28 +164,28 @@ def test_missing_evidence_hard_no_quote():
     ledger = ChapterLedger(
         chapter_id=3,
         relations=[Relation(
-            person_a="p001", person_b="p005", type="夫妻",
+            person_a="p001", person_b="p005", **relation_fields("夫妻"),
             evidence=Evidence(chapter_id=3, quote=""),
         )],
     )
     results = detect_missing_evidence([ledger])
     assert len(results) == 1
     assert results[0].person_a == "p001"
-    assert results[0].type == "夫妻"
+    assert results[0].label == "夫妻"
     assert results[0].chapter_id == 3
 
 
-def test_missing_evidence_soft_not_reported():
-    """soft 关系缺 quote 不报。"""
+def test_pending_soft_relation_reported():
+    """待确认的 soft 关系也需要校对，不再只检查 hard。"""
     ledger = ChapterLedger(
         chapter_id=3,
         relations=[Relation(
-            person_a="p001", person_b="p005", type="朋友",
+            person_a="p001", person_b="p005", **relation_fields("朋友"),
             evidence=Evidence(chapter_id=3, quote=""),
         )],
     )
     results = detect_missing_evidence([ledger])
-    assert len(results) == 0
+    assert len(results) == 1
 
 
 # ── SuspectsGenerator ──
@@ -202,7 +200,7 @@ def test_suspects_generator_with_conflicts():
     ledgers = [ChapterLedger(
         chapter_id=1,
         relations=[Relation(
-            person_a="p001", person_b="p005", type="夫妻",
+            person_a="p001", person_b="p005", **relation_fields("夫妻"),
             evidence=Evidence(chapter_id=1, quote=""),
         )],
     )]
@@ -221,8 +219,9 @@ def test_suspects_generator_empty():
     ledgers = [ChapterLedger(
         chapter_id=1,
         relations=[Relation(
-            person_a="p001", person_b="p002", type="朋友",
+            person_a="p001", person_b="p002", **relation_fields("朋友"),
             evidence=Evidence(chapter_id=1, quote="原文"),
+            status="confirmed",
         )],
     )]
     suspects = SuspectsGenerator().generate(cast, ledgers)

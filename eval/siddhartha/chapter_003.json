@@ -1,0 +1,126 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "chapter_id": 3,
+  "title": "乔达摩",
+  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_003.json",
+  "characters": [
+    {
+      "name": "悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "乔文达",
+      "presence": "active"
+    },
+    {
+      "name": "乔达摩",
+      "presence": "active"
+    },
+    {
+      "name": "给孤独",
+      "presence": "mentioned"
+    }
+  ],
+  "required_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "乔文达",
+      "label": "朋友",
+      "category": "友谊",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "乔文达，我的朋友，你已迈出步子，你选择了这条路。"
+        }
+      ],
+      "note": "两人仍是朋友，但在本章选择不同道路。"
+    },
+    {
+      "person_a": "乔达摩",
+      "person_b": "乔文达",
+      "label": "师徒",
+      "category": "师承",
+      "directed": true,
+      "subject_role": "师傅",
+      "object_role": "弟子",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "乔文达听后已皈依佛陀。"
+        }
+      ],
+      "note": "乔文达正式皈依并加入僧团。"
+    },
+    {
+      "person_a": "给孤独",
+      "person_b": "乔达摩",
+      "label": "布施供养",
+      "category": "宗教",
+      "directed": true,
+      "subject_role": "施主",
+      "object_role": "受供养者",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "该园由一位富庶的商人，也是世尊忠诚的追随者，给孤独[3]敬献。"
+        }
+      ],
+      "note": "给孤独将祗园敬献给世尊。"
+    }
+  ],
+  "optional_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "乔达摩",
+      "label": "问法论道",
+      "category": "求道",
+      "directed": true,
+      "subject_role": "求道者",
+      "object_role": "被问道者",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "在路上，他遇见了世尊乔达摩。他恭敬地向世尊问安。"
+        }
+      ],
+      "note": "悉达多与乔达摩当面论道，但没有皈依。"
+    }
+  ],
+  "forbidden_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "乔达摩",
+      "forbidden_labels": [
+        "师徒",
+        "弟子",
+        "皈依"
+      ],
+      "confidence": "high",
+      "reason": "悉达多明确表示朋友将留下而自己继续求道，不能因听法和敬仰推断为正式师徒。",
+      "evidence": [
+        {
+          "quote": "我的朋友将留在此处，他已皈依于您。我却要继续我的求道之路。"
+        }
+      ]
+    }
+  ],
+  "identity_assertions": [
+    {
+      "canonical": "乔达摩",
+      "aliases": [
+        "佛陀",
+        "世尊"
+      ],
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "此人就是佛陀。"
+        }
+      ]
+    }
+  ]
+}

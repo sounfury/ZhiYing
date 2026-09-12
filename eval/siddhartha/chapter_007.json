@@ -1,0 +1,83 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "chapter_id": 7,
+  "title": "轮回",
+  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_007.json",
+  "characters": [
+    {
+      "name": "悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "迦摩罗",
+      "presence": "active"
+    },
+    {
+      "name": "迦摩施瓦弥",
+      "presence": "active_or_mentioned"
+    },
+    {
+      "name": "乔文达",
+      "presence": "memory"
+    },
+    {
+      "name": "乔达摩",
+      "presence": "memory"
+    }
+  ],
+  "required_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "迦摩罗",
+      "label": "情人",
+      "category": "情感",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "不久后，她发现同悉达多最后的交欢令她怀了身孕。"
+        }
+      ],
+      "note": "明确存在持续的情人/性关系。"
+    }
+  ],
+  "optional_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "迦摩罗",
+      "label": "使其怀孕",
+      "category": "亲密关系事件",
+      "directed": true,
+      "subject_role": "孩子生父",
+      "object_role": "怀孕者",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "不久后，她发现同悉达多最后的交欢令她怀了身孕。"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "person_a": "悉达多",
+      "person_b": "迦摩施瓦弥",
+      "label": "商业关系",
+      "category": "合作",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "迦摩施瓦弥唤人四处寻找，以为他落入盗匪之手。"
+        }
+      ],
+      "note": "关系延续自上一章，本章不再强制要求具体商业标签。"
+    }
+  ],
+  "forbidden_relations": [],
+  "identity_assertions": []
+}

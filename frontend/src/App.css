@@ -37,10 +37,7 @@
   /* 关系档位描边色（.tag 按 tier 取色）。
      刻意不叫 --kin/--social/--weak：GraphView 的 EDGE_COLOR 按 cluster
      取色，是另一条轴，只是恰好共用了同几个色值，合并命名会把语义搅在一起。 */
-  --tier-base: #95a5a6;
-  --tier-hard: #c0392b;
-  --tier-mid: #2980b9;
-  --tier-soft: #7f8c8d;
+  --relation-border: #95a5a6;
 
   font-family: 'Iowan Old Style', 'Palatino Linotype', Palatino, 'Songti SC', serif;
 }
@@ -294,6 +291,16 @@ body,
   border-radius: 999px;
   background: var(--tint-progress);
   overflow: hidden;
+}
+
+.progress-counts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem 0.9rem;
+  margin-top: 0.4rem;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-variant-numeric: tabular-nums;
 }
 
 .progress-fill {
@@ -928,21 +935,9 @@ body,
 }
 
 .tag {
-  border-left: 3px solid var(--tier-base);
+  border-left: 3px solid var(--relation-border);
   padding: 0.4rem 0 0.4rem 0.6rem;
   margin: 0.6rem 0;
-}
-
-.tag.tier-hard {
-  border-color: var(--tier-hard);
-}
-
-.tag.tier-mid {
-  border-color: var(--tier-mid);
-}
-
-.tag.tier-soft {
-  border-color: var(--tier-soft);
 }
 
 .tag-head {

@@ -16,20 +16,28 @@ import asyncio
 import json
 from typing import Optional
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import StreamingResponse
+from pydantic import BaseModel
 
 from app.agent.faction_writer import extract_factions
+from app.agent.llm import LLMControl
 from app.config import settings
 from app.core.aggregator import BLOCKING_STATUSES, Aggregator, GraphQuery
-from app.core.orchestrator import Orchestrator, get_orchestrator
+from app.core.orchestrator import Orchestrator, _get_start_lock, get_orchestrator
 from app.errors import AppError, ErrorCode, book_not_found
 from app.logging_config import get_logger
-from app.storage.filestore import get_filestore
+from app.storage.filestore import Filestore, get_filestore
+from app.models.book import BookStatus
 
 logger = get_logger("api.analysis")
 
 router = APIRouter(prefix="/api/books", tags=["analysis"])
+
+
+class RetryFailedRequest(BaseModel):
+    chapter_ids: Optional[list[int]] = None
+
 
 
 # ── POST /analyze ──
@@ -66,11 +74,25 @@ async def start_analysis(
     return result
 
 
+# ── GET /analysis/task ──
+
+
+@router.get("/{book_id}/analysis/task")
+async def get_analysis_task(book_id: str) -> dict:
+    """Return the persistent task snapshot used for refresh/reconnect recovery."""
+    fs = get_filestore()
+    await asyncio.to_thread(fs.read_meta, book_id)
+    task = await asyncio.to_thread(fs.read_analysis_task, book_id)
+    if task is None:
+        return {"active": False, "status": "idle", "phase": "idle", "chapters": [], "events": []}
+    return task.model_dump(mode="json")
+
+
 # ── GET /progress (SSE) ──
 
 
 @router.get("/{book_id}/progress")
-async def progress_sse(book_id: str) -> StreamingResponse:
+async def progress_sse(book_id: str, request: Request) -> StreamingResponse:
     """
     SSE 流：逐章推送分析进度。
 
@@ -78,36 +100,91 @@ async def progress_sse(book_id: str) -> StreamingResponse:
     event: done      data: {chapters_done, chapters_failed}
     """
     async def event_stream():
+        try:
+            last_event_id = int(request.headers.get("last-event-id") or "0")
+        except ValueError:
+            last_event_id = 0
+
+        def encode(event_type: str, data: dict, event_id: int | None = None) -> str:
+            prefix = f"id: {event_id}\n" if event_id is not None else ""
+            return f"{prefix}event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+
         orch = get_orchestrator(book_id)
 
         if orch is None:
-            # 没有正在进行的分析
-            yield f"event: done\ndata: {json.dumps({'chapters_done': 0, 'chapters_failed': 0, 'error': 'no analysis running'})}\n\n"
+            # Backend restart / completed task: replay only events newer than the
+            # browser's Last-Event-ID. History is bounded by the persisted task.
+            fs = get_filestore()
+            meta = await asyncio.to_thread(fs.read_meta, book_id)
+            task = await asyncio.to_thread(fs.read_analysis_task, book_id)
+            if task is not None:
+                replayed_done = False
+                for item in task.events:
+                    if item.event_id <= last_event_id:
+                        continue
+                    if item.type == "done":
+                        replayed_done = True
+                    yield encode(item.type, item.data, item.event_id)
+                if task.result:
+                    if not replayed_done and (not task.events or task.events[-1].type != "done"):
+                        yield encode("done", task.result, task.event_seq or None)
+                    return
+                if not task.active:
+                    payload = {
+                        "status": task.status, "phase": task.phase,
+                        "chapters_done": len([c for c in task.chapters if c.status in ("done", "partial")]),
+                        "chapters_failed": len([c for c in task.chapters if c.status == "failed"]),
+                        "stopped": task.status in ("stopped", "interrupted"),
+                    }
+                    yield encode("done", payload, task.event_seq or None)
+                    return
+            progress = meta.analysis_progress
+            payload = {
+                "chapters_done": len(progress.chapters_done),
+                "chapters_failed": len(progress.chapters_failed),
+                "chapters_done_ids": progress.chapters_done,
+                "chapters_failed_ids": progress.chapters_failed,
+                "chapters_partial_ids": progress.chapters_partial,
+                "status": meta.status.value,
+                "phase": meta.status.value,
+            }
+            yield encode("done", payload)
             return
 
-        # #1: 编排器还在但分析已结束 → 立刻推 done 并退出
-        if orch.finished and orch.final_result is not None:
-            yield f"event: done\ndata: {json.dumps(orch.final_result, ensure_ascii=False)}\n\n"
-            return
+        history, live_queue = orch.subscribe()
+        try:
+            for history_event in history:
+                event_id = history_event.get("id")
+                if event_id is not None and event_id <= last_event_id:
+                    continue
+                event_type = history_event.get("type", "progress")
+                data = history_event.get("data", {})
+                yield encode(event_type, data, event_id)
 
-        while True:
-            try:
-                event = await asyncio.wait_for(
-                    orch.progress_queue.get(), timeout=30.0
-                )
-            except asyncio.TimeoutError:
-                # keepalive
-                yield ": keepalive\n\n"
-                continue
-
-            event_type = event.get("type", "")
-            data = event.get("data", {})
-
-            if event_type == "progress":
-                yield f"event: progress\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
-            elif event_type == "done":
-                yield f"event: done\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
+            if orch.finished and orch.final_result is not None:
+                if not history or history[-1].get("type") != "done":
+                    event_id = orch._task_snapshot.event_seq if orch._task_snapshot is not None else None
+                    if event_id is None or event_id > last_event_id:
+                        yield encode("done", orch.final_result, event_id)
                 return
+
+            while True:
+                try:
+                    event = await asyncio.wait_for(live_queue.get(), timeout=30.0)
+                except asyncio.TimeoutError:
+                    yield ": keepalive\n\n"
+                    continue
+                event_type = event.get("type", "")
+                data = event.get("data", {})
+                event_id = event.get("id")
+                if event_id is not None and event_id <= last_event_id:
+                    continue
+                if event_type in ("progress", "done"):
+                    yield encode(event_type, data, event_id)
+                if event_type == "done":
+                    return
+        finally:
+            orch.unsubscribe(live_queue)
 
     return StreamingResponse(
         event_stream(),
@@ -118,6 +195,33 @@ async def progress_sse(book_id: str) -> StreamingResponse:
             "X-Accel-Buffering": "no",
         },
     )
+
+
+# ── Failed chapter handling ──
+
+
+@router.post("/{book_id}/analyze/retry-failed")
+async def retry_failed_chapters(book_id: str, body: RetryFailedRequest = RetryFailedRequest()) -> dict:
+    orch = get_orchestrator(book_id)
+    if orch is None:
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "No active in-memory analysis task; restart analysis or rerun a chapter",
+            status_code=409,
+        )
+    return await orch.retry_failed(body.chapter_ids)
+
+
+@router.post("/{book_id}/analyze/skip-failed")
+async def skip_failed_chapters(book_id: str) -> dict:
+    orch = get_orchestrator(book_id)
+    if orch is None:
+        raise AppError(
+            ErrorCode.VALIDATION_ERROR,
+            "No active in-memory analysis task",
+            status_code=409,
+        )
+    return await orch.skip_failed_chapters()
 
 
 # ── POST /analyze/stop ──
@@ -185,14 +289,12 @@ async def get_graph(
     min_appearance: int = Query(
         2, ge=0, description="Min distinct chapters to keep a person as a node"
     ),
-    type_filter: Optional[str] = Query(
+    predicate_filter: Optional[str] = Query(
         None,
-        description="Comma-separated relation types to keep (e.g. 夫妻,师徒)",
+        description="Comma-separated registered predicate identifiers",
     ),
-    include_suppressed: bool = Query(
-        False,
-        description="If true, include soft tags suppressed by hard relations",
-    ),
+    category_filter: Optional[str] = Query(None, description="Comma-separated display categories"),
+    fs: Filestore = Depends(get_filestore),
 ) -> dict:
     """
     确定性汇总人物关系图（无 LLM）。
@@ -203,7 +305,6 @@ async def get_graph(
     - analyzed / reconcile_failed → 正常出图
     - single_chapter=true 时只出 to_chapter 一章的关系（非此前累计）
     """
-    fs = get_filestore()
     meta = await asyncio.to_thread(fs.read_meta, book_id)
 
     if meta.status in BLOCKING_STATUSES:
@@ -226,15 +327,15 @@ async def get_graph(
         )
 
     types: Optional[list[str]] = None
-    if type_filter:
-        types = [t.strip() for t in type_filter.split(",") if t.strip()]
+    if predicate_filter:
+        types = [t.strip() for t in predicate_filter.split(",") if t.strip()]
 
     query = GraphQuery(
         to_chapter=to_chapter,
         single_chapter=single_chapter,
         min_appearance=min_appearance,
-        type_filter=types,
-        include_suppressed=include_suppressed,
+        predicate_filter=types,
+        category_filter=[c.strip() for c in category_filter.split(",") if c.strip()] if category_filter else None,
     )
     agg = Aggregator(book_id, fs)
     data = await asyncio.to_thread(agg.compile, query)
@@ -264,34 +365,46 @@ async def run_faction_extraction(book_id: str) -> dict:
     - Agent 未提交 → 502，旧 factions.json 保持不动
     """
     fs = get_filestore()
-    meta = await asyncio.to_thread(fs.read_meta, book_id)
+    async with _get_start_lock(book_id):
+        meta = await asyncio.to_thread(fs.read_meta, book_id)
 
-    if meta.status in BLOCKING_STATUSES:
-        raise AppError(
-            ErrorCode.ANALYSIS_ALREADY_RUNNING,
-            f"Faction extraction unavailable while status is {meta.status.value} (book={book_id})",
-            status_code=409,
+        if meta.status in BLOCKING_STATUSES:
+            raise AppError(
+                ErrorCode.ANALYSIS_ALREADY_RUNNING,
+                f"Faction extraction unavailable while status is {meta.status.value} (book={book_id})",
+                status_code=409,
+            )
+
+        if not meta.analysis_progress.chapters_done:
+            raise AppError(
+                ErrorCode.VALIDATION_ERROR,
+                f"No analyzed chapters yet (book={book_id}); run /analyze first",
+            )
+
+        stop_event = asyncio.Event()
+        control = LLMControl.from_settings(settings, stop_event)
+        result = await extract_factions(
+            book_id, fs, settings, stop_event=stop_event, control=control
         )
 
-    if not meta.analysis_progress.chapters_done:
-        raise AppError(
-            ErrorCode.VALIDATION_ERROR,
-            f"No analyzed chapters yet (book={book_id}); run /analyze first",
-        )
+        if not result.success or result.book is None:
+            raise AppError(
+                ErrorCode.LLM_PROVIDER_ERROR,
+                f"Faction extraction failed: {result.warning}",
+                status_code=502,
+            )
 
-    result = await extract_factions(book_id, fs, settings)
+        return {
+            "status": "ok",
+            "version": result.book.version,
+            "factions": len(result.book.factions),
+            "members": sum(len(f.members) for f in result.book.factions),
+            "steps_used": result.steps_used,
+        }
 
-    if not result.success or result.book is None:
-        raise AppError(
-            ErrorCode.LLM_PROVIDER_ERROR,
-            f"Faction extraction failed: {result.warning}",
-            status_code=502,
-        )
 
-    return {
-        "status": "ok",
-        "version": result.book.version,
-        "factions": len(result.book.factions),
-        "members": sum(len(f.members) for f in result.book.factions),
-        "steps_used": result.steps_used,
-    }
+@router.get("/{book_id}/relation-types")
+async def book_relation_types(book_id: str, fs: Filestore = Depends(get_filestore)) -> dict:
+    await asyncio.to_thread(fs.read_meta, book_id)
+    registry = await asyncio.to_thread(fs.read_relation_registry, book_id)
+    return {"version": registry.version, "relation_types": [d.model_dump() for d in registry.definitions]}

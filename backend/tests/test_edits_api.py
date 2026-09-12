@@ -13,8 +13,11 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi.testclient import TestClient
 
+from relation_fixtures import relation_fields
 from app.agent.chapter_agent import AgentResult
 from app.core.aggregator import Aggregator, GraphQuery
+from app.core.reconcile_service import ReconcileOutcome
+from app.config import Settings
 from app.main import app
 from app.models.book import AnalysisProgress, BookMeta, BookStatus, Chapter
 from app.models.cast import Alias, AliasFrequency, Cast, Gender, Importance, Person
@@ -68,7 +71,8 @@ def _ledger(chapter_id: int, persons: list[str], relations: list[tuple]) -> Chap
             Relation(
                 person_a=a,
                 person_b=b,
-                type=t,
+                **relation_fields(t),
+                status="confirmed",  # 测试人工编辑对已确认图谱的覆盖
                 evidence=Evidence(chapter_id=chapter_id, quote=q),
             )
         )
@@ -77,6 +81,7 @@ def _ledger(chapter_id: int, persons: list[str], relations: list[tuple]) -> Chap
         persons=[ChapterPerson(person_id=p) for p in persons],
         relations=rels,
         summary=f"ch{chapter_id}",
+        analysis_status="complete",
     )
 
 
@@ -116,6 +121,10 @@ def _seed_two_person_book() -> tuple[Filestore, str]:
     )
     _write_chapter(fs, book_id, 1)
     _write_chapter(fs, book_id, 2)
+    fs.write_extraction_base_cast(book_id, fs.read_cast(book_id))
+    for cid in (1, 2):
+        fs.write_extraction_result(book_id, cid, fs.read_ledger(book_id, cid), {})
+    fs.save_pre_reconcile_state(book_id, [1, 2])
     return fs, book_id
 
 
@@ -182,86 +191,38 @@ def test_put_cast_404_and_409():
 
 def test_put_relations_replaces_and_graph_reflects_add_remove():
     fs, book_id = _seed_two_person_book()
-    # baseline: 朋友 (ch1) + 相识 (ch2)
-    baseline = Aggregator(book_id, fs).compile(GraphQuery(min_appearance=1))
-    types = {t.type for e in baseline.edges for t in e.tags}
-    assert "朋友" in types
-
+    rel = _ledger(1, [], [("p001", "p002", "夫妻", "人工补录")]).relations[0]
+    removed = fs.read_ledger(book_id, 1).relations[0].relation_id
     with api_client(fs) as c:
-        r = c.put(
-            f"/api/books/{book_id}/relations",
-            json={
-                "add": [
-                    {
-                        "person_a": "p001",
-                        "person_b": "p002",
-                        "type": "夫妻",
-                        "chapter_id": 1,
-                        "quote": "人工补录",
-                        "note": "editor",
-                    }
-                ],
-                "remove": [
-                    {
-                        "person_a": "p001",
-                        "person_b": "p002",
-                        "type": "朋友",
-                    }
-                ],
-            },
-        )
-    assert r.status_code == 200, r.text
-    saved = r.json()
-    assert len(saved["add"]) == 1
-    assert saved["add"][0]["type"] == "夫妻"
-    assert len(saved["remove"]) == 1
-    # PUT replaces whole doc
-    disk = fs.read_relation_overrides(book_id)
-    assert disk == saved
-
-    data = Aggregator(book_id, fs).compile(
-        GraphQuery(min_appearance=1, include_suppressed=True)
-    )
-    types = {t.type for e in data.edges for t in e.tags}
-    assert "夫妻" in types
-    assert "朋友" not in types
-    assert "相识" in types  # ch2 ledger 未改；soft 被 hard 压制但仍在图上
+        response = c.put(f"/api/books/{book_id}/relations", json={"add": [rel.model_dump()], "remove": [removed]})
+    assert response.status_code == 200, response.text
+    saved = response.json()
+    assert saved["add"][0]["label"] == "夫妻"
+    assert saved["add"][0]["status"] == "confirmed"
+    assert saved == fs.read_relation_overrides(book_id)
+    labels = {t.label for e in Aggregator(book_id, fs).compile(GraphQuery(min_appearance=1)).edges for t in e.tags}
+    assert labels == {"夫妻", "相识"}
 
 
-def test_put_relations_invalid_type_and_unknown_person():
+def test_put_relations_new_semantics_and_unknown_person():
     fs, book_id = _seed_two_person_book()
+    relation = Relation(person_a="p001", person_b="p002", label="同门", category="师承",
+        definition="双方有相同师承", directed=False, subject_role="同门", object_role="同门",
+        raw_relation="甲乙同出一门", evidence=Evidence(chapter_id=1, quote="人工确认"))
     with api_client(fs) as c:
-        r = c.put(
-            f"/api/books/{book_id}/relations",
-            json={
-                "add": [
-                    {
-                        "person_a": "p001",
-                        "person_b": "p002",
-                        "type": "师兄妹",
-                    }
-                ],
-                "remove": [],
-            },
-        )
-        assert r.status_code == 400
-        assert r.json()["code"] == "INVALID_RELATION_TYPE"
-
-        r = c.put(
-            f"/api/books/{book_id}/relations",
-            json={
-                "add": [
-                    {
-                        "person_a": "p001",
-                        "person_b": "p999",
-                        "type": "朋友",
-                    }
-                ],
-                "remove": [],
-            },
-        )
-        assert r.status_code == 400
-        assert r.json()["code"] == "VALIDATION_ERROR"
+        response = c.put(f"/api/books/{book_id}/relations", json={"add": [relation.model_dump()], "remove": []})
+        assert response.status_code == 200, response.text
+        key = response.json()["add"][0]["predicate"]
+        assert key.startswith("rel_")
+        definitions = c.get(f"/api/books/{book_id}/relation-types").json()["relation_types"]
+        assert any(d["predicate"] == key and d["label"] == "同门" for d in definitions)
+        graph = c.get(f"/api/books/{book_id}/graph", params={"predicate_filter": key}).json()
+        assert [tag["label"] for edge in graph["edges"] for tag in edge["tags"]] == ["同门"]
+        graph = c.get(f"/api/books/{book_id}/graph", params={"category_filter": "师承"}).json()
+        assert [tag["predicate"] for edge in graph["edges"] for tag in edge["tags"]] == [key]
+        relation.person_b = "p999"
+        response = c.put(f"/api/books/{book_id}/relations", json={"add": [relation.model_dump()], "remove": []})
+        assert response.status_code == 400
 
 
 def test_put_relations_409_when_analyzing():
@@ -282,20 +243,8 @@ def test_put_relations_409_when_analyzing():
 
 def test_get_export_bundle():
     fs, book_id = _seed_two_person_book()
-    fs.write_relation_overrides(
-        book_id,
-        {
-            "add": [
-                {
-                    "person_a": "p001",
-                    "person_b": "p002",
-                    "type": "夫妻",
-                    "chapter_id": 1,
-                }
-            ],
-            "remove": [],
-        },
-    )
+    rel = _ledger(1, [], [("p001", "p002", "夫妻", "q")]).relations[0]
+    fs.write_relation_overrides(book_id, {"add": [rel.model_dump()], "remove": []})
     with api_client(fs) as c:
         r = c.get(f"/api/books/{book_id}/export")
     assert r.status_code == 200, r.text
@@ -311,10 +260,10 @@ def test_get_export_bundle():
     }
     assert bundle["meta"]["book_id"] == book_id
     assert bundle["cast"]["version"] == 1
-    assert bundle["relation_overrides"]["add"][0]["type"] == "夫妻"
+    assert bundle["relation_overrides"]["add"][0]["label"] == "夫妻"
     assert bundle["graph"]["book_id"] == book_id
     assert len(bundle["ledgers"]) == 2
-    types = {t["type"] for e in bundle["graph"]["edges"] for t in e["tags"]}
+    types = {t["label"] for e in bundle["graph"]["edges"] for t in e["tags"]}
     assert "夫妻" in types
 
 
@@ -379,7 +328,7 @@ def test_merge_persons_rewrites_ledger_and_drops_self_loop():
         assert rel.person_a != "p003" and rel.person_b != "p003"
         assert rel.person_a != rel.person_b
     # 朋友 p001↔p002 仍在；相识 p001↔p003 变自环已丢
-    types = {r.type for r in ledger.relations}
+    types = {r.label for r in ledger.relations}
     assert "朋友" in types
     assert "相识" not in types
 
@@ -445,7 +394,9 @@ def test_rerun_overwrites_one_chapter_only():
         [("p001", "p002", "夫妻", "rerun-quote")],
     )
 
-    async def fake_agent(book_id, chapter_id, cast_snapshot, filestore, cfg=None):
+    async def fake_agent(
+        book_id, chapter_id, cast_snapshot, filestore, cfg=None, stop_event=None, control=None
+    ):
         filestore.write_ledger(book_id, new_ledger)
         return AgentResult(
             chapter_id=chapter_id,
@@ -454,15 +405,26 @@ def test_rerun_overwrites_one_chapter_only():
             steps_used=3,
         )
 
-    with patch("app.core.orchestrator.run_chapter_agent", new=fake_agent):
+    async def fake_reconcile(meta, filestore, cfg, **kwargs):
+        meta.status = BookStatus.ANALYZED
+        meta.analysis_progress.reconcile_done = True
+        filestore.write_meta(meta.book_id, meta)
+        return ReconcileOutcome(BookStatus.ANALYZED, True)
+
+    test_settings = Settings(auto_extract_factions=False, llm_api_key="")
+    with patch("app.core.orchestrator.run_chapter_agent", new=fake_agent), \
+         patch("app.core.orchestrator.enrich_ledger", new=AsyncMock(return_value=None)), \
+         patch("app.core.orchestrator.reconcile_book", new=fake_reconcile), \
+         patch("app.api.edits.settings", test_settings):
         with api_client(fs) as c:
             r = c.post(f"/api/books/{book_id}/chapters/1/rerun")
     assert r.status_code == 200, r.text
-    assert r.json()["status"] == "ok"
+    assert r.json()["success"] is True
     assert r.json()["chapter_id"] == 1
+    assert r.json()["status"] in {"analyzed", "partial", "reconcile_failed"}
 
     ch1 = fs.read_ledger(book_id, 1)
-    assert ch1.relations[0].type == "夫妻"
+    assert ch1.relations[0].label == "夫妻"
     assert ch1.relations[0].evidence.quote == "rerun-quote"
     ch2 = fs.read_ledger(book_id, 2)
     assert ch2.model_dump() == old_ch2.model_dump()

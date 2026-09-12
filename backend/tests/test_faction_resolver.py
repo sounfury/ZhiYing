@@ -6,6 +6,8 @@ FactionResolver 测试 — 势力块的确定性后处理。
 """
 from __future__ import annotations
 
+from app.core.relation_registry import descriptor
+from app.domain.relation_types import seed_registry
 from app.core.faction_resolver import UNASSIGNED_ID, resolve_factions
 from app.models.faction import Faction, FactionBook, FactionKind, Membership
 from app.models.graph import GraphEdge, GraphTag
@@ -15,7 +17,7 @@ def _edge(a: str, b: str, type_: str = "朋友", tier: str = "soft", score: floa
     return GraphEdge(
         person_a=a,
         person_b=b,
-        tags=[GraphTag(type=type_, tier=tier, directed=False, display_score=score)],
+        tags=[GraphTag(**descriptor(seed_registry().get("friend_of")), key="friend_of", predicate="friend_of", normalization_status="resolved", display_score=score)],
     )
 
 

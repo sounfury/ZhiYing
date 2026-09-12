@@ -8,6 +8,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from relation_fixtures import relation_fields
 from app.core.patch_applier import PatchApplier
 from app.models.cast import Alias, AliasFrequency, Cast, Person, Gender, Importance
 from app.models.ledger import ChapterLedger, ChapterPerson, Evidence, Relation
@@ -58,11 +59,11 @@ def _setup_workspace() -> tuple[Filestore, str]:
         ],
         relations=[
             Relation(
-                person_a="p001", person_b="p002", type="朋友",
+                person_a="p001", person_b="p002", **relation_fields("朋友"),
                 evidence=Evidence(chapter_id=1, quote="原文1"),
             ),
             Relation(
-                person_a="p003", person_b="p002", type="相识",
+                person_a="p003", person_b="p002", **relation_fields("相识"),
                 evidence=Evidence(chapter_id=1, quote="原文2"),
             ),
         ],
@@ -102,7 +103,7 @@ def test_apply_merges():
         assert r.person_a != "p003"
         assert r.person_b != "p003"
     # 应有一条 p001↔p002 的朋友关系
-    friend_rel = [r for r in ledger.relations if r.type == "朋友"]
+    friend_rel = [r for r in ledger.relations if r.label == "朋友"]
     assert any(r.person_a == "p001" and r.person_b == "p002" for r in friend_rel)
 
 
@@ -123,7 +124,7 @@ def test_apply_merges_self_loop_discard():
     ledger = ChapterLedger(
         chapter_id=1,
         relations=[Relation(
-            person_a="p001", person_b="p002", type="朋友",
+            person_a="p001", person_b="p002", **relation_fields("朋友"),
             evidence=Evidence(chapter_id=1),
         )],
     )
@@ -183,34 +184,27 @@ def test_apply_relation_changes():
 
     patch = ReconcilePatch(
         relation_changes=[
-            RelationChange(action="add", person_a="p001", person_b="p002", type="夫妻", chapter_id=1),
-            RelationChange(action="remove", person_a="p001", person_b="p002", type="朋友", chapter_id=1, note="误标"),
+            RelationChange(action="add", relation=Relation(person_a="p001", person_b="p002", **relation_fields("夫妻"), evidence=Evidence(chapter_id=1))),
+            RelationChange(action="remove", relation_id="remove-this-id"),
         ],
     )
     applier.apply(patch)
 
-    overrides = fs.read_relation_overrides(book_id)
+    overrides = fs.read_reconcile_overrides(book_id)
     assert "add" in overrides
     assert "remove" in overrides
-    assert any(e["type"] == "夫妻" for e in overrides["add"])
-    assert any(e["type"] == "朋友" for e in overrides["remove"])
+    assert any(e["label"] == "夫妻" for e in overrides["add"])
+    assert overrides["remove"] == [{"relation_id": "remove-this-id"}]
 
 
-def test_apply_relation_changes_invalid_type():
-    """非法 type 被跳过。"""
+def test_apply_open_relation_changes():
     fs, book_id = _setup_workspace()
-    applier = PatchApplier(book_id, fs)
-
-    patch = ReconcilePatch(
-        relation_changes=[
-            RelationChange(action="add", person_a="p001", person_b="p002", type="恋人", chapter_id=1),
-        ],
-    )
-    applier.apply(patch)
-
-    overrides = fs.read_relation_overrides(book_id)
-    # "恋人" 不在枚举内，不应写入
-    assert not any(e.get("type") == "恋人" for e in overrides.get("add", []))
+    rel = Relation(person_a="p001", person_b="p002", label="恋人", category="情感",
+                   definition="双方互相恋爱", directed=False, subject_role="恋人", object_role="恋人",
+                   raw_relation="二人相爱", evidence=Evidence(chapter_id=1))
+    result = PatchApplier(book_id, fs).apply(ReconcilePatch(relation_changes=[RelationChange(action="add", relation=rel)]))
+    assert not result.errors
+    assert fs.read_reconcile_overrides(book_id)["add"][0]["label"] == "恋人"
 
 
 def test_apply_todos():
@@ -260,8 +254,8 @@ def test_merge_discards_override_self_loop():
     fs, book_id = _setup_workspace()
     fs.write_relation_overrides(book_id, {
         "add": [
-            {"person_a": "p001", "person_b": "p003", "type": "朋友", "chapter_id": 1},
-            {"person_a": "p001", "person_b": "p002", "type": "相识", "chapter_id": 1},
+            Relation(person_a="p001", person_b="p003", **relation_fields("朋友"), evidence=Evidence(chapter_id=1)).model_dump(),
+            Relation(person_a="p001", person_b="p002", **relation_fields("相识"), evidence=Evidence(chapter_id=1)).model_dump(),
         ],
         "remove": [],
     })
@@ -274,4 +268,4 @@ def test_merge_discards_override_self_loop():
     assert not any(
         e["person_a"] == e["person_b"] for e in overrides.get("add", [])
     )
-    assert any(e["type"] == "相识" for e in overrides["add"])
+    assert any(e["label"] == "相识" for e in overrides["add"])

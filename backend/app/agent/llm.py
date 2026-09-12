@@ -1,101 +1,311 @@
-"""
-LLM Provider 层 — 通过 LangChain ChatOpenAI 适配任意 OpenAI 兼容端点。
-
-§2.1 约定：LangChain 仅做 Agent 运行时（工具注解、prompt 模板、tool loop、ChatModel）。
-本模块只负责创建可配置的 ChatModel 实例，供 chapter_agent / reconcile_agent 使用。
-
-不在此模块：Orchestrator 调度、Memory SSOT、Cast Writer、Aggregator。
-"""
+"""LLM provider and task-scoped request control."""
 from __future__ import annotations
 
-from typing import Optional
+import asyncio
+import time
+from dataclasses import dataclass, field
+from typing import Any, Awaitable, Callable, Optional
 
 from langchain_openai import ChatOpenAI
 
 from app.config import Settings, settings
-from app.errors import AppError, ErrorCode, llm_provider_error
+from app.errors import AppError, llm_provider_error
 from app.logging_config import get_logger
 
 logger = get_logger("agent.llm")
+
+
+class LLMStopped(RuntimeError):
+    """No new provider request may be scheduled for this task."""
+
+
+class LLMBudgetExceeded(RuntimeError):
+    """Task or phase budget has been exhausted."""
+
+
+def _usage_from_response(response: Any) -> tuple[int, int, int]:
+    """Best-effort extraction for LangChain/OpenAI-compatible usage metadata."""
+    if isinstance(response, dict) and response.get("raw") is not None:
+        return _usage_from_response(response["raw"])
+    usage = getattr(response, "usage_metadata", None) or {}
+    if not usage:
+        meta = getattr(response, "response_metadata", None) or {}
+        usage = meta.get("token_usage") or meta.get("usage") or {}
+    input_tokens = int(usage.get("input_tokens") or usage.get("prompt_tokens") or 0)
+    output_tokens = int(usage.get("output_tokens") or usage.get("completion_tokens") or 0)
+    total_tokens = int(usage.get("total_tokens") or (input_tokens + output_tokens) or 0)
+    return input_tokens, output_tokens, total_tokens
+
+
+def structured_parsed(response: Any) -> Any:
+    """Return parsed structured output while retaining raw usage for accounting."""
+    if isinstance(response, dict) and "parsed" in response and "raw" in response:
+        parsed = response.get("parsed")
+        if parsed is None:
+            error = response.get("parsing_error")
+            raise ValueError(f"structured output parsing failed: {error}")
+        return parsed
+    return response
+
+
+def is_quota_or_budget_error(exc: BaseException) -> bool:
+    text = str(exc).lower()
+    markers = (
+        "insufficient_quota", "quota", "credit balance", "balance", "billing",
+        "payment required", "402", "exceeded your current quota", "额度", "余额",
+    )
+    return any(marker in text for marker in markers)
+
+
+def is_retryable_llm_error(exc: BaseException) -> bool:
+    if is_quota_or_budget_error(exc):
+        return False
+    text = str(exc).lower()
+    markers = (
+        "timeout", "timed out", "rate limit", "429", "too many requests",
+        "connection reset", "connection error", "temporarily unavailable",
+        "service unavailable", "502", "503", "504",
+    )
+    return any(marker in text for marker in markers)
+
+
+EventSink = Callable[[dict[str, Any]], Awaitable[None]]
+
+
+@dataclass
+class LLMControl:
+    """Shared request/token/time budget for one analysis task."""
+
+    stop_event: asyncio.Event
+    max_requests: int = 0
+    max_tokens: int = 0
+    max_seconds: int = 0
+    request_retries: int = 0
+    heartbeat_seconds: int = 5
+    phase_request_limits: dict[str, int] = field(default_factory=dict)
+    event_sink: Optional[EventSink] = None
+    started_at: float = field(default_factory=time.monotonic)
+    request_count: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    phase_requests: dict[str, int] = field(default_factory=dict)
+    relation_cache: dict[str, dict[str, Any]] = field(default_factory=dict)
+    stop_reason: str = ""
+    _lock: asyncio.Lock = field(default_factory=asyncio.Lock, repr=False)
+
+    @classmethod
+    def from_settings(
+        cls,
+        cfg: Settings,
+        stop_event: asyncio.Event,
+        *,
+        event_sink: Optional[EventSink] = None,
+    ) -> "LLMControl":
+        return cls(
+            stop_event=stop_event,
+            max_requests=cfg.analysis_max_llm_requests,
+            max_tokens=cfg.analysis_max_llm_tokens,
+            max_seconds=cfg.analysis_max_seconds,
+            request_retries=cfg.llm_request_retries,
+            heartbeat_seconds=cfg.llm_heartbeat_seconds,
+            phase_request_limits={
+                "chapter": cfg.chapter_max_llm_requests,
+                "relation_normalize": cfg.relation_max_llm_requests,
+                "relation_verify": cfg.relation_max_llm_requests,
+                "reconcile": cfg.reconcile_max_llm_requests,
+                "faction": cfg.faction_max_llm_requests,
+            },
+            event_sink=event_sink,
+        )
+
+    async def emit(self, data: dict[str, Any]) -> None:
+        if self.event_sink is not None:
+            await self.event_sink(data)
+
+    async def stop(self, reason: str) -> None:
+        async with self._lock:
+            if not self.stop_reason:
+                self.stop_reason = reason
+            self.stop_event.set()
+        await self.emit({"kind": "llm_budget_stop", "reason": reason, **self.snapshot()})
+
+    def snapshot(self) -> dict[str, Any]:
+        return {
+            "llm_requests": self.request_count,
+            "input_tokens": self.input_tokens,
+            "output_tokens": self.output_tokens,
+            "total_tokens": self.total_tokens,
+            "stop_reason": self.stop_reason,
+        }
+
+    async def reserve(self, phase: str, context: str) -> int:
+        async with self._lock:
+            if self.stop_event.is_set():
+                raise LLMStopped(self.stop_reason or "analysis stopped")
+            elapsed = time.monotonic() - self.started_at
+            if self.max_seconds > 0 and elapsed >= self.max_seconds:
+                self.stop_reason = f"task time budget exceeded ({self.max_seconds}s)"
+                self.stop_event.set()
+                raise LLMBudgetExceeded(self.stop_reason)
+            if self.max_requests > 0 and self.request_count >= self.max_requests:
+                self.stop_reason = f"task request budget exceeded ({self.max_requests})"
+                self.stop_event.set()
+                raise LLMBudgetExceeded(self.stop_reason)
+            phase_count = self.phase_requests.get(phase, 0)
+            phase_limit = self.phase_request_limits.get(phase, 0)
+            if phase_limit > 0 and phase_count >= phase_limit:
+                self.stop_reason = f"{phase} request budget exceeded ({phase_limit})"
+                self.stop_event.set()
+                raise LLMBudgetExceeded(self.stop_reason)
+            self.request_count += 1
+            self.phase_requests[phase] = phase_count + 1
+            request_no = self.request_count
+        await self.emit({
+            "kind": "llm_request_start", "phase": phase, "context": context,
+            "request_no": request_no, **self.snapshot(),
+        })
+        return request_no
+
+    async def record_response(self, response: Any, *, phase: str, context: str, elapsed_ms: float) -> None:
+        inp, out, total = _usage_from_response(response)
+        over = False
+        async with self._lock:
+            self.input_tokens += inp
+            self.output_tokens += out
+            self.total_tokens += total
+            if self.max_tokens > 0 and self.total_tokens >= self.max_tokens:
+                self.stop_reason = f"task token budget reached ({self.total_tokens}/{self.max_tokens})"
+                self.stop_event.set()
+                over = True
+        await self.emit({
+            "kind": "llm_request_end", "phase": phase, "context": context,
+            "elapsed_ms": round(elapsed_ms, 1), "usage": {
+                "input_tokens": inp, "output_tokens": out, "total_tokens": total,
+            }, **self.snapshot(),
+        })
+        if over:
+            raise LLMBudgetExceeded(self.stop_reason)
+
+
+async def invoke_controlled(
+    model: Any,
+    messages: Any,
+    *,
+    control: Optional[LLMControl] = None,
+    phase: str,
+    context: str = "",
+    retries: Optional[int] = None,
+) -> Any:
+    """Invoke a model without hidden provider retries and with task stop/budget checks."""
+    retry_limit = retries if retries is not None else (control.request_retries if control else 0)
+    attempt = 0
+    while True:
+        if control is not None:
+            await control.reserve(phase, context)
+        started = time.perf_counter()
+        try:
+            invoke_task = asyncio.create_task(asyncio.to_thread(model.invoke, messages))
+            if control is None or control.heartbeat_seconds <= 0:
+                response = await invoke_task
+            else:
+                while True:
+                    try:
+                        response = await asyncio.wait_for(
+                            asyncio.shield(invoke_task), timeout=control.heartbeat_seconds
+                        )
+                        break
+                    except asyncio.TimeoutError:
+                        await control.emit({
+                            "kind": "llm_request_heartbeat",
+                            "phase": phase,
+                            "context": context,
+                            "elapsed_ms": round((time.perf_counter() - started) * 1000, 1),
+                            "stop_requested": control.stop_event.is_set(),
+                            **control.snapshot(),
+                        })
+        except Exception as exc:
+            elapsed_ms = (time.perf_counter() - started) * 1000
+            logger.warning(
+                "LLM request failed phase=%s context=%s attempt=%d elapsed_ms=%.0f err=%s",
+                phase, context, attempt + 1, elapsed_ms, exc,
+            )
+            if control is not None:
+                await control.emit({
+                    "kind": "llm_request_error", "phase": phase, "context": context,
+                    "elapsed_ms": round(elapsed_ms, 1), "attempt": attempt + 1,
+                    "error": str(exc)[:500], **control.snapshot(),
+                })
+                if is_quota_or_budget_error(exc):
+                    await control.stop(f"provider quota/balance error: {str(exc)[:240]}")
+                    raise
+                if control.stop_event.is_set():
+                    raise LLMStopped(control.stop_reason or "analysis stopped") from exc
+            if attempt >= retry_limit or not is_retryable_llm_error(exc):
+                raise
+            attempt += 1
+            delay = min(8.0, 0.5 * (2 ** (attempt - 1)))
+            if control is not None:
+                await control.emit({
+                    "kind": "llm_retry_wait", "phase": phase, "context": context,
+                    "attempt": attempt + 1, "delay_seconds": delay,
+                })
+                try:
+                    await asyncio.wait_for(control.stop_event.wait(), timeout=delay)
+                    raise LLMStopped(control.stop_reason or "analysis stopped")
+                except asyncio.TimeoutError:
+                    pass
+            else:
+                await asyncio.sleep(delay)
+            continue
+
+        elapsed_ms = (time.perf_counter() - started) * 1000
+        if control is not None:
+            await control.record_response(response, phase=phase, context=context, elapsed_ms=elapsed_ms)
+            if control.stop_event.is_set() and control.stop_reason:
+                raise LLMStopped(control.stop_reason)
+        return response
 
 
 def create_chat_model(
     model: Optional[str] = None,
     *,
     temperature: float = 0.0,
-    timeout: int = 120,
-    max_retries: int = 2,
+    timeout: Optional[int] = None,
+    max_retries: int = 0,
     cfg: Optional[Settings] = None,
 ) -> ChatOpenAI:
-    """
-    创建 LangChain ChatOpenAI 实例。
-
-    任意 OpenAI 兼容端点（官方 / 中转 / Ollama / vLLM 等），
-    只需配 base_url + api_key + model。
-
-    Args:
-        model: 模型名；不传则用 settings.llm_model
-        temperature: 温度；默认 0（关系提取偏确定性）
-        timeout: 请求超时秒
-        max_retries: LLM 层重试次数
-        cfg: Settings 实例；不传则用全局 settings
-
-    Raises:
-        AppError(LLM_PROVIDER_ERROR): 缺 api_key 或其他配置错误
-    """
+    """Create ChatOpenAI; retries are handled explicitly by ``invoke_controlled``."""
     cfg = cfg or settings
-
     if not cfg.llm_api_key:
-        raise llm_provider_error(
-            "LLM_API_KEY not configured. Set it in .env or environment."
-        )
-
+        raise llm_provider_error("LLM_API_KEY not configured. Set it in .env or environment.")
     resolved_model = model or cfg.llm_model
-
+    resolved_timeout = timeout if timeout is not None else cfg.llm_timeout_seconds
     logger.info(
-        "Creating ChatOpenAI: base_url=%s model=%s temp=%.1f",
-        cfg.llm_base_url,
-        resolved_model,
-        temperature,
+        "Creating ChatOpenAI: base_url=%s model=%s temp=%.1f timeout=%ss retries=%d",
+        cfg.llm_base_url, resolved_model, temperature, resolved_timeout, max_retries,
     )
-
     return ChatOpenAI(
         base_url=cfg.llm_base_url,
         api_key=cfg.llm_api_key,
         model=resolved_model,
         temperature=temperature,
-        timeout=timeout,
+        timeout=resolved_timeout,
         max_retries=max_retries,
     )
 
 
 def get_chapter_llm(cfg: Optional[Settings] = None) -> ChatOpenAI:
-    """章级分析用的 ChatModel。"""
     cfg = cfg or settings
     return create_chat_model(cfg.llm_model, temperature=0.0, cfg=cfg)
 
 
 def get_reconcile_llm(cfg: Optional[Settings] = None) -> ChatOpenAI:
-    """
-    终局归纳（Reconcile）用的 ChatModel。
-    可配不同模型档（LLM_RECONCILE_MODEL），默认回退到主模型。
-    """
     cfg = cfg or settings
-    return create_chat_model(
-        cfg.reconcile_model,
-        temperature=0.0,
-        cfg=cfg,
-    )
+    return create_chat_model(cfg.reconcile_model, temperature=0.0, cfg=cfg)
 
 
 def check_connectivity(cfg: Optional[Settings] = None) -> bool:
-    """
-    轻量连通性检查：发一条 "ping" 消息看是否返回。
-    用于启动时或 API 健康路径（非必须，debug 时有用）。
-
-    Returns:
-        True 连通，False 不通（异常被吞，详情看日志）
-    """
     cfg = cfg or settings
     try:
         llm = create_chat_model(cfg=cfg)
@@ -104,7 +314,7 @@ def check_connectivity(cfg: Optional[Settings] = None) -> bool:
         logger.info("LLM connectivity check: %s", "OK" if ok else "FAIL")
         return ok
     except AppError:
-        raise  # 配置错误直接抛
-    except Exception as e:
-        logger.warning("LLM connectivity check failed: %s", e)
+        raise
+    except Exception as exc:
+        logger.warning("LLM connectivity check failed: %s", exc)
         return False

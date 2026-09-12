@@ -9,7 +9,7 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import Enum
-from typing import List, Optional
+from typing import Any, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -21,6 +21,7 @@ class BookStatus(str, Enum):
     ANALYZING = "analyzing"           # 分析中
     RECONCILING = "reconciling"       # 全书总校对 Agent 运行中
     ANALYZED = "analyzed"             # 分析完成
+    PARTIAL = "partial"               # 部分结果，需重跑未完整章节
     RECONCILE_FAILED = "reconcile_failed"  # 总校对失败（降级，仍可出图）
     FAILED = "failed"                 # 分析失败
 
@@ -37,9 +38,53 @@ class AnalysisProgress(BaseModel):
     chapters_done: List[int] = Field(default_factory=list)
     chapters_pending: List[int] = Field(default_factory=list)
     chapters_failed: List[int] = Field(default_factory=list)
+    chapters_partial: List[int] = Field(default_factory=list)
     mode: Optional[AnalysisMode] = None
     # few_long 专用：是否进入/完成 reconcile
     reconcile_done: bool = False
+
+
+class ChapterTaskState(BaseModel):
+    """Persistent per-chapter state for the current/last analysis task."""
+    chapter_id: int
+    status: str = "pending"
+    attempts: int = 0
+    last_error: str = ""
+    updated_at: datetime = Field(default_factory=datetime.now)
+
+
+class AnalysisTaskEvent(BaseModel):
+    event_id: int
+    type: str
+    data: dict[str, Any] = Field(default_factory=dict)
+    created_at: datetime = Field(default_factory=datetime.now)
+
+
+class AnalysisTaskSnapshot(BaseModel):
+    """Server-side SSOT for task lifecycle, reconnect and diagnostics."""
+    task_id: str
+    book_id: str
+    kind: str = "full"
+    active: bool = True
+    status: str = "running"
+    phase: str = "starting"
+    total_chapters: int = 0
+    chapters: list[ChapterTaskState] = Field(default_factory=list)
+    started_at: datetime = Field(default_factory=datetime.now)
+    updated_at: datetime = Field(default_factory=datetime.now)
+    finished_at: Optional[datetime] = None
+    llm_requests: int = 0
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    stop_reason: str = ""
+    errors: list[str] = Field(default_factory=list)
+    result: dict[str, Any] = Field(default_factory=dict)
+    event_seq: int = 0
+    events: list[AnalysisTaskEvent] = Field(default_factory=list)
+
+    def chapter_state(self, chapter_id: int) -> ChapterTaskState | None:
+        return next((c for c in self.chapters if c.chapter_id == chapter_id), None)
 
 
 class BookMeta(BaseModel):
@@ -54,6 +99,7 @@ class BookMeta(BaseModel):
     status: BookStatus = BookStatus.UPLOADED
     created_at: datetime = Field(default_factory=datetime.now)
     analysis_progress: AnalysisProgress = Field(default_factory=AnalysisProgress)
+    factions_stale: bool = False
 
     # profiling 信息（EPUB 解析后填充）
     total_words: int = 0

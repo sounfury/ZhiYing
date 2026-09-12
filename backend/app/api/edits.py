@@ -19,9 +19,12 @@ from pydantic import BaseModel, Field
 
 from app.config import settings
 from app.core.aggregator import BLOCKING_STATUSES, Aggregator, GraphQuery
-from app.core.orchestrator import Orchestrator
+from app.core.orchestrator import Orchestrator, _get_start_lock
 from app.core.patch_applier import PatchApplier
-from app.domain.relation_types import ALL_TYPE_NAMES, is_valid_type
+from app.core.rebuild import record_human_cast_update, record_human_merge
+from app.domain.relation_types import RelationDescriptor
+from app.core.relation_registry import register, apply_definition, descriptor
+from app.models.ledger import Relation
 from app.errors import AppError, ErrorCode, analysis_already_running
 from app.logging_config import get_logger
 from app.models.book import BookMeta
@@ -36,27 +39,10 @@ router = APIRouter(prefix="/api/books", tags=["edits"])
 # ── request bodies ──
 
 
-class RelationOverrideEntry(BaseModel):
-    """一条 add / remove 补丁。格式对齐 aggregator-design §4.2。"""
-
-    person_a: str
-    person_b: str
-    type: str
-    chapter_id: Optional[int] = None
-    quote: Optional[str] = None
-    note: Optional[str] = None
-
-
 class RelationOverridesDoc(BaseModel):
-    """
-    PUT /relations 请求体。
-
-    **整份替换** `overrides/relation_overrides.json`（不与旧文件 merge）。
-    客户端应 GET 当前 overrides（含在 GET /export 里）再改完整份回写。
-    """
-
-    add: List[RelationOverrideEntry] = Field(default_factory=list)
-    remove: List[RelationOverrideEntry] = Field(default_factory=list)
+    """完整替换补丁。add 为开放关系，remove 为准确的 relation_id。"""
+    add: List[Relation] = Field(default_factory=list)
+    remove: List[str] = Field(default_factory=list)
 
 
 class MergeRequest(BaseModel):
@@ -74,44 +60,6 @@ def _refuse_if_blocking(meta: BookMeta) -> None:
 
 def _bad_request(message: str, *, code: ErrorCode = ErrorCode.VALIDATION_ERROR) -> None:
     raise AppError(code, message, status_code=400)
-
-
-def _entry_to_dict(entry: RelationOverrideEntry) -> dict:
-    data: dict = {
-        "person_a": entry.person_a,
-        "person_b": entry.person_b,
-        "type": entry.type,
-    }
-    if entry.chapter_id is not None:
-        data["chapter_id"] = entry.chapter_id
-    if entry.quote:
-        data["quote"] = entry.quote
-    if entry.note:
-        data["note"] = entry.note
-    return data
-
-
-def _validate_override_entries(
-    entries: List[RelationOverrideEntry],
-    cast_ids: set[str],
-    *,
-    kind: str,
-) -> None:
-    for i, e in enumerate(entries):
-        if not is_valid_type(e.type):
-            raise AppError(
-                ErrorCode.INVALID_RELATION_TYPE,
-                f"Invalid relation type in {kind}[{i}]: '{e.type}'. "
-                f"Valid types: {', '.join(ALL_TYPE_NAMES)}",
-                details={"valid_types": ALL_TYPE_NAMES},
-                status_code=400,
-            )
-        if e.person_a not in cast_ids:
-            _bad_request(f"Unknown person_id in {kind}[{i}]: {e.person_a}")
-        if e.person_b not in cast_ids:
-            _bad_request(f"Unknown person_id in {kind}[{i}]: {e.person_b}")
-        if e.person_a == e.person_b:
-            _bad_request(f"Self-loop not allowed in {kind}[{i}]: {e.person_a}")
 
 
 def _apply_cast_update(existing: Cast, incoming: Cast) -> Cast:
@@ -168,19 +116,21 @@ async def update_cast(
     canonical_name / aliases / gender / importance / bio；**不改 ledger person_id**。
     未出现在 body.persons 里的已有人物保留。version 服务端 +1。
     """
-    meta = await asyncio.to_thread(fs.read_meta, book_id)
-    _refuse_if_blocking(meta)
+    async with _get_start_lock(book_id):
+        meta = await asyncio.to_thread(fs.read_meta, book_id)
+        _refuse_if_blocking(meta)
 
-    existing = await asyncio.to_thread(fs.read_cast, book_id)
-    updated = _apply_cast_update(existing, body)
-    await asyncio.to_thread(fs.write_cast, book_id, updated)
-    logger.info(
-        "Cast updated: book=%s version=%d persons=%d",
-        book_id,
-        updated.version,
-        len(updated.persons),
-    )
-    return updated.model_dump(mode="json")
+        existing = await asyncio.to_thread(fs.read_cast, book_id)
+        updated = _apply_cast_update(existing, body)
+        await asyncio.to_thread(fs.write_cast, book_id, updated)
+        await asyncio.to_thread(record_human_cast_update, fs, book_id, body.persons)
+        logger.info(
+            "Cast updated: book=%s version=%d persons=%d",
+            book_id,
+            updated.version,
+            len(updated.persons),
+        )
+        return updated.model_dump(mode="json")
 
 
 # ── PUT /relations ──
@@ -196,28 +146,42 @@ async def update_relations(
     人工改关系：整份替换 `workspace/{book_id}/overrides/relation_overrides.json`。
 
     不改 ledger。Body 为 `{add: [...], remove: [...]}`（aggregator-design §4.2）。
-    非法 type / 未知 person_id → 400。PUT 是整份替换，不与旧文件 merge。
+    非法语义结构 / 未知人物会被拒绝。PUT 是整份替换，不与旧文件 merge。
     """
-    meta = await asyncio.to_thread(fs.read_meta, book_id)
-    _refuse_if_blocking(meta)
+    async with _get_start_lock(book_id):
+        meta = await asyncio.to_thread(fs.read_meta, book_id)
+        _refuse_if_blocking(meta)
 
-    cast = await asyncio.to_thread(fs.read_cast, book_id)
-    cast_ids = {p.person_id for p in cast.persons}
-    _validate_override_entries(body.add, cast_ids, kind="add")
-    _validate_override_entries(body.remove, cast_ids, kind="remove")
-
-    saved = {
-        "add": [_entry_to_dict(e) for e in body.add],
-        "remove": [_entry_to_dict(e) for e in body.remove],
-    }
-    await asyncio.to_thread(fs.write_relation_overrides, book_id, saved)
-    logger.info(
-        "Relation overrides replaced: book=%s add=%d remove=%d",
-        book_id,
-        len(saved["add"]),
-        len(saved["remove"]),
-    )
-    return saved
+        cast = await asyncio.to_thread(fs.read_cast, book_id)
+        cast_ids = {p.person_id for p in cast.persons}
+        registry = await asyncio.to_thread(fs.read_relation_registry, book_id)
+        additions = []
+        for relation in body.add:
+            if relation.person_a not in cast_ids or relation.person_b not in cast_ids:
+                _bad_request("Unknown person_id in relation")
+            cid = relation.evidence.chapter_id
+            await asyncio.to_thread(fs.read_chapter, book_id, cid)
+            if relation.predicate:
+                definition = registry.get(relation.predicate)
+                if definition is None or descriptor(definition) != descriptor(relation):
+                    _bad_request("predicate 不存在或与提供的关系定义不一致")
+            else:
+                definition = register(registry, relation, source="human")
+            apply_definition(relation, definition)
+            relation.status = "confirmed"
+            relation.verification_reason = "人工确认"
+            relation.normalization_reason = "人工选择或注册关系语义"
+            additions.append(relation.model_dump(mode="json"))
+        saved = {"add": additions, "remove": [{"relation_id": rid} for rid in body.remove]}
+        await asyncio.to_thread(fs.write_relation_registry, book_id, registry)
+        await asyncio.to_thread(fs.write_relation_overrides, book_id, saved)
+        logger.info(
+            "Relation overrides replaced: book=%s add=%d remove=%d",
+            book_id,
+            len(saved["add"]),
+            len(saved["remove"]),
+        )
+        return saved
 
 
 # ── POST /cast/merge ──
@@ -235,28 +199,32 @@ async def merge_persons(
     Body: `{keep_id, drop_id}`。keep 吸收 drop 别名；全库 ledger + overrides
     rewrite person_id；自环丢弃。不默认重跑 LLM。
     """
-    meta = await asyncio.to_thread(fs.read_meta, book_id)
-    _refuse_if_blocking(meta)
+    async with _get_start_lock(book_id):
+        meta = await asyncio.to_thread(fs.read_meta, book_id)
+        _refuse_if_blocking(meta)
 
-    if body.keep_id == body.drop_id:
-        _bad_request("keep_id and drop_id must differ")
+        if body.keep_id == body.drop_id:
+            _bad_request("keep_id and drop_id must differ")
 
-    cast = await asyncio.to_thread(fs.read_cast, book_id)
-    if cast.get_person(body.keep_id) is None:
-        _bad_request(f"Unknown keep_id: {body.keep_id}")
-    if cast.get_person(body.drop_id) is None:
-        _bad_request(f"Unknown drop_id: {body.drop_id}")
+        cast = await asyncio.to_thread(fs.read_cast, book_id)
+        if cast.get_person(body.keep_id) is None:
+            _bad_request(f"Unknown keep_id: {body.keep_id}")
+        if cast.get_person(body.drop_id) is None:
+            _bad_request(f"Unknown drop_id: {body.drop_id}")
 
-    applier = PatchApplier(book_id, fs)
-    updated = await asyncio.to_thread(applier.merge_persons, body.keep_id, body.drop_id)
-    logger.info(
-        "Persons merged: book=%s keep=%s drop=%s version=%d",
-        book_id,
-        body.keep_id,
-        body.drop_id,
-        updated.version,
-    )
-    return updated.model_dump(mode="json")
+        await asyncio.to_thread(
+            record_human_merge, fs, book_id, keep_id=body.keep_id, drop_id=body.drop_id
+        )
+        applier = PatchApplier(book_id, fs)
+        updated = await asyncio.to_thread(applier.merge_persons, body.keep_id, body.drop_id)
+        logger.info(
+            "Persons merged: book=%s keep=%s drop=%s version=%d",
+            book_id,
+            body.keep_id,
+            body.drop_id,
+            updated.version,
+        )
+        return updated.model_dump(mode="json")
 
 
 # ── GET /export ──
@@ -284,6 +252,7 @@ async def export_book(
         cast = fs.read_cast(book_id)
         factions = fs.read_factions(book_id)
         overrides = fs.read_relation_overrides(book_id)
+        reconcile_overrides = fs.read_reconcile_overrides(book_id)
         graph = Aggregator(book_id, fs).compile(GraphQuery())
         ledger_dir = fs.ledger_dir(book_id)
         ledgers: list[dict] = []
@@ -301,6 +270,8 @@ async def export_book(
             "cast": cast.model_dump(mode="json"),
             "factions": factions.model_dump(mode="json"),
             "relation_overrides": overrides,
+            "reconcile_overrides": reconcile_overrides,
+            "relation_registry": fs.read_relation_registry(book_id).model_dump(mode="json"),
             "graph": graph.model_dump(mode="json"),
             "ledgers": ledgers,
         }
@@ -324,11 +295,13 @@ async def rerun_chapter(
     fs: Filestore = Depends(get_filestore),
 ) -> dict:
     """
-    重跑单章：覆盖该章 ledger，不级联后续章，不跑 Reconcile。
+    安全重跑单章：在同盘 staging 中重抽该章，随后重建人物合并、关系后处理和全书 Reconcile，最后一致发布。
 
     - book / chapter 不存在 → 404
     - analyzing / reconciling → 409
-    - Agent 失败 → 502（旧 ledger 保留）
+    - 缺少可重建基线 → 409（需先完成一次新版全书分析）
+    - 章节抽取或后处理失败 → 502（上一份正式结果保持不变）
+    - 章节成功但全书校对失败 → 发布一致的章节结果并明确标记 reconcile_failed
     """
     meta = await asyncio.to_thread(fs.read_meta, book_id)
     _refuse_if_blocking(meta)
@@ -345,3 +318,15 @@ async def rerun_chapter(
 
     orch = Orchestrator(book_id, fs, settings)
     return await orch.rerun_chapter(cid)
+
+
+@router.post("/{book_id}/relation-types")
+async def add_relation_definition(book_id: str, body: RelationDescriptor,
+                                  fs: Filestore = Depends(get_filestore)) -> dict:
+    async with _get_start_lock(book_id):
+        meta = await asyncio.to_thread(fs.read_meta, book_id)
+        _refuse_if_blocking(meta)
+        registry = await asyncio.to_thread(fs.read_relation_registry, book_id)
+        definition = register(registry, body, source="human")
+        await asyncio.to_thread(fs.write_relation_registry, book_id, registry)
+        return definition.model_dump(mode="json")

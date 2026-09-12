@@ -1,0 +1,116 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "chapter_id": 12,
+  "title": "乔文达",
+  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_012.json",
+  "characters": [
+    {
+      "name": "悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "乔文达",
+      "presence": "active"
+    },
+    {
+      "name": "乔达摩",
+      "presence": "memory_or_reference"
+    },
+    {
+      "name": "瓦稣迪瓦",
+      "presence": "memory"
+    },
+    {
+      "name": "迦摩罗",
+      "presence": "memory_or_reference"
+    }
+  ],
+  "required_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "乔文达",
+      "label": "青年好友",
+      "category": "友谊",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "他向年轻时的好友提出诸多问题，而悉达多则向他讲述自己的生活。"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "person_a": "乔达摩",
+      "person_b": "乔文达",
+      "label": "师徒",
+      "category": "师承",
+      "directed": true,
+      "subject_role": "师傅",
+      "object_role": "弟子",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "可敬的人，你已年迈，仍穿着乔达摩弟子的僧服。"
+        }
+      ],
+      "note": ""
+    }
+  ],
+  "optional_relations": [
+    {
+      "person_a": "瓦稣迪瓦",
+      "person_b": "悉达多",
+      "label": "前辈与师长",
+      "category": "指导",
+      "directed": true,
+      "subject_role": "前辈/师长",
+      "object_role": "受教者",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "但我所学最多的，是跟随这条河和我的前辈，船夫瓦稣迪瓦。"
+        }
+      ],
+      "note": "悉达多回顾瓦稣迪瓦，属于回忆关系。"
+    },
+    {
+      "person_a": "乔文达",
+      "person_b": "悉达多",
+      "label": "敬爱与敬意",
+      "category": "情感",
+      "directed": true,
+      "subject_role": "敬爱者",
+      "object_role": "被敬爱者",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "如同火焰点燃他心中最深的爱和最谦卑的敬意。"
+        }
+      ],
+      "note": ""
+    }
+  ],
+  "forbidden_relations": [
+    {
+      "person_a": "乔达摩",
+      "person_b": "悉达多",
+      "forbidden_labels": [
+        "师徒",
+        "弟子",
+        "皈依"
+      ],
+      "confidence": "high",
+      "reason": "悉达多尊敬并认同乔达摩，但始终没有成为其弟子。",
+      "evidence": [
+        {
+          "quote": "我知道，我同乔达摩信念一致。"
+        }
+      ]
+    }
+  ],
+  "identity_assertions": []
+}

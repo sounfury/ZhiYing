@@ -17,8 +17,8 @@ interface ControlPanelProps {
 
   minAppearance: number
   onMinAppearanceChange: (v: number) => void
-  includeSuppressed: boolean
-  onIncludeSuppressedChange: (v: boolean) => void
+  categoryFilter: string[]
+  onCategoryFilterChange: (categories: string[]) => void
   typeFilter: string[]
   onTypeFilterChange: (types: string[]) => void
   relationTypes: RelationTypeMeta[]
@@ -32,6 +32,7 @@ interface ControlPanelProps {
   isRunning: boolean
   graphLoading: boolean
   factionLoading: boolean
+  factionsStale: boolean
   onRefreshGraph: () => void
   onExtractFactions: () => void
   onOpenSide: (tab: SideTab) => void
@@ -48,8 +49,8 @@ export function ControlPanel({
   onSingleChapterOnlyChange,
   minAppearance,
   onMinAppearanceChange,
-  includeSuppressed,
-  onIncludeSuppressedChange,
+  categoryFilter,
+  onCategoryFilterChange,
   typeFilter,
   onTypeFilterChange,
   relationTypes,
@@ -61,6 +62,7 @@ export function ControlPanel({
   isRunning,
   graphLoading,
   factionLoading,
+  factionsStale,
   onRefreshGraph,
   onExtractFactions,
   onOpenSide,
@@ -71,7 +73,6 @@ export function ControlPanel({
         书籍
         <select
           value={bookId}
-          disabled={isRunning}
           onChange={(e) => onBookChange(e.target.value)}
         >
           <option value="">（未选择）</option>
@@ -146,8 +147,8 @@ export function ControlPanel({
       <MoreFiltersMenu
         minAppearance={minAppearance}
         onMinAppearanceChange={onMinAppearanceChange}
-        includeSuppressed={includeSuppressed}
-        onIncludeSuppressedChange={onIncludeSuppressedChange}
+        categoryFilter={categoryFilter}
+        onCategoryFilterChange={onCategoryFilterChange}
         typeFilter={typeFilter}
         onTypeFilterChange={onTypeFilterChange}
         relationTypes={relationTypes}
@@ -167,7 +168,7 @@ export function ControlPanel({
           onClick={() => void onExtractFactions()}
           title="用 LLM 把人物划成学校 / 教会 / 家族等团体块"
         >
-          {factionLoading ? '归纳势力中…' : '抽取势力'}
+          {factionLoading ? '归纳势力中…' : factionsStale ? '更新势力' : '抽取势力'}
         </button>
         <button
           type="button"

@@ -16,11 +16,11 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from app.agent.llm import create_chat_model
+from app.agent.llm import LLMControl, LLMBudgetExceeded, LLMStopped, create_chat_model, invoke_controlled
 from app.agent.prompts.faction import build_system_prompt, build_user_prompt
 from app.agent.tools import FactionToolContext, make_faction_tools
 from app.config import Settings, settings
@@ -33,6 +33,8 @@ from app.models.graph import GraphEdge
 from app.storage.filestore import Filestore
 
 logger = get_logger("agent.faction_writer")
+
+ProgressSink = Callable[[dict[str, Any]], Awaitable[None]]
 
 
 @dataclass
@@ -52,6 +54,9 @@ async def run_faction_agent(
     chapter_summaries: Dict[int, str],
     filestore: Filestore,
     cfg: Optional[Settings] = None,
+    stop_event: Optional[asyncio.Event] = None,
+    control: Optional[LLMControl] = None,
+    progress: Optional[ProgressSink] = None,
 ) -> FactionResult:
     """
     运行势力归纳 Agent。不写盘——由调用方决定是否落 factions.json。
@@ -114,12 +119,17 @@ async def run_faction_agent(
     total_tool_ms = 0.0
 
     for step in range(max_steps):
+        if (stop_event is not None and stop_event.is_set()) or (control is not None and control.stop_event.is_set()):
+            return FactionResult(success=False, warning="Analysis stopped before faction request", steps_used=steps_used)
         steps_used = step + 1
+        if progress is not None:
+            await progress({"phase": "faction_waiting_model", "step": steps_used, "max_steps": max_steps})
 
         t_llm = time.perf_counter()
         try:
-            ai_response: AIMessage = await asyncio.to_thread(
-                llm_with_tools.invoke, messages
+            ai_response: AIMessage = await invoke_controlled(
+                llm_with_tools, messages, control=control, phase="faction",
+                context=f"step={steps_used}/{max_steps}",
             )
         except Exception as e:
             logger.error("LLM invoke failed at step %d: %s", steps_used, e)
@@ -143,6 +153,8 @@ async def run_faction_agent(
 
         t_tool = time.perf_counter()
         for tc in tool_calls:
+            if (stop_event is not None and stop_event.is_set()) or (control is not None and control.stop_event.is_set()):
+                return FactionResult(success=False, warning="Analysis stopped during faction tools", steps_used=steps_used)
             tool_name = tc["name"]
             tool_fn = tool_map.get(tool_name)
             if tool_fn is None:
@@ -194,6 +206,9 @@ async def extract_factions(
     book_id: str,
     filestore: Filestore,
     cfg: Optional[Settings] = None,
+    stop_event: Optional[asyncio.Event] = None,
+    control: Optional[LLMControl] = None,
+    progress: Optional[ProgressSink] = None,
 ) -> FactionResult:
     """
     端到端跑一次势力归纳并写 factions.json。
@@ -210,19 +225,23 @@ async def extract_factions(
     ledgers = await asyncio.to_thread(filestore.read_ledgers, book_id, chapters_done)
     chapter_summaries = {l.chapter_id: l.summary for l in ledgers}
 
-    # 关系骨架：min_appearance=1，尽量给全量边，prompt 侧再筛 hard/mid
+    # 关系骨架：min_appearance=1，提供所有已验证语义
     graph = await asyncio.to_thread(
         Aggregator(book_id, filestore).compile, GraphQuery(min_appearance=1)
     )
 
     result = await run_faction_agent(
-        meta, cast, graph.edges, chapter_summaries, filestore, cfg
+        meta, cast, graph.edges, chapter_summaries, filestore, cfg,
+        stop_event=stop_event, control=control, progress=progress,
     )
 
     if result.success and result.book is not None:
         prev = await asyncio.to_thread(filestore.read_factions, book_id)
         result.book.version = prev.version + 1
         await asyncio.to_thread(filestore.write_factions, book_id, result.book)
+        meta = await asyncio.to_thread(filestore.read_meta, book_id)
+        meta.factions_stale = False
+        await asyncio.to_thread(filestore.write_meta, book_id, meta)
         logger.info(
             "factions.json written: book=%s version=%d factions=%d",
             book_id,

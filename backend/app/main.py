@@ -10,12 +10,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.config import settings
-from app.domain.relation_types import ALL_TYPE_NAMES, relation_summary_for_prompt
+from app.domain.relation_types import seed_registry
 from app.errors import register_exception_handlers
 from app.logging_config import get_logger, setup_logging
 from app.api.books import router as books_router
 from app.api.analysis import router as analysis_router
 from app.api.edits import router as edits_router
+from app.core.orchestrator import recover_interrupted_tasks
+from app.storage.filestore import get_filestore
 
 logger = get_logger("main")
 
@@ -53,6 +55,9 @@ def create_app() -> FastAPI:
     @app.on_event("startup")
     async def _on_startup() -> None:
         settings.ensure_workspace()
+        interrupted = await recover_interrupted_tasks(get_filestore())
+        if interrupted:
+            logger.warning("Marked %d stale analysis task(s) as interrupted", interrupted)
         logger.info(
             "ZhiYing started — workspace=%s debug=%s",
             settings.workspace_root,
@@ -73,17 +78,9 @@ def _register_remaining_routes(app: FastAPI) -> None:
 
     @app.get("/api/meta/relation-types")
     async def get_relation_types() -> dict:
-        """关系类型枚举投影（§4.5 SSOT）。"""
-        from app.domain.relation_types import RELATION_TYPES, Tier
+        """初始示例元数据，分析并不受其限制。书籍注册表另有 book API。"""
+        return {"relation_types": [d.model_dump() for d in seed_registry().definitions]}
 
-        result = []
-        for name, meta in RELATION_TYPES.items():
-            result.append({
-                "type": name,
-                "tier": meta.tier.value,
-                "directed": meta.directed,
-            })
-        return {"relation_types": result}
 
 
 # ── uvicorn entry ──

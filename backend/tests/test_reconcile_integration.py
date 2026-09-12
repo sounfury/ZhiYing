@@ -15,6 +15,7 @@ from unittest.mock import AsyncMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from relation_fixtures import relation_fields
 from app.agent.reconcile_agent import ReconcileResult, run_reconcile_agent
 from app.config import Settings
 from app.core.patch_applier import PatchApplier
@@ -88,7 +89,7 @@ def _setup_cast_with_conflicts(fs: Filestore, book_id: str):
                 ChapterPerson(person_id="p003", aliases_in_chapter=["林妹妹"]),
             ],
             relations=[Relation(
-                person_a="p001", person_b="p002", type="夫妻",
+                person_a="p001", person_b="p002", **relation_fields("夫妻"),
                 evidence=Evidence(chapter_id=i, quote=""),
             )],
             summary=f"第{i}章摘要",
@@ -120,8 +121,9 @@ def _setup_cast_no_conflicts(fs: Filestore, book_id: str):
                 ChapterPerson(person_id="p002"),
             ],
             relations=[Relation(
-                person_a="p001", person_b="p002", type="朋友",
+                person_a="p001", person_b="p002", **relation_fields("朋友"),
                 evidence=Evidence(chapter_id=i, quote="原文"),
+                status="confirmed",
             )],
             summary=f"第{i}章摘要",
         )

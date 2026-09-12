@@ -106,6 +106,8 @@ def test_no_tool_calls_after_propose_still_succeeds():
     assert result.summary
     assert fake.calls == 2
     assert "auto-finalized" in result.warning
+    assert result.partial is True
+    assert result.ledger.analysis_status == "partial"
     disk = fs.read_ledger(book_id, 4)
     assert len(disk.persons) == 2
 
@@ -164,6 +166,8 @@ def test_reminder_then_submit_result():
     assert result.ledger is not None
     assert result.summary == "短章，无人出场。"
     assert result.warning == ""
+    assert result.partial is False
+    assert result.ledger.analysis_status == "complete"
     assert fake.calls == 2
 
 
@@ -179,10 +183,10 @@ def _assert_no_transliteration(text: str) -> None:
 
 def test_prompt_covers_shitu_tongchang_no_transliteration():
     prompt = build_system_prompt(5000)
-    assert "仅当" in prompt and "拜师" in prompt
-    assert "洗衣少女" in prompt
+    assert "没有固定类型列表" in prompt and "拜师" in prompt
+    assert "无名路人" in prompt
     assert "同场" in prompt
-    assert "submit_result 必须调用" in prompt
+    assert "必须 submit_result" in prompt
     _assert_no_transliteration(prompt)
 
     ch = Chapter(chapter_id=1, title="t", order=1, content="甲遇见乙。", word_count=4)

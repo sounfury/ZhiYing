@@ -28,8 +28,8 @@ export type AppStateValue = {
   setSingleChapterOnly: (v: boolean) => void
   minAppearance: number
   setMinAppearance: (v: number) => void
-  includeSuppressed: boolean
-  setIncludeSuppressed: (v: boolean) => void
+  categoryFilter: string[]
+  setCategoryFilter: (categories: string[]) => void
   typeFilter: string[]
   setTypeFilter: (types: string[]) => void
   relationTypes: RelationTypeMeta[]
@@ -68,6 +68,9 @@ export type AppStateValue = {
   onUpload: (file: File | null) => Promise<void>
   onAnalyze: () => Promise<void>
   onStop: () => Promise<void>
+  onRetryChapter: (chapterId: number) => Promise<void>
+  onRetryFailed: () => Promise<void>
+  onSkipFailed: () => Promise<void>
   onExtractFactions: () => Promise<void>
   onPickPerson: (hit: PersonHit) => void
   onExport: () => Promise<void>

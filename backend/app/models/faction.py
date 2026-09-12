@@ -21,7 +21,7 @@ from typing import List, Optional
 
 from pydantic import BaseModel, Field
 
-from app.domain.relation_types import ALL_TYPE_NAMES
+from app.domain.relation_types import seed_registry
 from app.models.ledger import Evidence
 
 
@@ -49,7 +49,7 @@ KIND_WEIGHT: dict[FactionKind, float] = {
 }
 
 # 禁止用关系类型当势力名（PRD §5.7.5 A：朋友是边，学校/教会才是块）
-FORBIDDEN_FACTION_NAMES: frozenset[str] = frozenset(ALL_TYPE_NAMES)
+FORBIDDEN_FACTION_NAMES: frozenset[str] = frozenset(d.label for d in seed_registry().definitions)
 
 
 def kind_weight(kind: FactionKind | str) -> float:

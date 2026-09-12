@@ -15,24 +15,34 @@ Filestore — workspace 同步文件 I/O 层。
 """
 from __future__ import annotations
 
+import hashlib
 import json
 import shutil
 from pathlib import Path
 from typing import Any, Dict, List, Optional
+from uuid import uuid4
 
 from app.config import settings
 from app.errors import book_not_found
-from app.models.book import BookMeta, Chapter, ChapterBrief
+from app.models.book import AnalysisTaskSnapshot, BookMeta, Chapter, ChapterBrief
 from app.models.cast import Cast
 from app.models.faction import FactionBook
-from app.models.ledger import ChapterLedger
+from app.models.ledger import CastPropose, ChapterLedger
 
 
 def _atomic_write(path: Path, text: str) -> None:
-    """临时文件 + rename 原子写入。"""
-    tmp = path.with_suffix(path.suffix + ".tmp")
-    tmp.write_text(text, encoding="utf-8")
-    tmp.replace(path)
+    """Unique temp file + same-directory replace; safe for concurrent Windows writers."""
+    path.parent.mkdir(parents=True, exist_ok=True)
+    tmp = path.with_name(f".{path.name}.{uuid4().hex}.tmp")
+    try:
+        tmp.write_text(text, encoding="utf-8")
+        tmp.replace(path)
+    finally:
+        if tmp.exists():
+            try:
+                tmp.unlink()
+            except OSError:
+                pass
 
 
 class Filestore:
@@ -61,6 +71,29 @@ class Filestore:
 
     def cast_path(self, book_id: str) -> Path:
         return self.book_dir(book_id) / "cast.json"
+    def analysis_task_path(self, book_id: str) -> Path:
+        return self.book_dir(book_id) / "analysis_task.json"
+
+    def read_analysis_task(self, book_id: str) -> AnalysisTaskSnapshot | None:
+        path = self.analysis_task_path(book_id)
+        if not path.exists():
+            return None
+        try:
+            return AnalysisTaskSnapshot.model_validate_json(path.read_text(encoding="utf-8"))
+        except Exception:
+            return None
+
+    def write_analysis_task(self, book_id: str, task: AnalysisTaskSnapshot) -> None:
+        _atomic_write(self.analysis_task_path(book_id), task.model_dump_json(indent=2))
+
+
+    def read_relation_registry(self, book_id: str):
+        from app.domain.relation_types import RelationRegistry, seed_registry
+        path = self.book_dir(book_id) / "relation_registry.json"
+        return RelationRegistry.model_validate_json(path.read_text(encoding="utf-8")) if path.exists() else seed_registry()
+
+    def write_relation_registry(self, book_id: str, registry) -> None:
+        _atomic_write(self.book_dir(book_id) / "relation_registry.json", registry.model_dump_json(indent=2))
 
     def factions_path(self, book_id: str) -> Path:
         return self.book_dir(book_id) / "factions.json"
@@ -75,6 +108,24 @@ class Filestore:
     def ledger_path(self, book_id: str, chapter_id: int) -> Path:
         return self.ledger_dir(book_id) / self._chapter_filename(chapter_id)
 
+    def extraction_dir(self, book_id: str) -> Path:
+        return self.book_dir(book_id) / "extraction"
+
+    def extraction_result_path(self, book_id: str, chapter_id: int) -> Path:
+        return self.extraction_dir(book_id) / self._chapter_filename(chapter_id)
+
+    def extraction_base_cast_path(self, book_id: str) -> Path:
+        return self.extraction_dir(book_id) / "base_cast.json"
+
+    def pre_reconcile_dir(self, book_id: str) -> Path:
+        return self.book_dir(book_id) / "pre_reconcile"
+
+    def reconcile_overrides_path(self, book_id: str) -> Path:
+        return self.overrides_dir(book_id) / "reconcile_overrides.json"
+
+    def human_edits_path(self, book_id: str) -> Path:
+        return self.overrides_dir(book_id) / "human_edits.json"
+
     # ── 书籍目录管理 ──
 
     def create_book_dir(self, book_id: str) -> None:
@@ -84,6 +135,7 @@ class Filestore:
             self.chapters_dir(book_id),
             self.ledger_dir(book_id),
             self.overrides_dir(book_id),
+            self.extraction_dir(book_id),
         ):
             d.mkdir(parents=True, exist_ok=True)
 
@@ -140,6 +192,113 @@ class Filestore:
             )
         briefs.sort(key=lambda b: b.order)
         return briefs
+
+    # ── Raw extraction snapshots / rebuild inputs ──
+
+    def write_extraction_base_cast(self, book_id: str, cast: Cast) -> None:
+        self.extraction_dir(book_id).mkdir(parents=True, exist_ok=True)
+        _atomic_write(self.extraction_base_cast_path(book_id), cast.model_dump_json(indent=2))
+
+    def read_extraction_base_cast(self, book_id: str) -> Cast | None:
+        p = self.extraction_base_cast_path(book_id)
+        if not p.exists():
+            return None
+        return Cast.model_validate_json(p.read_text(encoding="utf-8"))
+
+    def write_extraction_result(
+        self, book_id: str, chapter_id: int, ledger: ChapterLedger, cast_buffer: Dict[str, CastPropose]
+    ) -> None:
+        self.extraction_dir(book_id).mkdir(parents=True, exist_ok=True)
+        chapter = self.read_chapter(book_id, chapter_id)
+        payload = {
+            "snapshot_version": 1,
+            "chapter_id": chapter_id,
+            "content_sha256": hashlib.sha256(chapter.content.encode("utf-8")).hexdigest(),
+            "ledger": ledger.model_dump(mode="json"),
+            "cast_buffer": {key: value.model_dump(mode="json") for key, value in cast_buffer.items()},
+        }
+        _atomic_write(
+            self.extraction_result_path(book_id, chapter_id),
+            json.dumps(payload, indent=2, ensure_ascii=False),
+        )
+
+    def read_extraction_result(self, book_id: str, chapter_id: int) -> dict[str, Any] | None:
+        p = self.extraction_result_path(book_id, chapter_id)
+        if not p.exists():
+            return None
+        raw = json.loads(p.read_text(encoding="utf-8"))
+        return {
+            "snapshot_version": int(raw.get("snapshot_version", 0)),
+            "chapter_id": int(raw.get("chapter_id", chapter_id)),
+            "content_sha256": str(raw.get("content_sha256") or ""),
+            "ledger": ChapterLedger.model_validate(raw["ledger"]),
+            "cast_buffer": {key: CastPropose.model_validate(value) for key, value in (raw.get("cast_buffer") or {}).items()},
+        }
+
+    def extraction_result_is_current(self, book_id: str, chapter_id: int) -> bool:
+        item = self.read_extraction_result(book_id, chapter_id)
+        if item is None or item.get("snapshot_version") != 1 or not item.get("content_sha256"):
+            return False
+        chapter = self.read_chapter(book_id, chapter_id)
+        current = hashlib.sha256(chapter.content.encode("utf-8")).hexdigest()
+        return item["content_sha256"] == current
+
+    def save_pre_reconcile_state(self, book_id: str, chapter_ids: list[int]) -> None:
+        """Persist the latest postprocessed, pre-auto-reconcile baseline."""
+        target = self.pre_reconcile_dir(book_id)
+        tmp = target.with_name(target.name + ".tmp")
+        if tmp.exists():
+            shutil.rmtree(tmp, ignore_errors=True)
+        tmp.mkdir(parents=True, exist_ok=True)
+        cast_path = self.cast_path(book_id)
+        if cast_path.exists():
+            shutil.copy2(cast_path, tmp / "cast.json")
+        registry_path = self.book_dir(book_id) / "relation_registry.json"
+        if registry_path.exists():
+            shutil.copy2(registry_path, tmp / "relation_registry.json")
+        ledger_target = tmp / "ledger"
+        ledger_target.mkdir(parents=True, exist_ok=True)
+        for cid in chapter_ids:
+            source = self.ledger_path(book_id, cid)
+            if source.exists():
+                shutil.copy2(source, ledger_target / source.name)
+        if target.exists():
+            shutil.rmtree(target, ignore_errors=True)
+        tmp.replace(target)
+
+    def restore_pre_reconcile_state(self, book_id: str) -> list[int]:
+        source = self.pre_reconcile_dir(book_id)
+        if not source.exists():
+            raise FileNotFoundError("pre_reconcile baseline is missing; run a full analysis first")
+        cast_source = source / "cast.json"
+        if cast_source.exists():
+            _atomic_write(self.cast_path(book_id), cast_source.read_text(encoding="utf-8"))
+        reg_source = source / "relation_registry.json"
+        if reg_source.exists():
+            _atomic_write(self.book_dir(book_id) / "relation_registry.json", reg_source.read_text(encoding="utf-8"))
+        ids: list[int] = []
+        ledger_source = source / "ledger"
+        self.ledger_dir(book_id).mkdir(parents=True, exist_ok=True)
+        for existing in self.ledger_dir(book_id).glob("chapter_*.json"):
+            existing.unlink()
+        if ledger_source.exists():
+            for item in sorted(ledger_source.glob("chapter_*.json")):
+                shutil.copy2(item, self.ledger_dir(book_id) / item.name)
+                try:
+                    ids.append(int(item.stem.split("_", 1)[1]))
+                except (ValueError, IndexError):
+                    pass
+        return sorted(ids)
+
+    def read_human_edits(self, book_id: str) -> dict[str, Any]:
+        p = self.human_edits_path(book_id)
+        if not p.exists():
+            return {"cast_updates": [], "merges": []}
+        return json.loads(p.read_text(encoding="utf-8"))
+
+    def write_human_edits(self, book_id: str, data: dict[str, Any]) -> None:
+        self.overrides_dir(book_id).mkdir(parents=True, exist_ok=True)
+        _atomic_write(self.human_edits_path(book_id), json.dumps(data, indent=2, ensure_ascii=False))
 
     # ── Cast ──
 
@@ -214,6 +373,16 @@ class Filestore:
             self.relation_overrides_path(book_id),
             json.dumps(data, indent=2, ensure_ascii=False),
         )
+
+    def read_reconcile_overrides(self, book_id: str) -> dict[str, list[dict]]:
+        p = self.reconcile_overrides_path(book_id)
+        if not p.exists():
+            return {"add": [], "remove": []}
+        return json.loads(p.read_text(encoding="utf-8"))
+
+    def write_reconcile_overrides(self, book_id: str, data: dict[str, list[dict]]) -> None:
+        self.overrides_dir(book_id).mkdir(parents=True, exist_ok=True)
+        _atomic_write(self.reconcile_overrides_path(book_id), json.dumps(data, indent=2, ensure_ascii=False))
 
     # ── Todo List ──
 

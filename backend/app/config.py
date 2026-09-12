@@ -27,6 +27,26 @@ class Settings(BaseSettings):
     llm_model: str = Field("gpt-4o", alias="LLM_MODEL")
     llm_reconcile_model: str = Field("", alias="LLM_RECONCILE_MODEL")
     llm_faction_model: str = Field("", alias="LLM_FACTION_MODEL")
+    llm_timeout_seconds: int = Field(120, alias="LLM_TIMEOUT_SECONDS")
+    llm_request_retries: int = Field(2, alias="LLM_REQUEST_RETRIES")
+    llm_heartbeat_seconds: int = Field(5, alias="LLM_HEARTBEAT_SECONDS")
+
+    # 模型调用硬预算。0 表示不限制；预算命中后设置任务 stop，不再调度新请求。
+    analysis_max_llm_requests: int = Field(240, alias="ANALYSIS_MAX_LLM_REQUESTS")
+    analysis_max_llm_tokens: int = Field(400_000, alias="ANALYSIS_MAX_LLM_TOKENS")
+    analysis_max_seconds: int = Field(3600, alias="ANALYSIS_MAX_SECONDS")
+    chapter_max_llm_requests: int = Field(180, alias="CHAPTER_MAX_LLM_REQUESTS")
+    relation_max_llm_requests: int = Field(48, alias="RELATION_MAX_LLM_REQUESTS")
+    reconcile_max_llm_requests: int = Field(12, alias="RECONCILE_MAX_LLM_REQUESTS")
+    reconcile_tool_result_chars: int = Field(8_000, alias="RECONCILE_TOOL_RESULT_CHARS")
+    reconcile_history_messages: int = Field(6, alias="RECONCILE_HISTORY_MESSAGES")
+    faction_max_llm_requests: int = Field(8, alias="FACTION_MAX_LLM_REQUESTS")
+
+    # 后处理批处理 / 并发。
+    relation_normalize_batch_size: int = Field(8, alias="RELATION_NORMALIZE_BATCH_SIZE")
+    relation_normalize_batch_chars: int = Field(12_000, alias="RELATION_NORMALIZE_BATCH_CHARS")
+    relation_verify_batch_size: int = Field(8, alias="RELATION_VERIFY_BATCH_SIZE")
+    relation_verify_concurrency: int = Field(3, alias="RELATION_VERIFY_CONCURRENCY")
 
     # ── Workspace ──
     workspace_root: str = Field("", alias="WORKSPACE_ROOT")

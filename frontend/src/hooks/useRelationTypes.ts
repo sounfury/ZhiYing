@@ -1,30 +1,16 @@
 import { useEffect, useState } from 'react'
-import {
-  FALLBACK_RELATION_TYPES,
-  getRelationTypes,
-  type RelationTypeMeta,
-} from '../api'
+import { getRelationTypes, type RelationTypeMeta, type GraphData } from '../api'
 
-/**
- * 关系类型枚举（GET /api/meta/relation-types）。
- * 失败时退回与后端 SSOT 对齐的本地副本，筛选器仍可用。
- */
-export function useRelationTypes() {
-  const [types, setTypes] = useState<RelationTypeMeta[]>(FALLBACK_RELATION_TYPES)
-
+/** 随书籍和分析结果刷新注册表；没有本地固定类型副本。 */
+export function useRelationTypes(bookId: string, graph: GraphData | null) {
+  const [types, setTypes] = useState<RelationTypeMeta[]>([])
   useEffect(() => {
     let cancelled = false
-    void getRelationTypes()
-      .then((list) => {
-        if (!cancelled && list.length) setTypes(list)
-      })
-      .catch(() => {
-        /* keep fallback */
-      })
-    return () => {
-      cancelled = true
-    }
-  }, [])
-
+    setTypes([])
+    if (bookId) void getRelationTypes(bookId).then((list) => {
+      if (!cancelled) setTypes(list)
+    }).catch(() => { /* 图上仍显示事实自带的标签 */ })
+    return () => { cancelled = true }
+  }, [bookId, graph])
   return types
 }

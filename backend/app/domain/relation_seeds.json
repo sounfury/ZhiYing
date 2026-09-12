@@ -1,0 +1,175 @@
+{
+  "version": 1,
+  "definitions": [
+    {
+      "predicate": "spouse_of",
+      "label": "夫妻",
+      "category": "亲属",
+      "directed": false,
+      "subject_role": "配偶",
+      "object_role": "配偶",
+      "definition": "双方已结婚；恋爱关系不等于夫妻",
+      "aliases": [],
+      "display_priority": 1,
+      "source": "seed"
+    },
+    {
+      "predicate": "parent_of",
+      "label": "亲子",
+      "category": "亲属",
+      "directed": true,
+      "subject_role": "父母",
+      "object_role": "子女",
+      "definition": "a 是 b 的生父或生母；养育、监护关系应单独表达",
+      "aliases": [],
+      "display_priority": 1,
+      "source": "seed"
+    },
+    {
+      "predicate": "sibling_of",
+      "label": "兄弟姐妹",
+      "category": "亲属",
+      "directed": false,
+      "subject_role": "手足",
+      "object_role": "手足",
+      "definition": "双方具有兄弟姐妹的亲属身份",
+      "aliases": [
+        "兄妹",
+        "兄弟",
+        "姐妹"
+      ],
+      "display_priority": 1,
+      "source": "seed"
+    },
+    {
+      "predicate": "cousin_of",
+      "label": "堂表亲",
+      "category": "亲属",
+      "directed": false,
+      "subject_role": "堂表亲",
+      "object_role": "堂表亲",
+      "definition": "双方为同辈堂亲或表亲；不包括叔侄、舅甥",
+      "aliases": [
+        "表亲"
+      ],
+      "display_priority": 1,
+      "source": "seed"
+    },
+    {
+      "predicate": "mentor_of",
+      "label": "师徒",
+      "category": "师承",
+      "directed": true,
+      "subject_role": "师傅",
+      "object_role": "徒弟",
+      "definition": "a 与 b 有明确师承；拒绝拜师或偶尔请教不成立",
+      "aliases": [],
+      "display_priority": 1,
+      "source": "seed"
+    },
+    {
+      "predicate": "master_of",
+      "label": "主仆",
+      "category": "从属",
+      "directed": true,
+      "subject_role": "主人",
+      "object_role": "仆从",
+      "definition": "a 是 b 的主人",
+      "aliases": [],
+      "display_priority": 1,
+      "source": "seed"
+    },
+    {
+      "predicate": "superior_of",
+      "label": "上下级",
+      "category": "组织",
+      "directed": true,
+      "subject_role": "上级",
+      "object_role": "下级",
+      "definition": "a 在组织中为 b 的上级",
+      "aliases": [],
+      "display_priority": 1,
+      "source": "seed"
+    },
+    {
+      "predicate": "classmate_of",
+      "label": "同学",
+      "category": "教育",
+      "directed": false,
+      "subject_role": "同学",
+      "object_role": "同学",
+      "definition": "双方有共同就学的同学身份",
+      "aliases": [],
+      "display_priority": 1,
+      "source": "seed"
+    },
+    {
+      "predicate": "ally_of",
+      "label": "结盟",
+      "category": "合作",
+      "directed": false,
+      "subject_role": "盟友",
+      "object_role": "盟友",
+      "definition": "双方已建立联盟",
+      "aliases": [
+        "盟友"
+      ],
+      "display_priority": 1,
+      "source": "seed"
+    },
+    {
+      "predicate": "enemy_of",
+      "label": "敌对",
+      "category": "冲突",
+      "directed": false,
+      "subject_role": "敌手",
+      "object_role": "敌手",
+      "definition": "双方互为敌对对象",
+      "aliases": [
+        "敌人"
+      ],
+      "display_priority": 1,
+      "source": "seed"
+    },
+    {
+      "predicate": "friend_of",
+      "label": "朋友",
+      "category": "社交",
+      "directed": false,
+      "subject_role": "朋友",
+      "object_role": "朋友",
+      "definition": "双方有明确友谊",
+      "aliases": [
+        "友人"
+      ],
+      "display_priority": 1,
+      "source": "seed"
+    },
+    {
+      "predicate": "acquaintance_of",
+      "label": "相识",
+      "category": "社交",
+      "directed": false,
+      "subject_role": "相识者",
+      "object_role": "相识者",
+      "definition": "双方相互认识，但没有足够证据证明更具体的身份",
+      "aliases": [],
+      "display_priority": 1,
+      "source": "seed"
+    },
+    {
+      "predicate": "interacts_with",
+      "label": "互动",
+      "category": "事件",
+      "directed": false,
+      "subject_role": "参与者",
+      "object_role": "参与者",
+      "definition": "双方在该段正文确有互动，不能只凭同框推断",
+      "aliases": [
+        "同场互动"
+      ],
+      "display_priority": 1,
+      "source": "seed"
+    }
+  ]
+}

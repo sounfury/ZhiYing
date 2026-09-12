@@ -22,7 +22,7 @@ from typing import Dict, List, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from app.agent.llm import get_chapter_llm
+from app.agent.llm import LLMControl, get_chapter_llm, invoke_controlled
 from app.agent.prompts.chapter import (
     build_system_prompt,
     build_user_prompt,
@@ -56,6 +56,7 @@ class AgentResult:
     success: bool = False
     warning: str = ""
     steps_used: int = 0
+    partial: bool = False
 
 
 def _calc_max_steps(
@@ -86,6 +87,8 @@ async def run_chapter_agent(
     cast_snapshot: Cast,
     filestore: Filestore,
     cfg: Optional[Settings] = None,
+    stop_event: Optional[asyncio.Event] = None,
+    control: Optional[LLMControl] = None,
 ) -> AgentResult:
     """
     运行单章分析 Agent。
@@ -134,6 +137,8 @@ async def run_chapter_agent(
         filestore=filestore,
     )
     tools = make_tools(ctx)
+    if is_short:
+        ctx.read_ranges.append((0, char_count))
     tool_map = {t.name: t for t in tools}
 
     # ── 创建 LLM 并绑定工具 ──
@@ -155,13 +160,26 @@ async def run_chapter_agent(
     total_tool_ms = 0.0
 
     for step in range(max_steps):
+        if stop_event is not None and stop_event.is_set():
+            logger.info("Chapter agent cancelled by stop signal: ch=%d step=%d", chapter_id, step)
+            return AgentResult(
+                chapter_id=chapter_id,
+                cast_buffer=ctx.cast_buffer,
+                success=False,
+                warning="Analysis stopped by user",
+                steps_used=steps_used,
+            )
         steps_used = step + 1
 
         # ── LLM 调用 ──
         t_llm = time.perf_counter()
         try:
-            ai_response: AIMessage = await asyncio.to_thread(
-                llm_with_tools.invoke, messages
+            ai_response: AIMessage = await invoke_controlled(
+                llm_with_tools,
+                messages,
+                control=control,
+                phase="chapter",
+                context=f"chapter={chapter_id} step={steps_used}",
             )
         except Exception as e:
             logger.error("LLM invoke failed at step %d: %s", steps_used, e)
@@ -217,6 +235,15 @@ async def run_chapter_agent(
         # ── 执行工具 ──
         t_tool = time.perf_counter()
         for tc in tool_calls:
+            if stop_event is not None and stop_event.is_set():
+                logger.info("Tool loop cancelled by stop signal: ch=%d", chapter_id)
+                return AgentResult(
+                    chapter_id=chapter_id,
+                    cast_buffer=ctx.cast_buffer,
+                    success=False,
+                    warning="Analysis stopped by user",
+                    steps_used=steps_used,
+                )
             tool_name = tc["name"]
             tool_args = tc["args"]
             tool_call_id = tc["id"]
@@ -299,6 +326,14 @@ async def run_chapter_agent(
     elif auto_finalized:
         warning = "auto-finalized without submit_result"
 
+    if ctx.submit_ledger is not None:
+        ledger = ctx.submit_ledger
+        if auto_finalized:
+            ledger.warnings.append("未主动提交结束，保留部分结果；建议重跑本章")
+        if not ctx.has_read_all(char_count):
+            ledger.warnings.append("正文尚未完整读取；建议重跑本章")
+        ledger.analysis_status = "partial" if ledger.warnings else "complete"
+
     result = AgentResult(
         chapter_id=chapter_id,
         ledger=ctx.submit_ledger,
@@ -307,6 +342,7 @@ async def run_chapter_agent(
         success=submitted,
         warning=warning,
         steps_used=steps_used,
+        partial=ctx.submit_ledger is not None and ctx.submit_ledger.analysis_status == "partial",
     )
 
     # ── 落盘含临时 id 的 ledger ──

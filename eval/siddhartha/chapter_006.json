@@ -1,0 +1,128 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "chapter_id": 6,
+  "title": "尘世间",
+  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_006.json",
+  "characters": [
+    {
+      "name": "悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "迦摩罗",
+      "presence": "active"
+    },
+    {
+      "name": "迦摩施瓦弥",
+      "presence": "active"
+    },
+    {
+      "name": "乔文达",
+      "presence": "mentioned"
+    },
+    {
+      "name": "乔达摩",
+      "presence": "mentioned"
+    }
+  ],
+  "required_relations": [
+    {
+      "person_a": "迦摩罗",
+      "person_b": "悉达多",
+      "label": "老师",
+      "category": "师承",
+      "directed": true,
+      "subject_role": "老师",
+      "object_role": "学生",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "他成为她的学生、情人、朋友。"
+        }
+      ],
+      "note": "上下文明确为欢爱艺术。"
+    },
+    {
+      "person_a": "悉达多",
+      "person_b": "迦摩罗",
+      "label": "情人",
+      "category": "情感",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "他成为她的学生、情人、朋友。"
+        }
+      ],
+      "note": "同一对人物允许多标签并存。"
+    },
+    {
+      "person_a": "悉达多",
+      "person_b": "迦摩罗",
+      "label": "朋友",
+      "category": "友谊",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "他成为她的学生、情人、朋友。"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "person_a": "悉达多",
+      "person_b": "迦摩施瓦弥",
+      "label": "商业共事",
+      "category": "合作",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "在宅邸中住了不久，悉达多便开始分担迦摩施瓦弥的生意。"
+        }
+      ],
+      "note": "不要求等价成主仆或正式师徒。"
+    }
+  ],
+  "optional_relations": [
+    {
+      "person_a": "迦摩施瓦弥",
+      "person_b": "悉达多",
+      "label": "经商指导",
+      "category": "指导",
+      "directed": true,
+      "subject_role": "指导者",
+      "object_role": "学习者",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "迦摩施瓦弥常谈论他的生意，向悉达多介绍他的货品、货栈，指导悉达多清算账目。"
+        }
+      ],
+      "note": ""
+    }
+  ],
+  "forbidden_relations": [],
+  "identity_assertions": [
+    {
+      "canonical": "乔达摩",
+      "aliases": [
+        "世尊佛陀"
+      ],
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "他就是乔达摩，世尊佛陀，那位宣法之人。"
+        }
+      ]
+    }
+  ]
+}

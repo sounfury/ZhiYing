@@ -4,19 +4,6 @@ import { factionColor, factionFill } from '../../factions'
 import type { GraphSlice } from './types'
 import { GEO, SECTOR_META, type Placement } from './layout'
 
-/** 有角色区分、值得写在边上的 type；同学/朋友/相识/同场不写 */
-const DISTINCT_LABEL_TYPES = new Set([
-  '夫妻',
-  '亲子',
-  '兄妹',
-  '表亲',
-  '师徒',
-  '主仆',
-  '上下级',
-  '敌对',
-  '结盟',
-])
-
 export const EDGE_COLOR: Record<ClusterId, string> = {
   kin: '#c0392b',
   social: '#2980b9',
@@ -32,12 +19,12 @@ export function importanceSize(importance: string, appearance: number): number {
   return Math.min(56, base + Math.min(appearance, 5))
 }
 
-/** 边上展示文案：只取有区分度的 type；多标签取 display_score 最高 */
+/** 边上展示文案：显示所有具体关系；多标签取 display_score 最高 */
 function distinctEdgeLabel(edge: GraphEdge): string {
-  const hits = edge.tags.filter((t) => DISTINCT_LABEL_TYPES.has(t.type))
+  const hits = [...edge.tags]
   if (!hits.length) return ''
   hits.sort((a, b) => b.display_score - a.display_score)
-  return hits[0].type
+  return hits[0].label
 }
 
 /** 边视觉：连中心的最显眼；跨势力边要看得见（它解释块与块怎么连起来） */

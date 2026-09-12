@@ -1,0 +1,114 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "chapter_id": 8,
+  "title": "在河边",
+  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_008.json",
+  "characters": [
+    {
+      "name": "悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "乔文达",
+      "presence": "active"
+    },
+    {
+      "name": "乔达摩",
+      "presence": "mentioned"
+    },
+    {
+      "name": "迦摩罗",
+      "presence": "memory"
+    },
+    {
+      "name": "迦摩施瓦弥",
+      "presence": "memory"
+    }
+  ],
+  "required_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "乔文达",
+      "label": "青年时代朋友",
+      "category": "友谊",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "很快，他认出他是自己青年时代的朋友，皈依佛陀的乔文达。"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "person_a": "乔达摩",
+      "person_b": "乔文达",
+      "label": "师徒",
+      "category": "师承",
+      "directed": true,
+      "subject_role": "师傅",
+      "object_role": "弟子",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "我是世尊乔达摩、佛陀释迦摩尼的弟子。"
+        }
+      ],
+      "note": ""
+    }
+  ],
+  "optional_relations": [
+    {
+      "person_a": "乔文达",
+      "person_b": "悉达多",
+      "label": "守候",
+      "category": "照料",
+      "directed": true,
+      "subject_role": "守候者",
+      "object_role": "被守候者",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "我留下守候你，可我并不称职，我好像睡着了，疲惫战胜了我，尽管我本想守候你。"
+        }
+      ],
+      "note": ""
+    }
+  ],
+  "forbidden_relations": [
+    {
+      "person_a": "乔达摩",
+      "person_b": "悉达多",
+      "forbidden_labels": [
+        "师徒",
+        "弟子",
+        "皈依"
+      ],
+      "confidence": "high",
+      "reason": "悉达多回忆的是相遇与告别，他没有成为乔达摩弟子。",
+      "evidence": [
+        {
+          "quote": "我又不得不告别佛陀及其伟大学说。"
+        }
+      ]
+    }
+  ],
+  "identity_assertions": [
+    {
+      "canonical": "乔达摩",
+      "aliases": [
+        "佛陀释迦摩尼",
+        "世尊乔达摩"
+      ],
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "我是世尊乔达摩、佛陀释迦摩尼的弟子。"
+        }
+      ]
+    }
+  ]
+}

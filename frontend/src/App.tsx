@@ -51,8 +51,8 @@ function AppLayout() {
           onSingleChapterOnlyChange={s.setSingleChapterOnly}
           minAppearance={s.minAppearance}
           onMinAppearanceChange={s.setMinAppearance}
-          includeSuppressed={s.includeSuppressed}
-          onIncludeSuppressedChange={s.setIncludeSuppressed}
+          categoryFilter={s.categoryFilter}
+          onCategoryFilterChange={s.setCategoryFilter}
           typeFilter={s.typeFilter}
           onTypeFilterChange={s.setTypeFilter}
           relationTypes={s.relationTypes}
@@ -64,13 +64,21 @@ function AppLayout() {
           isRunning={s.isRunning}
           graphLoading={s.graphLoading}
           factionLoading={s.factionLoading}
+          factionsStale={Boolean(s.selectedBook?.factions_stale)}
           onRefreshGraph={() => void s.handleLoadGraph()}
           onExtractFactions={() => void s.onExtractFactions()}
           onOpenSide={s.openSide}
         />
       )}
 
-      {hasBook && <AnalysisProgress analysis={s.analysis} />}
+      {hasBook && (
+        <AnalysisProgress
+          analysis={s.analysis}
+          onRetryChapter={(chapterId) => void s.onRetryChapter(chapterId)}
+          onRetryFailed={() => void s.onRetryFailed()}
+          onSkipFailed={() => void s.onSkipFailed()}
+        />
+      )}
 
       {(s.error || s.msg) && (
         <div className={`banner ${s.error ? 'err' : 'ok'}`}>{s.error || s.msg}</div>

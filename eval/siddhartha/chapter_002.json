@@ -1,0 +1,68 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "chapter_id": 2,
+  "title": "沙门",
+  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_002.json",
+  "characters": [
+    {
+      "name": "悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "乔文达",
+      "presence": "active"
+    },
+    {
+      "name": "乔达摩",
+      "presence": "mentioned"
+    }
+  ],
+  "required_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "乔文达",
+      "label": "同修挚友",
+      "category": "友谊",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "乔文达，他的影子，和他生活在一起，也走了同样的路，付出同样的艰辛。"
+        }
+      ],
+      "note": "二人在沙门处共同苦修近三年。"
+    }
+  ],
+  "optional_relations": [],
+  "forbidden_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "乔达摩",
+      "forbidden_labels": [
+        "师徒",
+        "弟子",
+        "皈依"
+      ],
+      "confidence": "high",
+      "reason": "本章乔达摩仅以传闻出现，悉达多尚未与其见面。",
+      "evidence": []
+    }
+  ],
+  "identity_assertions": [
+    {
+      "canonical": "乔达摩",
+      "aliases": [
+        "佛陀"
+      ],
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "乔达摩，佛陀的名字不断回响在青年耳畔。"
+        }
+      ]
+    }
+  ]
+}

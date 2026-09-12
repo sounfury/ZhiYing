@@ -1,0 +1,75 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "chapter_id": 11,
+  "title": "唵",
+  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_011.json",
+  "characters": [
+    {
+      "name": "悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "瓦稣迪瓦",
+      "presence": "active"
+    },
+    {
+      "name": "乔文达",
+      "presence": "vision_or_memory"
+    },
+    {
+      "name": "迦摩罗",
+      "presence": "vision_or_memory"
+    }
+  ],
+  "required_relations": [
+    {
+      "person_a": "瓦稣迪瓦",
+      "person_b": "悉达多",
+      "label": "精神引导",
+      "category": "指导",
+      "directed": true,
+      "subject_role": "引导者",
+      "object_role": "受引导者",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "“你听见了河水的笑声。” 瓦稣迪瓦道，“但你尚未听见全部声音。我们倾听吧，你会听到更多。”"
+        }
+      ],
+      "note": "瓦稣迪瓦引导悉达多完成对河水‘整体之声’的领悟。"
+    }
+  ],
+  "optional_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "瓦稣迪瓦",
+      "label": "倾诉与倾听",
+      "category": "支持",
+      "directed": true,
+      "subject_role": "倾诉者",
+      "object_role": "倾听者",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "他说了许久。瓦稣迪瓦安静地倾听。"
+        }
+      ],
+      "note": ""
+    }
+  ],
+  "forbidden_relations": [
+    {
+      "person_a": "瓦稣迪瓦",
+      "person_b": "悉达多",
+      "forbidden_labels": [
+        "正式师徒",
+        "宗教师徒"
+      ],
+      "confidence": "high",
+      "reason": "这里是精神引导与共同倾听，不应把关系窄化为正式师徒。",
+      "evidence": []
+    }
+  ],
+  "identity_assertions": []
+}

@@ -1,0 +1,167 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "chapter_id": 9,
+  "title": "船夫",
+  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_009.json",
+  "characters": [
+    {
+      "name": "悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "瓦稣迪瓦",
+      "presence": "active"
+    },
+    {
+      "name": "迦摩罗",
+      "presence": "active"
+    },
+    {
+      "name": "小悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "乔达摩",
+      "presence": "mentioned_or_memory"
+    }
+  ],
+  "required_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "瓦稣迪瓦",
+      "label": "朋友",
+      "category": "友谊",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "留在这里吧，悉达多，我的朋友。"
+        }
+      ],
+      "note": "两人随后共同生活、摆渡。"
+    },
+    {
+      "person_a": "迦摩罗",
+      "person_b": "小悉达多",
+      "label": "母子",
+      "category": "亲属",
+      "directed": true,
+      "subject_role": "母亲",
+      "object_role": "儿子",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "她听说乔达摩病危，就带着儿子小悉达多步行前往朝觐。"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "person_a": "悉达多",
+      "person_b": "小悉达多",
+      "label": "父子",
+      "category": "亲属",
+      "directed": true,
+      "subject_role": "父亲",
+      "object_role": "儿子",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "他立即明白，这个有着和他相同面孔的孩子是他的儿子。"
+        },
+        {
+          "quote": "他是你的儿子。"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "person_a": "悉达多",
+      "person_b": "迦摩罗",
+      "label": "昔日恋人",
+      "category": "情感",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "她躺在悉达多的床上，曾经深爱她的悉达多守在一旁。如梦似幻，她含笑回望昔日的恋人。"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "person_a": "迦摩罗",
+      "person_b": "乔达摩",
+      "label": "皈依信徒",
+      "category": "宗教",
+      "directed": true,
+      "subject_role": "皈依者",
+      "object_role": "皈依对象",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "她早已结束过去的生活，将花园赠予乔达摩僧团并皈依佛陀，成为朝圣者的施主和成员。"
+        }
+      ],
+      "note": ""
+    }
+  ],
+  "optional_relations": [
+    {
+      "person_a": "瓦稣迪瓦",
+      "person_b": "迦摩罗",
+      "label": "施救",
+      "category": "照料",
+      "directed": true,
+      "subject_role": "施救者",
+      "object_role": "被救者",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "他迅速赶来，将迦摩罗抱到船里。"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "person_a": "悉达多",
+      "person_b": "瓦稣迪瓦",
+      "label": "摆渡学艺",
+      "category": "指导",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "悉达多留在船夫处学习摇橹。"
+        }
+      ],
+      "note": "可接受“学徒/授艺”类描述，但不应升级为正式宗教师徒。"
+    }
+  ],
+  "forbidden_relations": [
+    {
+      "person_a": "瓦稣迪瓦",
+      "person_b": "悉达多",
+      "forbidden_labels": [
+        "正式师徒",
+        "宗教师徒",
+        "皈依师徒"
+      ],
+      "confidence": "high",
+      "reason": "瓦稣迪瓦明确否认自己是导师，核心教导来自河水。",
+      "evidence": [
+        {
+          "quote": "你看，我不是导师，不擅言辞和思考。"
+        }
+      ]
+    }
+  ],
+  "identity_assertions": []
+}

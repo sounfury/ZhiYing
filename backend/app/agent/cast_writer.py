@@ -41,25 +41,30 @@ class CastWriter:
         writer.finalize()
     """
 
-    def __init__(self, book_id: str, filestore: Filestore) -> None:
+    def __init__(
+        self,
+        book_id: str,
+        filestore: Filestore,
+        id_reservations: Optional[Dict[str, str]] = None,
+    ) -> None:
         self.book_id = book_id
         self.filestore = filestore
 
-        # 从现有 cast.json 起步（支持增量分析）
+        # 从现有 cast.json 起步（支持增量分析 / 可重建基线）
         self.cast: Cast = filestore.read_cast(book_id)
 
         # 临时→正式 id 映射
         self.id_map: Dict[str, str] = {}
+        self._id_reservations = dict(id_reservations or {})
+        self._used_ids = {p.person_id for p in self.cast.persons}
 
-        # 正式 id 计数器：从已有 cast 最大编号 + 1 开始
+        # 正式 id 计数器：同时考虑现有 id 与预留 id，避免重建时撞号。
         existing_max = 0
-        for p in self.cast.persons:
-            # person_id 格式 p00N
-            num_part = p.person_id.lstrip("p0")
+        for person_id in self._used_ids | set(self._id_reservations.values()):
+            num_part = person_id.lstrip("p0")
             try:
                 num = int(num_part) if num_part else 0
-                if num > existing_max:
-                    existing_max = num
+                existing_max = max(existing_max, num)
             except ValueError:
                 pass
         self._next_id_num = existing_max
@@ -143,8 +148,16 @@ class CastWriter:
                     "Merged: %s -> %s (%s)", temp_id, existing.person_id, propose.canonical_name
                 )
             else:
-                # 新人物
-                formal_id = self._next_formal_id()
+                # 新人物。重建时优先复用历史 canonical_name 对应的正式 id，
+                # 避免一次补跑导致整本书 person_id 漂移。
+                reserved = self._id_reservations.get(propose.canonical_name)
+                if reserved and reserved not in self._used_ids:
+                    formal_id = reserved
+                else:
+                    formal_id = self._next_formal_id()
+                    while formal_id in self._used_ids:
+                        formal_id = self._next_formal_id()
+                self._used_ids.add(formal_id)
                 person = Person(
                     person_id=formal_id,
                     canonical_name=propose.canonical_name,

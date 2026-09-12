@@ -8,6 +8,7 @@ from __future__ import annotations
 from typing import List, Optional
 
 from pydantic import BaseModel, Field
+from app.domain.relation_types import RelationDescriptor
 
 
 class GraphEvidence(BaseModel):
@@ -16,20 +17,15 @@ class GraphEvidence(BaseModel):
     quote: str = ""
 
 
-class GraphTag(BaseModel):
-    """
-    一对人物的一种关系标签（汇总后）。
-
-    多个 tag 可附在同一对人物的 edge 上（多标签）。
-    """
-    type: str                       # 关系类型（来自短枚举）
-    tier: str                       # hard / mid / soft
-    directed: bool
+class GraphTag(RelationDescriptor):
+    key: str
+    predicate: Optional[str] = None
+    normalization_status: str
+    relation_ids: List[str] = Field(default_factory=list)
+    raw_relations: List[str] = Field(default_factory=list)
     chapter_ids: List[int] = Field(default_factory=list)
     evidences: List[GraphEvidence] = Field(default_factory=list)
-    display_score: float = 0.0
-    # 软关系在有硬关系时被压制（default 折进「更多」）
-    suppressed: bool = False
+    display_score: float = 0.0  # 仅展示排序，不是可信度
 
 
 class GraphEdge(BaseModel):
@@ -89,4 +85,7 @@ class GraphData(BaseModel):
     edges: List[GraphEdge] = Field(default_factory=list)
     factions: List[GraphFaction] = Field(default_factory=list)
     filtered_count: int = 0
+    pending_relation_count: int = 0
+    rejected_relation_count: int = 0
+    unclassified_relation_count: int = 0
     filtered_persons: List[FilteredPerson] = Field(default_factory=list)

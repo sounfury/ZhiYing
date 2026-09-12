@@ -120,23 +120,23 @@ def _build_cast_roster(cast: Cast) -> str:
 
 def _build_edge_skeleton(edges: list[GraphEdge]) -> str:
     """
-    关系骨架：只给 hard / mid 边（soft 的朋友/相识对分块几乎没有信息量，还占 token）。
+    关系骨架：使用已验证关系的具体标签，不按固定等级筛掉关系。
 
     按 display_score 降序取前 N 条。
     """
     rows: list[tuple[float, str]] = []
     for e in edges:
-        keep = [t for t in e.tags if t.tier in ("hard", "mid")]
+        keep = e.tags
         if not keep:
             continue
         keep.sort(key=lambda t: -t.display_score)
         top = keep[0]
-        types = "/".join(t.type for t in keep)
+        types = "/".join(t.label for t in keep)
         chs = ",".join(str(c) for c in top.chapter_ids)
         rows.append((top.display_score, f"  - {e.person_a} — {e.person_b}: {types} (ch {chs})"))
 
     if not rows:
-        return "（无硬/中关系边）"
+        return "（无已验证关系边）"
 
     rows.sort(key=lambda r: -r[0])
     lines = [r[1] for r in rows[:_MAX_EDGE_LINES]]
@@ -174,7 +174,7 @@ def build_user_prompt(
         f"- 已分析章范围: {ch_range}\n\n"
         f"## 人名册（共 {len(cast.persons)} 人）\n{_build_cast_roster(cast)}\n\n"
         f"## 各章摘要\n{_build_chapter_summaries(chapter_summaries)}\n\n"
-        f"## 关系骨架（硬/中关系边，soft 已省略）\n{_build_edge_skeleton(edges)}\n\n"
+        f"## 关系骨架（已验证的具体关系）\n{_build_edge_skeleton(edges)}\n\n"
         f"## 任务\n"
         f"1. 通读人名册与章摘要，识别书中真实存在的机构 / 教会 / 家族 / 学校 / 圈子。\n"
         f"2. 不确定某个团体名是否在原文出现时，用 search_in_chapter 确认。\n"

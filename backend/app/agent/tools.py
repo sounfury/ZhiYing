@@ -20,7 +20,8 @@ from typing import Dict, List, Optional
 from langchain_core.tools import BaseTool, tool
 
 from app.config import settings
-from app.domain.relation_types import ALL_TYPE_NAMES, is_valid_type
+from app.core.evidence import locate_evidence
+from app.domain.relation_types import RelationDescriptor
 from app.logging_config import get_logger
 from app.models.cast import Cast
 from app.models.faction import (
@@ -70,6 +71,15 @@ class ChapterToolContext:
     submit_ledger: Optional[ChapterLedger] = None  # submit_result 写入此
     _temp_id_counter: int = 0                # 临时 id 分配计数器
     _cached_content: Optional[str] = None    # 本章正文缓存（惰性加载）
+    read_ranges: List[tuple[int, int]] = field(default_factory=list)
+
+    def has_read_all(self, size: int) -> bool:
+        end = 0
+        for start, stop in sorted(self.read_ranges):
+            if start > end:
+                return False
+            end = max(end, stop)
+        return end >= size
 
     def next_temp_id(self) -> str:
         """分配下一个临时 person_id: ch{cid}_p{n}"""
@@ -111,6 +121,7 @@ class ChapterToolContext:
             relations=list(self.relations_buffer),
             events=[],
             summary=summary or "",
+            analysis_status="complete",
         )
         return self.submit_ledger
 
@@ -172,6 +183,7 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
         end = min(offset + actual_limit, total_chars)
         text = content[offset:end] if offset < total_chars else ""
         actual_returned = len(text)
+        ctx.read_ranges.append((offset, end))
         has_more = end < total_chars
 
         # segment_index = offset // max_limit
@@ -377,7 +389,9 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
             relations: List of relation objects, each with:
                 - person_a (str): person_id of the first person
                 - person_b (str): person_id of the second person
-                - type (str): relationship type (must be in the enum)
+                - raw_relation (str): precise relation stated in the text
+                - label, category, definition (str): open relation description, no enum
+                - directed (bool), subject_role, object_role (str): explicit roles
                 - evidence (object, optional): {quote: str, note: str}
 
         Returns:
@@ -390,21 +404,6 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
         for r in relations:
             person_a = r.get("person_a", "")
             person_b = r.get("person_b", "")
-            rtype = r.get("type", "")
-
-            # (1) type 枚举闸门
-            if not is_valid_type(rtype):
-                return json.dumps(
-                    {
-                        "status": "error",
-                        "message": (
-                            f"INVALID_RELATION_TYPE: '{rtype}'. "
-                            f"Valid types: {', '.join(ALL_TYPE_NAMES)}"
-                        ),
-                    },
-                    ensure_ascii=False,
-                )
-
             # (2) person_id 存在性闸门
             for pid_value in [person_a, person_b]:
                 if pid_value not in known_ids:
@@ -435,13 +434,15 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
                 rel = Relation(
                     person_a=person_a,
                     person_b=person_b,
-                    type=rtype,
+                    **{key: r[key] for key in RelationDescriptor.model_fields if key in r},
+                    raw_relation=r.get("raw_relation", ""),
                     evidence={
                         "chapter_id": ctx.chapter_id,
                         "quote": evidence_data.get("quote", ""),
                         "note": evidence_data.get("note", ""),
                     },
                 )
+                locate_evidence(rel, ctx.get_chapter_content())
                 new_relations.append(rel)
             except Exception as e:
                 return json.dumps(
@@ -464,6 +465,10 @@ def make_tools(ctx: ChapterToolContext) -> List[BaseTool]:
                 "status": "ok",
                 "accepted": len(new_relations),
                 "total": len(ctx.relations_buffer),
+                "evidence_checks": [
+                    {"quote_verified": rel.evidence.quote_verified,
+                     "reason": rel.verification_reason} for rel in new_relations
+                ],
             },
             ensure_ascii=False,
         )
@@ -710,7 +715,7 @@ def make_reconcile_tools(ctx: ReconcileToolContext) -> List[BaseTool]:
         Args:
             merges: List of {keep_id, drop_id, reason, evidence?}
             aliases: List of {person_id, new_aliases, reason?}
-            relation_changes: List of {action: "add"|"remove", person_a, person_b, type, chapter_id, quote?, note?}
+            relation_changes: [{action: "add", relation: {person_a, person_b, raw_relation, label, category, definition, directed, subject_role, object_role, evidence: {chapter_id, quote}}} | {action: "remove", relation_id}]
             todos: List of {description, person_ids?, chapter_ids?}
 
         Returns:
@@ -787,35 +792,43 @@ def make_reconcile_tools(ctx: ReconcileToolContext) -> List[BaseTool]:
                 reason=a.get("reason", ""),
             ))
 
-        # ── 校验 relation_changes ──
+        # 新增候选不允许自报确认/归一化状态；删除只接受现有关系 ID。
         validated_relation_changes: list[RelationChange] = []
-        for r in relation_changes:
-            action = r.get("action", "")
-            if action not in ("add", "remove"):
-                return _validation_error(
-                    f"relation_change: action must be 'add' or 'remove', got '{action}'"
-                )
-            person_a = r.get("person_a", "")
-            person_b = r.get("person_b", "")
-            rtype = r.get("type", "")
-            if person_a not in cast_ids:
-                return _validation_error(f"INVALID_PERSON_ID: '{person_a}' not found in cast")
-            if person_b not in cast_ids:
-                return _validation_error(f"INVALID_PERSON_ID: '{person_b}' not found in cast")
-            if not is_valid_type(rtype):
-                return _validation_error(
-                    f"INVALID_RELATION_TYPE: '{rtype}'. Valid types: {', '.join(ALL_TYPE_NAMES)}"
-                )
-            chapter_id = r.get("chapter_id", 0)
-            validated_relation_changes.append(RelationChange(
-                action=action,
-                person_a=person_a,
-                person_b=person_b,
-                type=rtype,
-                chapter_id=chapter_id,
-                quote=r.get("quote", ""),
-                note=r.get("note", ""),
-            ))
+        known_relations = set()
+        if any(r.get("action") == "remove" for r in relation_changes):
+            for cid in ctx.chapter_summaries:
+                ledger = ctx.filestore.read_ledger(ctx.book_id, cid)
+                known_relations.update(rel.relation_id for rel in ledger.relations)
+            for override_doc in (
+                ctx.filestore.read_relation_overrides(ctx.book_id),
+                ctx.filestore.read_reconcile_overrides(ctx.book_id),
+            ):
+                for rel in override_doc.get("add", []):
+                    if rel.get("evidence", {}).get("chapter_id") in ctx.chapter_summaries:
+                        known_relations.add(rel.get("relation_id"))
+        for raw in relation_changes:
+            try:
+                if raw.get("action") == "add":
+                    r = raw.get("relation") or {}
+                    rel = Relation(
+                        **{key: r[key] for key in RelationDescriptor.model_fields if key in r},
+                        person_a=r.get("person_a", ""), person_b=r.get("person_b", ""),
+                        raw_relation=r.get("raw_relation", ""),
+                        evidence=Evidence(chapter_id=(r.get("evidence") or {}).get("chapter_id", 0),
+                                          quote=(r.get("evidence") or {}).get("quote", "")),
+                    )
+                    if rel.person_a not in cast_ids or rel.person_b not in cast_ids:
+                        return _validation_error("INVALID_PERSON_ID: relation endpoint not in cast")
+                    if rel.evidence.chapter_id not in ctx.chapter_summaries:
+                        return _validation_error("关系证据必须来自本次分析章节")
+                    change = RelationChange(action="add", relation=rel)
+                else:
+                    change = RelationChange.model_validate(raw)
+                    if change.relation_id not in known_relations:
+                        return _validation_error("未知 relation_id")
+                validated_relation_changes.append(change)
+            except (ValueError, TypeError) as e:
+                return _validation_error(str(e))
 
         # ── 校验 todos ──
         validated_todos: list[TodoItem] = []
@@ -975,6 +988,11 @@ def make_faction_tools(ctx: FactionToolContext) -> List[BaseTool]:
 
         cast_ids = ctx.all_person_ids()
         known_chapters = set(ctx.chapter_summaries.keys())
+        forbidden_names = set(FORBIDDEN_FACTION_NAMES)
+        if ctx.filestore is not None:
+            for definition in ctx.filestore.read_relation_registry(ctx.book_id).definitions:
+                forbidden_names.add(definition.label)
+                forbidden_names.update(definition.aliases)
 
         validated: list[Faction] = []
         seen_names: set[str] = set()
@@ -987,7 +1005,7 @@ def make_faction_tools(ctx: FactionToolContext) -> List[BaseTool]:
             name = str(raw.get("name", "")).strip()
             if not name:
                 return _validation_error(f"faction[{i}]: name is required")
-            if name in FORBIDDEN_FACTION_NAMES:
+            if name in forbidden_names:
                 return _validation_error(
                     f"faction[{i}]: '{name}' 是关系类型，不能当势力名。"
                     f"势力名要用学校/教会/家族/组织等专有名词。"

@@ -8,20 +8,16 @@ Chapter Ledger（章账本 — 事实数据源）模型。
   - chapter_id 为 int（与 order 一致）
   - 无向边 person_a / person_b 按字典序排序后写入（a < b）
   - 有向边 person_a = from, person_b = to
-  - type 必须属于系统短枚举（relation_types.py）
+  - 关系使用开放描述，predicate 由归一化阶段分配
 """
 from __future__ import annotations
 
-from typing import List, Optional
+from typing import List, Optional, Literal
+from uuid import uuid4
 
 from pydantic import BaseModel, Field, model_validator
 
-from app.domain.relation_types import (
-    RELATION_TYPES,
-    is_directed,
-    is_valid_type,
-    normalize_undirected_pair,
-)
+from app.domain.relation_types import RelationDescriptor, normalize_undirected_pair
 
 
 class Evidence(BaseModel):
@@ -31,52 +27,31 @@ class Evidence(BaseModel):
     note: str = ""
     # quote_verified: true=正文匹配到, false=未匹配, null=未校验
     quote_verified: Optional[bool] = None
+    start: Optional[int] = None  # 正文字符位置，含 start，不含 end
+    end: Optional[int] = None
 
 
-class Relation(BaseModel):
-    """
-    章级关系记录。
-
-    校验规则（出口紧，§4.5）:
-      - type 必须在 RELATION_TYPES 枚举内
-      - directed 以枚举定义为准，不得自相矛盾
-      - 无向边 person_a < person_b（字典序）
-      - 有向边 person_a = from, person_b = to
-    """
-    person_a: str
-    person_b: str
-    type: str
-    tier: str = ""           # hard/mid/soft — 由 type 决定，可留空自动填
-    directed: bool = False   # 由 type 决定，可留空自动填
-    evidence: Evidence = Field(default_factory=lambda: Evidence(chapter_id=0))
+class Relation(RelationDescriptor):
+    """原文事实与归一化状态分离；不要求类型已在注册表中。"""
+    relation_id: str = Field(default_factory=lambda: uuid4().hex)
+    person_a: str = Field(min_length=1)
+    person_b: str = Field(min_length=1)
+    raw_relation: str = Field(min_length=1, max_length=1000)
+    predicate: Optional[str] = None
+    normalization_status: Literal["pending", "resolved"] = "pending"
+    normalization_reason: str = "尚未归一化"
+    evidence: Evidence
+    status: Literal["pending", "confirmed", "rejected"] = "pending"
+    verification_reason: str = "尚未验证"
 
     @model_validator(mode="after")
-    def _validate_and_normalize(self) -> "Relation":
-        # 1. type 必须在枚举内
-        if not is_valid_type(self.type):
-            raise ValueError(
-                f"Invalid relation type: '{self.type}'. "
-                f"Valid types: {', '.join(RELATION_TYPES.keys())}"
-            )
-
-        meta = RELATION_TYPES[self.type]
-
-        # 2. directed / tier 以枚举为准
-        self.directed = meta.directed
-        self.tier = meta.tier.value
-
-        # 3. 无向边端点规范化
-        if not self.directed:
-            self.person_a, self.person_b = normalize_undirected_pair(
-                self.person_a, self.person_b
-            )
-
-        # 4. 防止自环
+    def validate_relation(self):
         if self.person_a == self.person_b:
-            raise ValueError(
-                f"Self-loop relation: person_a == person_b ('{self.person_a}')"
-            )
-
+            raise ValueError("Self-loop relation")
+        if not self.directed:
+            self.person_a, self.person_b = normalize_undirected_pair(self.person_a, self.person_b)
+        if self.normalization_status == "resolved" and not self.predicate:
+            raise ValueError("已归一化关系必须有 predicate")
         return self
 
 
@@ -102,6 +77,8 @@ class ChapterLedger(BaseModel):
     relations: List[Relation] = Field(default_factory=list)
     events: List[ChapterEvent] = Field(default_factory=list)
     summary: str = ""  # 章总结（记忆用）
+    analysis_status: Literal["complete", "partial"] = "partial"
+    warnings: List[str] = Field(default_factory=list)
 
 
 # ── Cast Propose（Agent 工具用）──

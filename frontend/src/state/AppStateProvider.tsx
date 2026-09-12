@@ -35,19 +35,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [toChapter, setToChapter] = useState<number | ''>('')
   const [singleChapterOnly, setSingleChapterOnly] = useState(false)
   const [minAppearance, setMinAppearance] = useState(1)
-  const [includeSuppressed, setIncludeSuppressed] = useState(false)
+  const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<string[]>([])
-  const relationTypes = useRelationTypes()
 
   const filters: GraphFilters = {
     toChapter,
     singleChapterOnly,
     minAppearance,
-    includeSuppressed,
     typeFilter,
+    categoryFilter,
   }
 
   const { graph, graphLoading, loadGraph } = useGraphData(bookId, filters, chapterLabel)
+  const relationTypes = useRelationTypes(bookId, graph)
 
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('faction')
   const [selectedFactions, setSelectedFactions] = useState<string[]>([])
@@ -94,9 +94,22 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setSelectedNode(null)
     setEgoPersonId(null)
     const { error: err, msg: m } = await loadGraph()
+    if (err.startsWith('409:') && bookId) {
+      try {
+        const fresh = await getBook(bookId)
+        setBookDetail(fresh)
+        if (fresh.status === 'analyzing' || fresh.status === 'reconciling') {
+          setError('')
+          setMsg('分析进行中，完成后会自动更新关系图')
+          return
+        }
+      } catch {
+        // Fall through to the original graph error.
+      }
+    }
     setError(err)
     setMsg(m)
-  }, [loadGraph])
+  }, [bookId, loadGraph])
 
   const {
     cast,
@@ -117,8 +130,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     refresh: refreshLedger,
   } = useLedger(bookId, ledgerChapterId)
 
-  const { analysis, start: startAnalysis, stop: stopAnalysis, isRunning, pushLog } =
-    useAnalysis({
+  const {
+    analysis, start: startAnalysis, stop: stopAnalysis, resume: resumeAnalysis,
+    retryFailed: retryFailedAnalysis, skipFailed: skipFailedAnalysis,
+    disconnect: disconnectAnalysis, isRunning, pushLog,
+  } = useAnalysis({
       chapterLabel,
       onAnalysisDone: async () => {
         await refreshBooks()
@@ -139,6 +155,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       return
     }
     let cancelled = false
+    setBookDetail(undefined)
     void getBook(bookId)
       .then((b) => {
         if (!cancelled) setBookDetail(b)
@@ -152,6 +169,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [bookId, books])
 
   const selectedBook = bookDetail ?? books.find((b) => b.book_id === bookId)
+  const serverRunning = selectedBook?.status === 'analyzing' || selectedBook?.status === 'reconciling'
+  const effectiveRunning = isRunning || serverRunning
+
+  useEffect(() => {
+    if (!bookId || !bookDetail) return
+    if (bookDetail.status === 'analyzing' || bookDetail.status === 'reconciling') {
+      void resumeAnalysis(bookId)
+    }
+  }, [bookId, bookDetail, resumeAnalysis])
 
   useEffect(() => {
     document.title = selectedBook?.title
@@ -161,8 +187,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   // 书切换 / 过滤变化 → 自动刷新图（分析中不打断）
   useEffect(() => {
-    if (bookId && !isRunning) void handleLoadGraph()
-  }, [bookId, handleLoadGraph, isRunning])
+    // Wait for fresh server metadata before deciding whether graph reads are legal.
+    // This prevents a page refresh from issuing a transient 409 while analysis is active.
+    if (bookId && bookDetail && !effectiveRunning) void handleLoadGraph()
+  }, [bookId, bookDetail, handleLoadGraph, effectiveRunning])
 
   const onUpload = useCallback(
     async (file: File | null) => {
@@ -175,6 +203,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setMsg(`已上传「${res.title}」，可以启动分析`)
         await refreshBooks()
         setBookId(res.book_id)
+        setTypeFilter([])
+        setCategoryFilter([])
         setEgoPersonId(null)
         setSelectedNode(null)
         setSelectedEdge(null)
@@ -195,15 +225,32 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     await stopAnalysis(bookId)
   }, [bookId, stopAnalysis])
 
+  const onRetryChapter = useCallback(async (chapterId: number) => {
+    if (!bookId) return
+    await retryFailedAnalysis(bookId, [chapterId])
+  }, [bookId, retryFailedAnalysis])
+
+  const onRetryFailed = useCallback(async () => {
+    if (!bookId) return
+    await retryFailedAnalysis(bookId, analysis.failedChapterIds)
+  }, [bookId, retryFailedAnalysis, analysis.failedChapterIds])
+
+  const onSkipFailed = useCallback(async () => {
+    if (!bookId) return
+    await skipFailedAnalysis(bookId)
+  }, [bookId, skipFailedAnalysis])
+
   const handleBookChange = useCallback((newBookId: string) => {
+    disconnectAnalysis()
     setBookId(newBookId)
     setEgoPersonId(null)
     setSelectedNode(null)
     setSelectedEdge(null)
     setTypeFilter([])
+    setCategoryFilter([])
     setSelectedFactions([])
     setSideTab('detail')
-  }, [])
+  }, [disconnectAnalysis])
 
   const onExtractFactions = useCallback(async () => {
     if (!bookId) return
@@ -319,15 +366,26 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     if (!bookId || ledgerChapterId === '') return
     setRerunning(true)
     setError('')
-    setMsg('正在重跑此章（覆盖该章账本，不级联）…')
+    setMsg('正在暂存重跑此章，并重建人物、关系处理与全书校对结果…')
     try {
       const res = await rerunChapter(bookId, ledgerChapterId)
-      pushLog('ok', `重跑完成：第 ${res.chapter_id} 章 · ${res.steps_used} 步`)
+      const chapterState = res.partial ? '章节仅部分完成' : '章节重跑完成'
+      if (res.reconcile_done === false) {
+        const detail = res.reconcile_warning ? `：${res.reconcile_warning}` : ''
+        pushLog('info', `${chapterState}：第 ${res.chapter_id} 章 · ${res.steps_used} 步；全书校对未完成${detail}`)
+      } else {
+        pushLog(res.partial ? 'info' : 'ok', `${chapterState}：第 ${res.chapter_id} 章 · ${res.steps_used} 步；全书校对已重建`)
+      }
       await refreshBooks()
       await refreshCast()
       await refreshLedger()
       await handleLoadGraph()
-      setMsg(`重跑完成：${chapterLabel(res.chapter_id)}`)
+      const suffix = res.reconcile_done === false
+        ? `；章节结果已发布，但全书校对失败${res.reconcile_warning ? `：${res.reconcile_warning}` : ''}`
+        : res.factions_stale
+          ? '；全书校对已重建，势力结果待更新'
+          : '；全书校对已重建'
+      setMsg(`${chapterLabel(res.chapter_id)}：${chapterState}${suffix}`)
     } catch (e) {
       setMsg('')
       setError(e instanceof Error ? e.message : String(e))
@@ -378,10 +436,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setSingleChapterOnly,
       minAppearance,
       setMinAppearance,
-      includeSuppressed,
-      setIncludeSuppressed,
       typeFilter,
+      categoryFilter,
       setTypeFilter,
+      setCategoryFilter,
       relationTypes,
       graph,
       graphLoading,
@@ -407,10 +465,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       error,
       msg,
       analysis,
-      isRunning,
+      isRunning: effectiveRunning,
       onUpload,
       onAnalyze,
       onStop,
+      onRetryChapter,
+      onRetryFailed,
+      onSkipFailed,
       onExtractFactions,
       onPickPerson,
       onExport,
@@ -442,8 +503,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       toChapter,
       singleChapterOnly,
       minAppearance,
-      includeSuppressed,
       typeFilter,
+      categoryFilter,
       relationTypes,
       graph,
       graphLoading,
@@ -463,10 +524,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       error,
       msg,
       analysis,
-      isRunning,
+      effectiveRunning,
       onUpload,
       onAnalyze,
       onStop,
+      onRetryChapter,
+      onRetryFailed,
+      onSkipFailed,
       onExtractFactions,
       onPickPerson,
       onExport,

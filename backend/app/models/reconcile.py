@@ -6,9 +6,10 @@ Reconcile Agent 数据模型。
 """
 from __future__ import annotations
 
-from typing import List
+from typing import List, Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator, ConfigDict
+from app.models.ledger import Relation
 
 
 # ── 可疑清单条目 ──
@@ -32,11 +33,12 @@ class RelationConflict(BaseModel):
 
 
 class MissingEvidence(BaseModel):
-    """hard 关系缺原句提示。"""
+    """待确认关系或缺少证据的复查提示。"""
     person_a: str
     person_b: str
-    type: str
+    label: str
     chapter_id: int
+    reason: str = "缺少原文证据"
 
 
 class SuspectList(BaseModel):
@@ -73,14 +75,19 @@ class AliasSuggestion(BaseModel):
 
 
 class RelationChange(BaseModel):
-    """关系修改：add 追加到 overrides，remove 从 overrides 移除。"""
-    action: str               # "add" | "remove"
-    person_a: str
-    person_b: str
-    type: str
-    chapter_id: int
-    quote: str = ""
-    note: str = ""
+    """新增完整关系，或按 relation_id 精确删除，避免同名标签误删。"""
+    action: Literal["add", "remove"]
+    model_config = ConfigDict(extra="forbid")
+    relation: Relation | None = None
+    relation_id: str | None = None
+
+    @model_validator(mode="after")
+    def validate_action(self):
+        if self.action == "add" and (self.relation is None or self.relation_id is not None):
+            raise ValueError("add 需要 relation，不能携带 relation_id")
+        if self.action == "remove" and (not self.relation_id or self.relation is not None):
+            raise ValueError("remove 需要 relation_id，不能携带 relation")
+        return self
 
 
 class TodoItem(BaseModel):

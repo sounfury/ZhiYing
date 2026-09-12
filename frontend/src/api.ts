@@ -6,9 +6,11 @@ export type BookMeta = {
   author: string
   total_chapters: number
   status: string
+  factions_stale?: boolean
   analysis_progress?: {
     chapters_done: number[]
     chapters_failed?: number[]
+    chapters_partial?: number[]
     chapters_pending?: number[]
     reconcile_done: boolean
   }
@@ -19,14 +21,24 @@ export type GraphEvidence = {
   quote: string
 }
 
-export type GraphTag = {
-  type: string
-  tier: string
+export type RelationDescriptor = {
+  label: string
+  category: string
+  definition: string
   directed: boolean
+  subject_role: string
+  object_role: string
+}
+
+export type GraphTag = RelationDescriptor & {
+  key: string
+  predicate: string | null
+  normalization_status: 'pending' | 'resolved'
+  relation_ids: string[]
+  raw_relations: string[]
   chapter_ids: number[]
   evidences: GraphEvidence[]
   display_score: number
-  suppressed: boolean
 }
 
 export type GraphEdge = {
@@ -73,6 +85,9 @@ export type GraphData = {
   edges: GraphEdge[]
   factions: GraphFaction[]
   filtered_count: number
+  pending_relation_count?: number
+  rejected_relation_count?: number
+  unclassified_relation_count?: number
   filtered_persons: { person_id: string; name: string }[]
 }
 
@@ -80,15 +95,64 @@ export type AnalyzeStartResult = {
   status: string
   mode?: string
   total_chapters: number
+  task_id?: string
+}
+
+export type AnalysisTaskChapter = {
+  chapter_id: number
+  status: string
+  attempts: number
+  last_error: string
+}
+
+export type AnalysisTaskSnapshot = {
+  task_id?: string
+  active: boolean
+  status: string
+  phase: string
+  total_chapters?: number
+  chapters: AnalysisTaskChapter[]
+  llm_requests?: number
+  input_tokens?: number
+  output_tokens?: number
+  total_tokens?: number
+  stop_reason?: string
 }
 
 export type ProgressEvent = {
   chapter_id?: number
   done?: number
   total?: number
+  processed?: number
+  batch?: number
+  batches?: number
+  model_candidates?: number
+  warnings?: number
+  pending?: number
   status?: string
   error?: string
+  reason?: string
   phase?: string
+  failed_chapters?: number[]
+  retry_queued?: number[]
+  retry_chapters?: number[]
+  retry?: boolean
+  success_count?: number
+  failure_count?: number
+  running_count?: number
+  queued_count?: number
+  kind?: string
+  context?: string
+  elapsed_ms?: number
+  request_no?: number
+  attempt?: number
+  delay_seconds?: number
+  llm_requests?: number
+  total_tokens?: number
+  stop_requested?: boolean
+  tools?: string[]
+  step?: number
+  max_steps?: number
 }
 
 export type DoneEvent = {
@@ -96,6 +160,7 @@ export type DoneEvent = {
   chapters_failed: number
   chapters_done_ids?: number[]
   chapters_failed_ids?: number[]
+  chapters_partial_ids?: number[]
   stopped?: boolean
   reconcile_done?: boolean
   phase?: string
@@ -157,8 +222,8 @@ export type GraphQuery = {
   /** true = 仅该章；false/缺省 = 1..to_chapter 累计 */
   single_chapter?: boolean
   min_appearance?: number
-  type_filter?: string
-  include_suppressed?: boolean
+  predicate_filter?: string
+  category_filter?: string
 }
 
 export function getGraph(bookId: string, q: GraphQuery = {}): Promise<GraphData> {
@@ -166,8 +231,8 @@ export function getGraph(bookId: string, q: GraphQuery = {}): Promise<GraphData>
   if (q.to_chapter != null) params.set('to_chapter', String(q.to_chapter))
   if (q.single_chapter) params.set('single_chapter', 'true')
   if (q.min_appearance != null) params.set('min_appearance', String(q.min_appearance))
-  if (q.type_filter) params.set('type_filter', q.type_filter)
-  if (q.include_suppressed) params.set('include_suppressed', 'true')
+  if (q.category_filter) params.set('category_filter', q.category_filter)
+  if (q.predicate_filter) params.set('predicate_filter', q.predicate_filter)
   const qs = params.toString()
   return request<GraphData>(`/api/books/${bookId}/graph${qs ? `?${qs}` : ''}`)
 }
@@ -196,6 +261,22 @@ export function startAnalysis(  bookId: string,
   return request<AnalyzeStartResult>(`/api/books/${bookId}/analyze${qs ? `?${qs}` : ''}`, {
     method: 'POST',
   })
+}
+
+export function getAnalysisTask(bookId: string): Promise<AnalysisTaskSnapshot> {
+  return request<AnalysisTaskSnapshot>(`/api/books/${bookId}/analysis/task`)
+}
+
+export function retryFailedChapters(bookId: string, chapterIds?: number[]): Promise<{ status: string; queued: number[]; ignored: number[] }> {
+  return request(`/api/books/${bookId}/analyze/retry-failed`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ chapter_ids: chapterIds ?? null }),
+  })
+}
+
+export function skipFailedChapters(bookId: string): Promise<{ status: string; chapters: number[] }> {
+  return request(`/api/books/${bookId}/analyze/skip-failed`, { method: 'POST' })
 }
 
 export async function stopAnalysis(bookId: string): Promise<{ status: string }> {
@@ -314,12 +395,16 @@ export type LedgerEvidence = {
   quote_verified: boolean | null
 }
 
-export type LedgerRelation = {
+export type LedgerRelation = RelationDescriptor & {
+  relation_id: string
+  raw_relation: string
+  predicate: string | null
+  normalization_status: 'pending' | 'resolved'
+  normalization_reason: string
+  status: 'pending' | 'confirmed' | 'rejected'
+  verification_reason: string
   person_a: string
   person_b: string
-  type: string
-  tier: string
-  directed: boolean
   evidence: LedgerEvidence
 }
 
@@ -334,6 +419,8 @@ export type LedgerEvent = {
 }
 
 export type ChapterLedger = {
+  analysis_status?: 'complete' | 'partial'
+  warnings?: string[]
   chapter_id: number
   persons: LedgerPerson[]
   relations: LedgerRelation[]
@@ -349,10 +436,17 @@ export function getChapterLedger(
 }
 
 export type RerunResult = {
+  partial?: boolean
+  warnings?: string[]
   status: string
   chapter_id: number
   success: boolean
   steps_used: number
+  reconcile_done?: boolean
+  reconcile_degraded?: boolean
+  reconcile_warning?: string
+  factions?: number
+  factions_stale?: boolean
 }
 
 export function rerunChapter(bookId: string, chapterId: number): Promise<RerunResult> {
@@ -398,32 +492,15 @@ export async function downloadExport(bookId: string): Promise<string> {
 
 // ── Relation type meta ──
 
-export type RelationTypeMeta = {
-  type: string
-  tier: string
-  directed: boolean
+export type RelationTypeMeta = RelationDescriptor & {
+  predicate: string
+  aliases: string[]
+  display_priority: number
 }
 
-export async function getRelationTypes(): Promise<RelationTypeMeta[]> {
+export async function getRelationTypes(bookId: string): Promise<RelationTypeMeta[]> {
   const data = await request<{ relation_types: RelationTypeMeta[] }>(
-    '/api/meta/relation-types',
+    `/api/books/${bookId}/relation-types`,
   )
-  return data.relation_types ?? []
+  return data.relation_types
 }
-
-/** Fallback if the meta endpoint is unreachable; matches backend SSOT. */
-export const FALLBACK_RELATION_TYPES: RelationTypeMeta[] = [
-  { type: '夫妻', tier: 'hard', directed: false },
-  { type: '亲子', tier: 'hard', directed: true },
-  { type: '兄妹', tier: 'hard', directed: false },
-  { type: '表亲', tier: 'hard', directed: false },
-  { type: '师徒', tier: 'hard', directed: true },
-  { type: '主仆', tier: 'mid', directed: true },
-  { type: '上下级', tier: 'mid', directed: true },
-  { type: '同学', tier: 'mid', directed: false },
-  { type: '结盟', tier: 'mid', directed: false },
-  { type: '敌对', tier: 'mid', directed: false },
-  { type: '朋友', tier: 'soft', directed: false },
-  { type: '相识', tier: 'soft', directed: false },
-  { type: '同场', tier: 'soft', directed: false },
-]

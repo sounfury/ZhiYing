@@ -16,11 +16,12 @@ from __future__ import annotations
 import asyncio
 import time
 from dataclasses import dataclass
-from typing import Dict, List, Optional
+from typing import Any, Awaitable, Callable, Dict, List, Optional
 
 from langchain_core.messages import AIMessage, HumanMessage, SystemMessage, ToolMessage
 
-from app.agent.llm import get_reconcile_llm
+from app.agent.llm import LLMControl, LLMBudgetExceeded, LLMStopped, get_reconcile_llm, invoke_controlled
+from app.agent.relation_pipeline import enrich_relations
 from app.agent.prompts.reconcile import build_system_prompt, build_user_prompt
 from app.agent.tools import ReconcileToolContext, make_reconcile_tools
 from app.config import Settings, settings
@@ -50,6 +51,9 @@ async def run_reconcile_agent(
     chapter_summaries: Dict[int, str],
     filestore: Filestore,
     cfg: Optional[Settings] = None,
+    stop_event: Optional[asyncio.Event] = None,
+    control: Optional[LLMControl] = None,
+    progress: Optional[Callable[[dict[str, Any]], Awaitable[None]]] = None,
 ) -> ReconcileResult:
     """
     运行全书总校对 Agent。
@@ -109,13 +113,21 @@ async def run_reconcile_agent(
     total_tool_ms = 0.0
 
     for step in range(max_steps):
+        if (stop_event is not None and stop_event.is_set()) or (control is not None and control.stop_event.is_set()):
+            return ReconcileResult(success=False, warning="Analysis stopped before reconcile request", steps_used=steps_used)
         steps_used = step + 1
+        if progress is not None:
+            await progress({"phase": "reconcile_waiting_model", "step": steps_used, "max_steps": max_steps})
 
         # ── LLM 调用 ──
         t_llm = time.perf_counter()
         try:
-            ai_response: AIMessage = await asyncio.to_thread(
-                llm_with_tools.invoke, messages
+            ai_response: AIMessage = await invoke_controlled(
+                llm_with_tools,
+                messages,
+                control=control,
+                phase="reconcile",
+                context=f"step={steps_used}/{max_steps}",
             )
         except Exception as e:
             logger.error("LLM invoke failed at step %d: %s", steps_used, e)
@@ -142,6 +154,8 @@ async def run_reconcile_agent(
         # ── 执行工具 ──
         t_tool = time.perf_counter()
         for tc in tool_calls:
+            if (stop_event is not None and stop_event.is_set()) or (control is not None and control.stop_event.is_set()):
+                return ReconcileResult(success=False, warning="Analysis stopped during reconcile tools", steps_used=steps_used)
             tool_name = tc["name"]
             tool_args = tc["args"]
             tool_call_id = tc["id"]
@@ -167,6 +181,8 @@ async def run_reconcile_agent(
                     steps_used,
                 )
 
+            if len(tool_result) > cfg.reconcile_tool_result_chars:
+                tool_result = tool_result[:cfg.reconcile_tool_result_chars] + "\n...[tool result truncated]"
             messages.append(
                 ToolMessage(
                     content=tool_result,
@@ -175,7 +191,21 @@ async def run_reconcile_agent(
             )
         tool_ms = (time.perf_counter() - t_tool) * 1000
         total_tool_ms += tool_ms
+        # Keep initial instructions plus only the most recent tool exchange. This
+        # prevents multi-step reconcile from carrying an ever-growing transcript.
+        keep = max(2, cfg.reconcile_history_messages)
+        if len(messages) > keep + 2:
+            messages = messages[:2] + messages[-keep:]
 
+        if progress is not None:
+            await progress({
+                "phase": "reconcile_tools",
+                "step": steps_used,
+                "max_steps": max_steps,
+                "tools": [tc["name"] for tc in tool_calls],
+                "llm_ms": round(llm_ms, 1),
+                "tool_ms": round(tool_ms, 1),
+            })
         logger.info(
             "Reconcile step %d/%d done: llm_ms=%.0f tool_ms=%.0f tools=[%s]",
             steps_used,
@@ -198,6 +228,19 @@ async def run_reconcile_agent(
             success=False,
             warning=f"Did not submit within {max_steps} steps",
             steps_used=steps_used,
+        )
+
+    additions = {}
+    for change in ctx.submit_patch.relation_changes:
+        if change.action == "add":
+            rel = change.relation
+            additions.setdefault(rel.evidence.chapter_id, []).append(rel)
+    for cid, relations in additions.items():
+        if (stop_event is not None and stop_event.is_set()) or (control is not None and control.stop_event.is_set()):
+            return ReconcileResult(success=False, warning="Analysis stopped before reconcile additions", steps_used=steps_used)
+        await enrich_relations(
+            meta.book_id, relations, cid, filestore, cfg,
+            control=control, stop_event=stop_event, progress=progress,
         )
 
     total_ms = (time.perf_counter() - t_start) * 1000

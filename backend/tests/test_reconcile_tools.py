@@ -7,6 +7,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from relation_fixtures import relation_fields
+from app.models.ledger import Relation, Evidence
 from app.agent.tools import ReconcileToolContext, make_reconcile_tools
 from app.models.cast import Alias, AliasFrequency, Cast, Person, Gender, Importance
 from app.models.reconcile import SuspectList
@@ -41,7 +43,7 @@ def _make_ctx() -> ReconcileToolContext:
         book_id="test-book",
         cast=cast,
         suspects=SuspectList(),
-        chapter_summaries={},
+        chapter_summaries={1: "正文摘要"},
     )
 
 
@@ -71,7 +73,7 @@ def test_submit_success():
     result = tool.invoke({
         "merges": [{"keep_id": "p001", "drop_id": "p003", "reason": "alias_overlap"}],
         "aliases": [{"person_id": "p001", "new_aliases": ["颦儿"]}],
-        "relation_changes": [{"action": "add", "person_a": "p001", "person_b": "p002", "type": "朋友", "chapter_id": 1}],
+        "relation_changes": [{"action": "add", "relation": Relation(person_a="p001", person_b="p002", **relation_fields("朋友"), evidence=Evidence(chapter_id=1)).model_dump()}],
         "todos": [{"description": "检查 p002 的具体关系"}],
     })
     data = json.loads(result)
@@ -113,7 +115,7 @@ def test_submit_merge_same_id():
     assert data["status"] == "error"
 
 
-def test_submit_invalid_relation_type():
+def test_submit_incomplete_relation_schema():
     """relationChanges 中 type 非法。"""
     ctx = _make_ctx()
     tool = _get_tool(ctx, "submit_reconciliation")
@@ -125,7 +127,7 @@ def test_submit_invalid_relation_type():
     })
     data = json.loads(result)
     assert data["status"] == "error"
-    assert "INVALID_RELATION_TYPE" in data["message"]
+    assert "validation" in data["message"].lower()
 
 
 def test_submit_empty_aliases():

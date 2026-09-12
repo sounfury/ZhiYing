@@ -1,156 +1,48 @@
-"""
-关系类型枚举 — 唯一权威源（SSOT）。
-
-prompt / submit_result 校验 / Aggregator / meta API 全部引用这一份。
-§4.5 规格定死，不做 GEN 式厚映射。
-
--- 用法 --
-    from app.domain.relation_types import RELATION_TYPES, is_valid_type, get_relation_meta
-
-    if not is_valid_type(rel_type):
-        raise invalid_relation_type(rel_type, ALL_TYPE_NAMES)
-"""
+"""开放关系描述与注册表模型。种子是示例，不是合法值枚举。"""
 from __future__ import annotations
+import json
+from pathlib import Path
+from typing import Literal
+from pydantic import BaseModel, ConfigDict, Field, model_validator
 
-from enum import Enum
-from typing import Optional
+class RelationDescriptor(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+    label: str = Field(min_length=1, max_length=80)
+    category: str = Field(default="其他", min_length=1, max_length=40)
+    definition: str = Field(min_length=1, max_length=600)
+    directed: bool
+    subject_role: str = Field(min_length=1, max_length=80)
+    object_role: str = Field(min_length=1, max_length=80)
 
+    @model_validator(mode="after")
+    def symmetric_roles(self):
+        if not self.directed and self.subject_role != self.object_role:
+            raise ValueError("无向关系双方角色应相同；角色不同请使用有向关系")
+        return self
 
-class Tier(str, Enum):
-    HARD = "hard"
-    MID = "mid"
-    SOFT = "soft"
+class RelationDefinition(RelationDescriptor):
+    predicate: str = Field(pattern=r"^[a-z][a-z0-9_]{0,79}$")
+    aliases: list[str] = Field(default_factory=list)
+    display_priority: int = Field(default=1, ge=0, le=5)
+    source: Literal["seed", "learned", "human"] = "learned"
 
+class RelationRegistry(BaseModel):
+    version: int = 1
+    definitions: list[RelationDefinition] = Field(default_factory=list)
 
-class RelationTypeMeta:
-    """关系类型的元数据。"""
+    @model_validator(mode="after")
+    def unique_predicates(self):
+        keys = [d.predicate for d in self.definitions]
+        if len(keys) != len(set(keys)):
+            raise ValueError("注册表 predicate 重复")
+        return self
 
-    __slots__ = ("type", "tier", "directed")
+    def get(self, predicate: str | None) -> RelationDefinition | None:
+        return next((d for d in self.definitions if d.predicate == predicate), None)
 
-    def __init__(self, type_name: str, tier: Tier, directed: bool) -> None:
-        self.type = type_name
-        self.tier = tier
-        self.directed = directed
+def seed_registry() -> RelationRegistry:
+    path = Path(__file__).with_name("relation_seeds.json")
+    return RelationRegistry.model_validate(json.loads(path.read_text(encoding="utf-8")))
 
-    def __repr__(self) -> str:
-        arrow = "→" if self.directed else "↔"
-        return f"RelationTypeMeta({self.type} [{self.tier.value}] {arrow})"
-
-
-# ── §4.5 唯一权威源 ──
-# hard — 互不覆盖；展示优先
-# mid  — 可并存；展示次于 hard
-# soft — 易泛滥；有 hard 时默认折叠
-
-_RELATION_DEFINITIONS: list[tuple[str, Tier, bool]] = [
-    # type_name, tier, directed
-    # ── hard ──
-    ("夫妻", Tier.HARD, False),
-    ("亲子", Tier.HARD, True),    # a→b：a 是 b 的父母
-    ("兄妹", Tier.HARD, False),   # 含兄弟姐妹
-    ("表亲", Tier.HARD, False),   # 表/堂等旁系亲缘
-    ("师徒", Tier.HARD, True),    # a→b：a 是师傅
-    # ── mid ──
-    ("主仆", Tier.MID, True),     # a→b：a 是主人
-    ("上下级", Tier.MID, True),   # a→b：a 是上级
-    ("同学", Tier.MID, False),
-    ("结盟", Tier.MID, False),
-    ("敌对", Tier.MID, False),
-    # ── soft ──
-    ("朋友", Tier.SOFT, False),
-    ("相识", Tier.SOFT, False),
-    ("同场", Tier.SOFT, False),
-]
-
-# type_name → meta 的快速查找
-RELATION_TYPES: dict[str, RelationTypeMeta] = {
-    name: RelationTypeMeta(name, tier, directed)
-    for name, tier, directed in _RELATION_DEFINITIONS
-}
-
-ALL_TYPE_NAMES: list[str] = [d[0] for d in _RELATION_DEFINITIONS]
-
-
-# ── 展示分基础值（Aggregator 用）──
-_TIER_BASE_SCORE: dict[Tier, float] = {
-    Tier.HARD: 5.0,
-    Tier.MID: 3.0,
-    Tier.SOFT: 1.0,
-}
-
-
-# ── 查询函数 ──
-
-def is_valid_type(type_name: str) -> bool:
-    """检查关系类型是否在枚举内。"""
-    return type_name in RELATION_TYPES
-
-
-def get_relation_meta(type_name: str) -> Optional[RelationTypeMeta]:
-    """获取关系类型的元数据；不存在返回 None。"""
-    return RELATION_TYPES.get(type_name)
-
-
-def get_tier(type_name: str) -> Optional[Tier]:
-    """获取关系的 tier（hard/mid/soft）。"""
-    meta = RELATION_TYPES.get(type_name)
-    return meta.tier if meta else None
-
-
-def is_directed(type_name: str) -> bool:
-    """该关系类型是否有向。未知类型假设无向。"""
-    meta = RELATION_TYPES.get(type_name)
-    return meta.directed if meta else False
-
-
-def tier_base_score(type_name: str) -> float:
-    """获取该关系类型的展示基础分。未知类型返回 0。"""
-    tier = get_tier(type_name)
-    return _TIER_BASE_SCORE.get(tier, 0.0) if tier else 0.0
-
-
-def normalize_undirected_pair(person_a: str, person_b: str) -> tuple[str, str]:
-    """
-    无向边端点规范化：按字典序排序（a < b）。
-
-    调用方需先确认 directed=False 再调用。
-    """
-    if person_a <= person_b:
-        return person_a, person_b
-    return person_b, person_a
-
-
-def relation_summary_for_prompt() -> str:
-    """
-    生成给 LLM prompt 用的关系枚举文本。
-
-    格式示例：
-        夫妻 (hard, 无向)
-        亲子 (hard, 有向: a是b的父母)
-        ...
-    """
-    lines: list[str] = []
-    for name, tier, directed in _RELATION_DEFINITIONS:
-        direction = "有向" if directed else "无向"
-        suffix = ""
-        if directed:
-            # 打个简注
-            _HINTS = {
-                "亲子": "a是b的父母",
-                "师徒": "a是师傅；仅明确拜师/收徒，拒拜师或学艺≠师徒",
-                "主仆": "a是主人",
-                "上下级": "a是上级",
-            }
-            suffix = f": {_HINTS.get(name, '')}".rstrip(": ")
-        elif name == "表亲":
-            suffix = ": 舅/叔/姑/姨/甥/侄/堂表等旁系；勿用「相识」敷衍"
-        elif name == "兄妹":
-            suffix = ": 兄弟姐妹"
-        elif name == "同场":
-            suffix = ": 仅有名角色且确有互动；勿给龙套/同框路人"
-        elif name == "相识":
-            suffix = ": 认识但无亲友/师徒身份；会面、辩论、拒拜师用此"
-        elif name == "朋友":
-            suffix = ": 明确友谊；教情爱但未拜师用此，勿标师徒"
-        lines.append(f"  - {name} ({tier.value}, {direction}{suffix})")
-    return "\n".join(lines)
+def normalize_undirected_pair(a: str, b: str) -> tuple[str, str]:
+    return (a, b) if a <= b else (b, a)

@@ -1,0 +1,55 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "chapter_id": 1,
+  "title": "婆罗门之子",
+  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_001.json",
+  "characters": [
+    {
+      "name": "悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "乔文达",
+      "presence": "active"
+    }
+  ],
+  "required_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "乔文达",
+      "label": "朋友",
+      "category": "友谊",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "与他的好友，同为婆罗门之子的乔文达一道长大。"
+        }
+      ],
+      "note": "自幼好友，同修辩论与冥想。"
+    }
+  ],
+  "optional_relations": [
+    {
+      "person_a": "乔文达",
+      "person_b": "悉达多",
+      "label": "追随",
+      "category": "追随",
+      "directed": true,
+      "subject_role": "追随者",
+      "object_role": "被追随者",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "他要追随他，为人拥戴而神圣的悉达多。"
+        }
+      ],
+      "note": "这是乔文达明确表达的长期追随意愿。"
+    }
+  ],
+  "forbidden_relations": [],
+  "identity_assertions": []
+}

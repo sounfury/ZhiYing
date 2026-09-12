@@ -7,18 +7,6 @@ import type { GraphEdge } from './api'
 
 export type ClusterId = 'kin' | 'social' | 'weak' | 'isolate'
 
-const KIN_TYPES = new Set(['夫妻', '亲子', '兄妹', '表亲'])
-const SOCIAL_TYPES = new Set([
-  '师徒',
-  '主仆',
-  '上下级',
-  '同学',
-  '结盟',
-  '敌对',
-  '朋友',
-])
-const WEAK_TYPES = new Set(['相识', '同场'])
-
 /** 簇强度：GraphView 布局与边主簇共用，避免两处各维护一份 */
 export const RANK: Record<ClusterId, number> = {
   isolate: 0,
@@ -27,18 +15,18 @@ export const RANK: Record<ClusterId, number> = {
   kin: 3,
 }
 
-export function typeToCluster(type: string): ClusterId {
-  if (KIN_TYPES.has(type)) return 'kin'
-  if (SOCIAL_TYPES.has(type)) return 'social'
-  if (WEAK_TYPES.has(type)) return 'weak'
-  return 'weak'
+export function categoryToCluster(category: string): ClusterId {
+  // 这里只控制布局配色，不判断或限制具体关系；新分类采用通用社交样式。
+  if (category === '亲属') return 'kin'
+  if (category === '事件') return 'weak'
+  return 'social'
 }
 
 /** 边的主分组 = 最强 tag 所属簇 */
 export function edgeCluster(edge: GraphEdge): ClusterId {
   let best: ClusterId = 'weak'
   for (const t of edge.tags) {
-    const c = typeToCluster(t.type)
+    const c = categoryToCluster(t.category)
     if (RANK[c] > RANK[best]) best = c
   }
   return best

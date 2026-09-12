@@ -1,0 +1,59 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "chapter_id": 4,
+  "title": "觉醒",
+  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_004.json",
+  "characters": [
+    {
+      "name": "悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "乔达摩",
+      "presence": "memory"
+    },
+    {
+      "name": "乔文达",
+      "presence": "memory"
+    }
+  ],
+  "required_relations": [
+    {
+      "person_a": "乔达摩",
+      "person_b": "悉达多",
+      "label": "精神启发者",
+      "category": "求道",
+      "directed": true,
+      "subject_role": "精神启发者",
+      "object_role": "受启发者",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "他的最后一位恩师是神圣的世尊佛陀。"
+        }
+      ],
+      "note": "原文称“最后一位恩师”，但悉达多没有皈依，不能等价为正式师徒。"
+    }
+  ],
+  "optional_relations": [],
+  "forbidden_relations": [
+    {
+      "person_a": "乔达摩",
+      "person_b": "悉达多",
+      "forbidden_labels": [
+        "正式师徒",
+        "皈依师徒",
+        "僧团师徒"
+      ],
+      "confidence": "high",
+      "reason": "原文虽称恩师，但上一章已明确悉达多未皈依。",
+      "evidence": [
+        {
+          "quote": "但佛陀的法义也无法挽留他，折服他。"
+        }
+      ]
+    }
+  ],
+  "identity_assertions": []
+}

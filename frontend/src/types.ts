@@ -12,15 +12,21 @@ export type AnalysisUi = {
   done: number
   phase: string
   logs: LogLine[]
+  successCount: number
+  failureCount: number
+  runningCount: number
+  queuedCount: number
+  failedChapterIds: number[]
+  awaitingFailureDecision: boolean
 }
 
 export type GraphFilters = {
   toChapter: number | ''
   singleChapterOnly: boolean
   minAppearance: number
-  includeSuppressed: boolean
   /** 空数组 = 不过滤（全部类型） */
   typeFilter: string[]
+  categoryFilter: string[]
 }
 
 export type SideTab = 'detail' | 'cast' | 'ledger'
@@ -31,4 +37,10 @@ export const emptyAnalysis = (): AnalysisUi => ({
   done: 0,
   phase: '',
   logs: [],
+  successCount: 0,
+  failureCount: 0,
+  runningCount: 0,
+  queuedCount: 0,
+  failedChapterIds: [],
+  awaitingFailureDecision: false,
 })

@@ -1,26 +1,25 @@
 import { useEffect, useRef, useState } from 'react'
 import type { RelationTypeMeta } from '../api'
-import { TIER_LABEL } from '../labels'
 
 interface MoreFiltersMenuProps {
   minAppearance: number
   onMinAppearanceChange: (v: number) => void
-  includeSuppressed: boolean
-  onIncludeSuppressedChange: (v: boolean) => void
+  categoryFilter: string[]
+  onCategoryFilterChange: (categories: string[]) => void
   typeFilter: string[]
   onTypeFilterChange: (types: string[]) => void
   relationTypes: RelationTypeMeta[]
 }
 
 /**
- * 不常动的过滤器收进弹层：出场下限、被压制 soft、关系类型。
+ * 不常动的过滤器收进弹层：出场下限、关系分类与具体类型。
  * 常驻控制条只会把图挤矮。
  */
 export function MoreFiltersMenu({
   minAppearance,
   onMinAppearanceChange,
-  includeSuppressed,
-  onIncludeSuppressedChange,
+  categoryFilter,
+  onCategoryFilterChange,
   typeFilter,
   onTypeFilterChange,
   relationTypes,
@@ -39,7 +38,7 @@ export function MoreFiltersMenu({
 
   const badges: string[] = []
   if (minAppearance !== 1) badges.push(`min≥${minAppearance}`)
-  if (includeSuppressed) badges.push('含压制')
+  if (categoryFilter.length) badges.push(`分类 ${categoryFilter.length}`)
   if (typeFilter.length) badges.push(`关系 ${typeFilter.length}`)
   const summary = badges.length ? badges.join(' · ') : '默认'
 
@@ -50,9 +49,9 @@ export function MoreFiltersMenu({
     onTypeFilterChange(next)
   }
 
-  const grouped = ['hard', 'mid', 'soft'].map((tier) => ({
-    tier,
-    items: relationTypes.filter((r) => r.tier === tier),
+  const grouped = [...new Set(relationTypes.map((r) => r.category))].map((category) => ({
+    category,
+    items: relationTypes.filter((r) => r.category === category),
   }))
 
   return (
@@ -63,7 +62,7 @@ export function MoreFiltersMenu({
         className={`more-filters-btn${badges.length ? ' on' : ''}`}
         aria-expanded={open}
         onClick={() => setOpen((v) => !v)}
-        title="出场章数、被压制关系、关系类型"
+        title="出场章数、关系分类与具体类型"
       >
         <span>{summary}</span>
         <i aria-hidden>{open ? '▴' : '▾'}</i>
@@ -82,42 +81,37 @@ export function MoreFiltersMenu({
             />
           </label>
 
-          <label className="more-filters-row check">
-            <input
-              type="checkbox"
-              checked={includeSuppressed}
-              onChange={(e) => onIncludeSuppressedChange(e.target.checked)}
-            />
-            显示被压制的软关系
-          </label>
-
           <div className="type-filter">
             <div className="type-filter-head">
               <span>关系类型</span>
-              {typeFilter.length > 0 && (
-                <button type="button" onClick={() => onTypeFilterChange([])}>
+              {(typeFilter.length > 0 || categoryFilter.length > 0) && (
+                <button type="button" onClick={() => { onTypeFilterChange([]); onCategoryFilterChange([]) }}>
                   全部
                 </button>
               )}
             </div>
-            <p className="hint">不选 = 全部画出。点选只保留这些类型。</p>
+            <p className="hint">点分类按大类筛选，点具体关系按语义筛选；同时选择时取交集。</p>
             {grouped.map(
               (g) =>
                 g.items.length > 0 && (
-                  <div key={g.tier} className="type-filter-group">
-                    <span>{TIER_LABEL[g.tier] ?? g.tier}</span>
+                  <div key={g.category} className="type-filter-group">
+                    <button type="button" className={`type-chip${categoryFilter.includes(g.category) ? ' on' : ''}`}
+                      onClick={() => onCategoryFilterChange(categoryFilter.includes(g.category)
+                        ? categoryFilter.filter((c) => c !== g.category) : [...categoryFilter, g.category])}>
+                      {g.category}
+                    </button>
                     <div className="type-chips">
                       {g.items.map((r) => {
-                        const on = typeFilter.includes(r.type)
+                        const on = typeFilter.includes(r.predicate)
                         return (
                           <button
-                            key={r.type}
+                            key={r.predicate}
                             type="button"
                             className={`type-chip${on ? ' on' : ''}`}
-                            onClick={() => toggleType(r.type)}
-                            title={r.directed ? '有向' : '无向'}
+                            onClick={() => toggleType(r.predicate)}
+                            title={r.definition}
                           >
-                            {r.type}
+                            {r.label}
                           </button>
                         )
                       })}

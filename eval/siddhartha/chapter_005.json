@@ -1,0 +1,103 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "chapter_id": 5,
+  "title": "迦摩罗",
+  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_005.json",
+  "characters": [
+    {
+      "name": "悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "迦摩罗",
+      "presence": "active"
+    },
+    {
+      "name": "迦摩施瓦弥",
+      "presence": "mentioned"
+    },
+    {
+      "name": "乔文达",
+      "presence": "dream_or_memory"
+    },
+    {
+      "name": "乔达摩",
+      "presence": "memory"
+    }
+  ],
+  "required_relations": [
+    {
+      "person_a": "迦摩罗",
+      "person_b": "悉达多",
+      "label": "欢爱之术老师",
+      "category": "师承",
+      "directed": true,
+      "subject_role": "老师",
+      "object_role": "学生",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "我想请求你做我的朋友和老师。因为对你所熟稔的艺术，我一无所知。"
+        },
+        {
+          "quote": "但愿如此，我的老师。愿我的目光永远让你欢喜，愿我的好运一直因你而降临！"
+        }
+      ],
+      "note": "关系限定为欢爱艺术上的老师/学生，不是宗教师承。"
+    }
+  ],
+  "optional_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "迦摩罗",
+      "label": "朋友",
+      "category": "友谊",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "或许是的，”她轻声道，“如你所说，朋友。"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "person_a": "悉达多",
+      "person_b": "迦摩罗",
+      "label": "相互吸引",
+      "category": "情感",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "迦摩罗倾听着。她爱他的声音，爱他的目光。"
+        }
+      ],
+      "note": ""
+    }
+  ],
+  "forbidden_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "迦摩施瓦弥",
+      "forbidden_labels": [
+        "商业伙伴",
+        "雇佣",
+        "师徒"
+      ],
+      "confidence": "high",
+      "reason": "本章只由迦摩罗引荐，悉达多尚未与迦摩施瓦弥正式会面。",
+      "evidence": [
+        {
+          "quote": "迦摩施瓦弥正在等你。"
+        }
+      ]
+    }
+  ],
+  "identity_assertions": []
+}

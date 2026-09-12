@@ -1,0 +1,99 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "chapter_id": 10,
+  "title": "儿子",
+  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_010.json",
+  "characters": [
+    {
+      "name": "悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "小悉达多",
+      "presence": "active"
+    },
+    {
+      "name": "瓦稣迪瓦",
+      "presence": "active"
+    },
+    {
+      "name": "迦摩罗",
+      "presence": "memory"
+    },
+    {
+      "name": "迦摩施瓦弥",
+      "presence": "memory"
+    }
+  ],
+  "required_relations": [
+    {
+      "person_a": "悉达多",
+      "person_b": "小悉达多",
+      "label": "父子",
+      "category": "亲属",
+      "directed": true,
+      "subject_role": "父亲",
+      "object_role": "儿子",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "悉达多理解，儿子跟他不熟，不能像爱父亲那样爱他。"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "person_a": "悉达多",
+      "person_b": "瓦稣迪瓦",
+      "label": "朋友",
+      "category": "友谊",
+      "directed": false,
+      "subject_role": "",
+      "object_role": "",
+      "confidence": "high",
+      "evidence": [
+        {
+          "quote": "当晚，瓦稣迪瓦把朋友叫到一边，同他交谈。"
+        }
+      ],
+      "note": "上下文中“朋友”指悉达多。"
+    }
+  ],
+  "optional_relations": [
+    {
+      "person_a": "小悉达多",
+      "person_b": "悉达多",
+      "label": "憎恨与反抗",
+      "category": "冲突",
+      "directed": true,
+      "subject_role": "反抗者",
+      "object_role": "被反抗者",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "我宁愿做扒手、杀人犯、下地狱，也不愿做你！我恨你。你不是我父亲，哪怕你做过我母亲十次的姘夫！"
+        }
+      ],
+      "note": ""
+    },
+    {
+      "person_a": "瓦稣迪瓦",
+      "person_b": "小悉达多",
+      "label": "担忧",
+      "category": "关怀",
+      "directed": true,
+      "subject_role": "关心者",
+      "object_role": "被关心者",
+      "confidence": "medium",
+      "evidence": [
+        {
+          "quote": "你的儿子让你担忧。我也担忧他。"
+        }
+      ],
+      "note": ""
+    }
+  ],
+  "forbidden_relations": [],
+  "identity_assertions": []
+}

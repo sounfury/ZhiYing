@@ -15,7 +15,6 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Dict, List
 
-from app.domain.relation_types import is_valid_type
 from app.logging_config import get_logger
 from app.models.cast import Alias, AliasFrequency, Cast, Person
 from app.models.ledger import ChapterLedger
@@ -48,6 +47,8 @@ class PatchApplier:
         """
         result = PatchApplyResult()
         id_remap: Dict[str, str] = {}
+        # This patch is a complete automatic generation, never an append-only delta.
+        self.filestore.write_reconcile_overrides(self.book_id, {"add": [], "remove": []})
 
         # 1. merges
         try:
@@ -189,8 +190,9 @@ class PatchApplier:
         # rewrite ledger 中的 person_id
         self._rewrite_ledgers_for_merge(id_remap)
 
-        # rewrite relation_overrides 中的 person_id
-        self._rewrite_overrides_for_merge(id_remap)
+        # rewrite human + automatic relation override documents.
+        self._rewrite_overrides_for_merge(id_remap, automatic=False)
+        self._rewrite_overrides_for_merge(id_remap, automatic=True)
 
         return id_remap
 
@@ -218,19 +220,6 @@ class PatchApplier:
                 b = id_remap.get(r.person_b, r.person_b)
                 if a == b:
                     logger.info("Self-loop discarded: %s→%s after merge", r.person_a, r.person_b)
-                    modified = True
-                    continue
-
-                # 检查重复 (a, b, type) — 合并证据
-                key = (a, b, r.type)
-                existing = next(
-                    (rr for rr in new_relations if rr.person_a == a and rr.person_b == b and rr.type == r.type),
-                    None,
-                )
-                if existing:
-                    # 合并证据（已有 quote 时不覆盖）
-                    if not existing.evidence.quote and r.evidence.quote:
-                        existing.evidence.quote = r.evidence.quote
                     modified = True
                     continue
 
@@ -278,12 +267,17 @@ class PatchApplier:
                 self.filestore.write_ledger(self.book_id, ledger)
                 logger.debug("Ledger rewritten for merge: %s", ledger_file.name)
 
-    def _rewrite_overrides_for_merge(self, id_remap: Dict[str, str]) -> None:
-        """扫 relation_overrides，将 drop_id → keep_id；合并后自环丢弃。"""
-        overrides = self.filestore.read_relation_overrides(self.book_id)
+    def _rewrite_overrides_for_merge(
+        self, id_remap: Dict[str, str], *, automatic: bool = False
+    ) -> None:
+        """Rewrite either manual or automatic relation overrides after a merge."""
+        overrides = (
+            self.filestore.read_reconcile_overrides(self.book_id)
+            if automatic else self.filestore.read_relation_overrides(self.book_id)
+        )
         modified = False
 
-        for action in ("add", "remove"):
+        for action in ("add",):
             kept: list[dict] = []
             for entry in overrides.get(action, []):
                 a = id_remap.get(entry.get("person_a", ""), entry.get("person_a", ""))
@@ -307,7 +301,10 @@ class PatchApplier:
                 modified = True
 
         if modified:
-            self.filestore.write_relation_overrides(self.book_id, overrides)
+            if automatic:
+                self.filestore.write_reconcile_overrides(self.book_id, overrides)
+            else:
+                self.filestore.write_relation_overrides(self.book_id, overrides)
 
     # ── 2. 别名 ──
 
@@ -356,43 +353,25 @@ class PatchApplier:
         if not changes:
             return 0
 
-        overrides = self.filestore.read_relation_overrides(self.book_id)
+        # Each reconcile result is one automatic generation. It replaces the
+        # previous automatic relation patch; manual overrides live in a separate file.
+        overrides = {"add": [], "remove": []}
         applied = 0
 
         for change in changes:
-            # 校验 type
-            if not is_valid_type(change.type):
-                logger.warning(
-                    "Relation change skip: invalid type '%s' for %s↔%s",
-                    change.type,
-                    change.person_a,
-                    change.person_b,
-                )
-                continue
-
-            # 先 remap
-            a = id_remap.get(change.person_a, change.person_a)
-            b = id_remap.get(change.person_b, change.person_b)
-
-            entry = {
-                "person_a": a,
-                "person_b": b,
-                "type": change.type,
-                "chapter_id": change.chapter_id,
-                "quote": change.quote,
-                "note": change.note,
-            }
-
             if change.action == "add":
-                overrides.setdefault("add", []).append(entry)
-                logger.info("Relation override ADD: %s↔%s [%s] ch=%d", a, b, change.type, change.chapter_id)
-                applied += 1
-            elif change.action == "remove":
-                overrides.setdefault("remove", []).append(entry)
-                logger.info("Relation override REMOVE: %s↔%s [%s] ch=%d", a, b, change.type, change.chapter_id)
-                applied += 1
+                relation = change.relation.model_copy(deep=True)
+                relation.person_a = id_remap.get(relation.person_a, relation.person_a)
+                relation.person_b = id_remap.get(relation.person_b, relation.person_b)
+                if relation.person_a == relation.person_b:
+                    continue
+                relation = type(relation).model_validate(relation.model_dump())
+                overrides.setdefault("add", []).append(relation.model_dump(mode="json"))
+            else:
+                overrides.setdefault("remove", []).append({"relation_id": change.relation_id})
+            applied += 1
 
-        self.filestore.write_relation_overrides(self.book_id, overrides)
+        self.filestore.write_reconcile_overrides(self.book_id, overrides)
         return applied
 
     # ── 4. 待办 ──

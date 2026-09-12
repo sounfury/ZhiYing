@@ -1,0 +1,126 @@
+{
+  "schema_version": "1.0",
+  "book": "悉达多",
+  "author": "赫尔曼·黑塞",
+  "book_id": "bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e",
+  "scope": {
+    "included_chapters": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12
+    ],
+    "excluded_chapters": [
+      13
+    ],
+    "excluded_reason": "第13章为译后记，include_in_analysis=false"
+  },
+  "scoring_policy": {
+    "required_relations": "计入关系召回与语义准确率",
+    "optional_relations": "命中可加分，漏掉不扣召回；预测为这些关系不算幻觉",
+    "forbidden_relations": "命中视为高价值错误，计入hallucinated_relation_rate / semantic_error_rate",
+    "identity_assertions": "用于人物同一性与别名合并评分",
+    "evidence": "所有Gold evidence quote必须在对应章节正文中精确出现"
+  },
+  "canonical_cast": [
+    {
+      "name": "悉达多",
+      "aliases": [
+        "Siddhartha"
+      ],
+      "importance": "main"
+    },
+    {
+      "name": "乔文达",
+      "aliases": [
+        "Govinda"
+      ],
+      "importance": "main"
+    },
+    {
+      "name": "乔达摩",
+      "aliases": [
+        "佛陀",
+        "世尊",
+        "世尊佛陀",
+        "释迦摩尼",
+        "佛陀释迦摩尼",
+        "Gotama"
+      ],
+      "importance": "main"
+    },
+    {
+      "name": "给孤独",
+      "aliases": [
+        "给孤独长者",
+        "Anathapindika"
+      ],
+      "importance": "minor"
+    },
+    {
+      "name": "迦摩罗",
+      "aliases": [
+        "Kamala"
+      ],
+      "importance": "main"
+    },
+    {
+      "name": "迦摩施瓦弥",
+      "aliases": [
+        "Kamaswami"
+      ],
+      "importance": "supporting"
+    },
+    {
+      "name": "瓦稣迪瓦",
+      "aliases": [
+        "Vasudeva"
+      ],
+      "importance": "main"
+    },
+    {
+      "name": "小悉达多",
+      "aliases": [
+        "悉达多之子",
+        "Siddhartha's son"
+      ],
+      "importance": "supporting"
+    }
+  ],
+  "global_identity_assertions": [
+    {
+      "canonical": "乔达摩",
+      "aliases": [
+        "佛陀",
+        "世尊",
+        "世尊佛陀",
+        "释迦摩尼",
+        "佛陀释迦摩尼",
+        "Gotama"
+      ],
+      "must_merge": true
+    }
+  ],
+  "chapter_files": [
+    "chapter_001.json",
+    "chapter_002.json",
+    "chapter_003.json",
+    "chapter_004.json",
+    "chapter_005.json",
+    "chapter_006.json",
+    "chapter_007.json",
+    "chapter_008.json",
+    "chapter_009.json",
+    "chapter_010.json",
+    "chapter_011.json",
+    "chapter_012.json"
+  ]
+}
