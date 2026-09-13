@@ -66,6 +66,7 @@ def _message_chars(messages: Any) -> int:
 
 
 def is_quota_or_budget_error(exc: BaseException) -> bool:
+    """Match provider quota / billing / balance failures by error-text markers."""
     text = str(exc).lower()
     markers = (
         "insufficient_quota", "quota", "credit balance", "balance", "billing",
@@ -75,6 +76,7 @@ def is_quota_or_budget_error(exc: BaseException) -> bool:
 
 
 def is_retryable_llm_error(exc: BaseException) -> bool:
+    """Decide whether an LLM error is transient; quota/billing errors never retry."""
     if is_quota_or_budget_error(exc):
         return False
     text = str(exc).lower()
@@ -121,6 +123,7 @@ class LLMControl:
         *,
         event_sink: Optional[EventSink] = None,
     ) -> "LLMControl":
+        """Build task-scoped budgets from settings, including per-phase request limits."""
         return cls(
             stop_event=stop_event,
             max_requests=cfg.analysis_max_llm_requests,
@@ -139,10 +142,12 @@ class LLMControl:
         )
 
     async def emit(self, data: dict[str, Any]) -> None:
+        """Forward an event dict to the configured sink, if any."""
         if self.event_sink is not None:
             await self.event_sink(data)
 
     async def stop(self, reason: str) -> None:
+        """Record the first stop reason, set the stop event, and broadcast the stop."""
         async with self._lock:
             if not self.stop_reason:
                 self.stop_reason = reason
@@ -150,6 +155,7 @@ class LLMControl:
         await self.emit({"kind": "llm_budget_stop", "reason": reason, **self.snapshot()})
 
     def snapshot(self) -> dict[str, Any]:
+        """Current usage counters and stop reason, for tagging progress events."""
         return {
             "llm_requests": self.request_count,
             "message_chars": self.message_chars,
@@ -160,30 +166,41 @@ class LLMControl:
         }
 
     async def reserve(self, phase: str, context: str, *, message_chars: int = 0) -> int:
+        """Gate and account one request; returns its sequence number.
+
+        Raises LLMStopped when the task is already stopped, LLMBudgetExceeded
+        when the wall-clock, global-request or per-phase budget is exhausted.
+        """
         async with self._lock:
+            # Already stopped: refuse any further provider request.
             if self.stop_event.is_set():
                 raise LLMStopped(self.stop_reason or "analysis stopped")
+            # Whole-task wall-clock budget.
             elapsed = time.monotonic() - self.started_at
             if self.max_seconds > 0 and elapsed >= self.max_seconds:
                 self.stop_reason = f"task time budget exceeded ({self.max_seconds}s)"
                 self.stop_event.set()
                 raise LLMBudgetExceeded(self.stop_reason)
+            # Global request budget.
             if self.max_requests > 0 and self.request_count >= self.max_requests:
                 self.stop_reason = f"task request budget exceeded ({self.max_requests})"
                 self.stop_event.set()
                 raise LLMBudgetExceeded(self.stop_reason)
+            # Per-phase request budget.
             phase_count = self.phase_requests.get(phase, 0)
             phase_limit = self.phase_request_limits.get(phase, 0)
             if phase_limit > 0 and phase_count >= phase_limit:
                 self.stop_reason = f"{phase} request budget exceeded ({phase_limit})"
                 self.stop_event.set()
                 raise LLMBudgetExceeded(self.stop_reason)
+            # All gates passed: account this request while holding the lock.
             request_message_chars = max(0, int(message_chars))
             self.request_count += 1
             self.message_chars += request_message_chars
             self.phase_requests[phase] = phase_count + 1
             self.phase_message_chars[phase] = self.phase_message_chars.get(phase, 0) + request_message_chars
             request_no = self.request_count
+        # Emitted outside the lock so sinks may await freely.
         await self.emit({
             "kind": "llm_request_start", "phase": phase, "context": context,
             "request_no": request_no, "request_message_chars": request_message_chars,
@@ -192,6 +209,7 @@ class LLMControl:
         return request_no
 
     async def record_response(self, response: Any, *, phase: str, context: str, elapsed_ms: float) -> None:
+        """Accumulate token usage and emit llm_request_end; raises on token overrun."""
         inp, out, total = _usage_from_response(response)
         over = False
         async with self._lock:
@@ -326,11 +344,13 @@ def create_chat_model(
 
 
 def get_chapter_llm(cfg: Optional[Settings] = None) -> ChatOpenAI:
+    """Chapter Agent chat model at temperature 0 with provider-default thinking."""
     cfg = cfg or settings
     return create_chat_model(cfg.llm_model, temperature=0.0, cfg=cfg)
 
 
 def get_reconcile_llm(cfg: Optional[Settings] = None) -> ChatOpenAI:
+    """Reconcile/normalize chat model with thinking disabled for structured output."""
     cfg = cfg or settings
     # DeepSeek V4 defaults to thinking mode, but LangChain's function-calling
     # structured output forces a named tool_choice that DeepSeek rejects while
@@ -340,6 +360,10 @@ def get_reconcile_llm(cfg: Optional[Settings] = None) -> ChatOpenAI:
 
 
 def check_connectivity(cfg: Optional[Settings] = None) -> bool:
+    """Probe the provider with a fixed prompt; True only if the reply contains "OK".
+
+    AppError propagates to the caller; any other failure returns False.
+    """
     cfg = cfg or settings
     try:
         llm = create_chat_model(cfg=cfg)

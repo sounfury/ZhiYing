@@ -47,6 +47,12 @@ class CastWriter:
         filestore: Filestore,
         id_reservations: Optional[Dict[str, str]] = None,
     ) -> None:
+        """
+        初始化写入器：以现有 cast.json 为基线（支持增量分析 / 重建）。
+
+        id_reservations: canonical_name → 正式 person_id，重建时优先复用，
+        避免补跑导致全书 person_id 漂移。
+        """
         self.book_id = book_id
         self.filestore = filestore
 
@@ -86,6 +92,7 @@ class CastWriter:
 
     @staticmethod
     def _parse_gender(gender_str: str) -> Gender:
+        """解析 LLM 给出的性别字符串，非法值回退 UNKNOWN。"""
         try:
             return Gender(gender_str)
         except ValueError:
@@ -93,6 +100,7 @@ class CastWriter:
 
     @staticmethod
     def _parse_importance(imp_str: str) -> Importance:
+        """解析 LLM 给出的重要度字符串，非法值回退 MINOR。"""
         try:
             return Importance(imp_str)
         except ValueError:

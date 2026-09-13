@@ -35,6 +35,7 @@ class PatchApplier:
     """应用 ReconcilePatch 到存储层。"""
 
     def __init__(self, book_id: str, filestore: Filestore) -> None:
+        """绑定书 id 与存储层；patch 应用所需数据在使用时读取。"""
         self.book_id = book_id
         self.filestore = filestore
 
@@ -149,6 +150,7 @@ class PatchApplier:
 
         # 解析传递闭包：每个 drop → 最终 keep（不在 raw_map 中的 id）
         def _resolve(pid: str, seen: set[str] | None = None) -> str:
+            """沿 raw_map 递归解析最终 keep_id；检测到环时防御性截断。"""
             if seen is None:
                 seen = set()
             if pid not in raw_map:

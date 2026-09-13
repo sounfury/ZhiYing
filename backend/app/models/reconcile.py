@@ -49,6 +49,7 @@ class SuspectList(BaseModel):
 
     @property
     def is_empty(self) -> bool:
+        """三类可疑项全为空时为 True，表示无需进入 Reconcile 校对。"""
         return (
             not self.cast_conflicts
             and not self.relation_conflicts
@@ -83,6 +84,12 @@ class RelationChange(BaseModel):
 
     @model_validator(mode="after")
     def validate_action(self):
+        """
+        校验 add/remove 两种动作的字段契约。
+
+        - add：必须携带完整 relation，禁止带 relation_id；
+        - remove：必须按 relation_id 精确删除，禁止带 relation。
+        """
         if self.action == "add" and (self.relation is None or self.relation_id is not None):
             raise ValueError("add 需要 relation，不能携带 relation_id")
         if self.action == "remove" and (not self.relation_id or self.relation is not None):

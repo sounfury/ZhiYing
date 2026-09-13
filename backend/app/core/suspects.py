@@ -80,12 +80,19 @@ def detect_cast_conflicts(cast: Cast) -> list[CastConflict]:
 
 
 def detect_relation_conflicts(ledgers: list[ChapterLedger]) -> list[RelationConflict]:
+    """
+    检测同一 predicate 的双向断言，生成方向复查清单。
+
+    只统计 directed 且未 rejected 的关系；同一对人物只在 a < b 一侧报一条。
+    """
     # 不同类型可并存；只对相同已归一化语义的反向断言提示复查，不自动删除。
+    # 先按（起点, 终点, predicate）索引各关系出现的章
     directions = defaultdict(list)
     for ledger in ledgers:
         for r in ledger.relations:
             if r.directed and r.predicate and r.status != "rejected":
                 directions[(r.person_a, r.person_b, r.predicate)].append(ledger.chapter_id)
+    # 与反向（b, a, 同 predicate）配对，命中即记为 direction_review
     results = []
     for (a, b, predicate), chapters in directions.items():
         reverse = directions.get((b, a, predicate))
@@ -143,6 +150,7 @@ class SuspectsGenerator:
         cast: Cast,
         ledgers: list[ChapterLedger],
     ) -> SuspectList:
+        """依次运行人物冲突 / 关系方向 / 缺证据三类检测，汇总为 SuspectList。"""
         cast_conflicts = detect_cast_conflicts(cast)
         relation_conflicts = detect_relation_conflicts(ledgers)
         missing_evidence = detect_missing_evidence(ledgers)

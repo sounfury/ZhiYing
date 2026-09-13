@@ -322,6 +322,7 @@ def _ring_order(
         cross[key] += 1
 
     def link(a: str, b: str) -> int:
+        """两块之间的跨块连线数（键按 id 排序归一）。"""
         return cross[(a, b) if a < b else (b, a)]
 
     size = {f.faction_id: len(f.members) for f in factions}

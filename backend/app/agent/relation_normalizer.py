@@ -45,6 +45,7 @@ _SYSTEM = (
 
 
 def _cache_key(rel: Any) -> str:
+    """Stable dedup/cache key: descriptor + normalized raw text, sorted-key JSON."""
     return json.dumps(
         {"descriptor": descriptor(rel), "raw_relation": str(rel.raw_relation).strip()},
         ensure_ascii=False,
@@ -53,11 +54,23 @@ def _cache_key(rel: Any) -> str:
 
 
 async def _emit(progress: Optional[ProgressSink], data: dict[str, Any]) -> None:
+    """Forward a progress event when a sink is configured."""
     if progress is not None:
         await progress(data)
 
 
 def _apply_resolution(rel: Any, registry: Any, result: Resolution) -> dict[str, Any]:
+    """Apply one model resolution to a relation and return the cacheable result dict.
+
+    existing: map onto a registered definition (unknown predicate raises); the
+    original label is kept as an alias when the mapping is not reversed.
+    new: register the descriptor; the sequential commit re-checks the live
+    registry, so exact duplicates from earlier items/batches are reused.
+    unresolved: leave semantics untouched, only record the reason.
+
+    Raises ValueError when new/unresolved illegally carry predicate or reverse.
+    """
+    # existing: rewrite onto the registered definition, direction aware.
     if result.action == "existing":
         definition = registry.get(result.predicate)
         if definition is None:
@@ -74,6 +87,7 @@ def _apply_resolution(rel: Any, registry: Any, result: Resolution) -> dict[str, 
             "reverse": result.reverse,
             "reason": result.reason,
         }
+    # new/unresolved must not carry predicate or direction information.
     if result.predicate is not None or result.reverse:
         raise ValueError("新类型或待处理结果不应引用 predicate 或反转方向")
     if result.action == "new":
@@ -88,6 +102,7 @@ def _apply_resolution(rel: Any, registry: Any, result: Resolution) -> dict[str, 
             "reverse": False,
             "reason": result.reason,
         }
+    # unresolved: raw semantics preserved, only the reason is recorded.
     rel.normalization_reason = result.reason
     return {
         "action": "unresolved",
@@ -98,6 +113,7 @@ def _apply_resolution(rel: Any, registry: Any, result: Resolution) -> dict[str, 
 
 
 def _apply_cached(rel: Any, registry: Any, raw: dict[str, Any]) -> bool:
+    """Apply a cached resolution dict; False on any validation or apply failure."""
     try:
         result = Resolution.model_validate(raw)
         _apply_resolution(rel, registry, result)
@@ -107,6 +123,7 @@ def _apply_cached(rel: Any, registry: Any, raw: dict[str, Any]) -> bool:
 
 
 def _make_batches(unique: list[tuple[str, Any]], cfg: Settings) -> list[list[tuple[str, Any]]]:
+    """Split candidates into batches bounded by item count and approximated chars."""
     max_items = max(1, cfg.relation_normalize_batch_size)
     max_chars = max(1000, cfg.relation_normalize_batch_chars)
     batches: list[list[tuple[str, Any]]] = []
@@ -134,12 +151,25 @@ async def normalize_relations(
     stop_event: Optional[asyncio.Event] = None,
     progress: Optional[ProgressSink] = None,
 ):
+    """
+    Normalize open relation descriptions into registered semantics.
+
+    Per-relation fast paths run before any LLM call: stop requested, evidence
+    not uniquely located, exact registry match, or a cached resolution for the
+    same key. Remaining relations are deduplicated by cache key and sent in
+    batches (single-item batches use the unbatched schema). One representative
+    per key is resolved once and reused for its duplicates and the task cache.
+    Stop/budget signals and failures degrade to warnings, keeping raw relations.
+
+    Returns deduplicated warnings.
+    """
     cfg = cfg or settings
     warnings: list[str] = []
     pending_by_key: dict[str, list[Any]] = {}
     total = len(relations)
     processed = 0
 
+    # Pass 1: per-relation fast paths (stop, evidence, exact match, task cache).
     for rel in relations:
         rel.predicate = None
         rel.normalization_status = "pending"
@@ -164,11 +194,13 @@ async def normalize_relations(
             continue
         pending_by_key.setdefault(key, []).append(rel)
 
+    # Nothing needs the model: report progress and return early.
     unique = [(key, group[0]) for key, group in pending_by_key.items()]
     if not unique:
         await _emit(progress, {"phase": "relation_normalize", "processed": processed, "total": total, "model_candidates": 0})
         return warnings
 
+    # Reconcile model unavailable: degrade all pending relations to raw.
     try:
         base_model = get_reconcile_llm(cfg)
     except Exception:
@@ -177,8 +209,10 @@ async def normalize_relations(
                 rel.normalization_reason = "归一化服务不可用，保留原文关系"
         return ["关系归一化未完成；原文关系仍可独立验证和展示"]
 
+    # Pass 2: batched LLM normalization over the unique candidates.
     batches = _make_batches(unique, cfg)
     for batch_no, batch in enumerate(batches, 1):
+        # Stop requested between batches: mark the rest raw and stop.
         if (stop_event is not None and stop_event.is_set()) or (control is not None and control.stop_event.is_set()):
             for key, _ in batch:
                 for rel in pending_by_key[key]:
@@ -186,6 +220,7 @@ async def normalize_relations(
             break
         registered = [d.model_dump() for d in registry.definitions]
         try:
+            # Single-item and batched calls must yield exactly one resolution per key.
             if len(batch) == 1:
                 key, rel = batch[0]
                 model = base_model.with_structured_output(Resolution, method="function_calling", include_raw=True)
@@ -221,6 +256,7 @@ async def normalize_relations(
                     raise ValueError("归一化结果缺失、重复或包含未知 id")
                 outputs = {batch[int(item.id[1:])][0]: item for item in result.items}
 
+            # Commit: resolve one representative per key, reuse for duplicates.
             for key, _ in batch:
                 result = outputs[key]
                 representative = pending_by_key[key][0]
@@ -231,6 +267,7 @@ async def normalize_relations(
                     if not _apply_cached(duplicate, registry, cache_value):
                         duplicate.normalization_reason = "复用归一化结果失败，保留原文关系"
                 processed += len(pending_by_key[key])
+        # Stop or budget: keep untouched relations raw and abort remaining batches.
         except (LLMStopped, LLMBudgetExceeded):
             for key, _ in batch:
                 for rel in pending_by_key[key]:
@@ -238,6 +275,7 @@ async def normalize_relations(
                         rel.normalization_reason = "模型预算或停止信号触发，保留原文关系"
             warnings.append("关系归一化因停止或预算限制提前结束")
             break
+        # Batch failed: keep this batch raw and continue with the next one.
         except Exception as exc:
             for key, _ in batch:
                 for rel in pending_by_key[key]:

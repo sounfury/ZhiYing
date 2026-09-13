@@ -146,6 +146,7 @@ def _build_edge_skeleton(edges: list[GraphEdge]) -> str:
 
 
 def _build_chapter_summaries(chapter_summaries: dict[int, str]) -> str:
+    """各章摘要清单：按章号升序逐行列出，为空时返回占位提示。"""
     if not chapter_summaries:
         return "（无章摘要）"
     return "\n".join(

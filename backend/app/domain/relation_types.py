@@ -16,6 +16,7 @@ class RelationDescriptor(BaseModel):
 
     @model_validator(mode="after")
     def symmetric_roles(self):
+        """校验无向关系双方角色必须相同，不同则要求改用有向关系。"""
         if not self.directed and self.subject_role != self.object_role:
             raise ValueError("无向关系双方角色应相同；角色不同请使用有向关系")
         return self
@@ -32,17 +33,21 @@ class RelationRegistry(BaseModel):
 
     @model_validator(mode="after")
     def unique_predicates(self):
+        """校验注册表内 predicate 全局唯一，重复即拒绝加载。"""
         keys = [d.predicate for d in self.definitions]
         if len(keys) != len(set(keys)):
             raise ValueError("注册表 predicate 重复")
         return self
 
     def get(self, predicate: str | None) -> RelationDefinition | None:
+        """按 predicate 精确查找关系定义，找不到返回 None。"""
         return next((d for d in self.definitions if d.predicate == predicate), None)
 
 def seed_registry() -> RelationRegistry:
+    """从同目录 relation_seeds.json 加载种子注册表。"""
     path = Path(__file__).with_name("relation_seeds.json")
     return RelationRegistry.model_validate(json.loads(path.read_text(encoding="utf-8")))
 
 def normalize_undirected_pair(a: str, b: str) -> tuple[str, str]:
+    """把无向关系的人物对按字典序排序，保证 (a,b) 与 (b,a) 归一为同一键。"""
     return (a, b) if a <= b else (b, a)

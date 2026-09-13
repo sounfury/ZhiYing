@@ -40,10 +40,22 @@ async def verify_relations(
     progress: Optional[ProgressSink] = None,
     semaphore: Optional[asyncio.Semaphore] = None,
 ) -> list[str]:
+    """
+    Verify relation candidates against chapter evidence in batched LLM calls.
+
+    Only relations whose evidence is uniquely located enter verification; verdicts
+    (confirmed / pending / rejected) are written back onto the relations by index.
+    Batches run concurrently under the given semaphore (or a settings-derived one).
+    Stops and failures degrade to warnings; untouched relations keep their status.
+
+    Returns deduplicated warnings.
+    """
     cfg = cfg or settings
+    # Candidate gate: only relations with uniquely locatable evidence are verified.
     candidates = [(i, r) for i, r in enumerate(relations) if locate_evidence(r, content)]
     if not candidates:
         return []
+    # Verifier model unavailable: all candidates stay pending.
     try:
         model = get_reconcile_llm(cfg).with_structured_output(VerdictBatch, method="function_calling", include_raw=True)
     except Exception:
@@ -59,6 +71,7 @@ async def verify_relations(
         "审核候选提供的具体定义和角色，不要将舅甥泛化成堂表亲，不要把单恋当作互相恋爱。"
         "规范化关系必须与 raw_relation 的具体含义等价，过度泛化或缩窄时保持 pending。"
     )
+    # Fixed-size batches; cross-batch concurrency is bounded by the semaphore.
     batch_size = max(1, cfg.relation_verify_batch_size)
     batches = [candidates[i:i + batch_size] for i in range(0, len(candidates), batch_size)]
     semaphore = semaphore or asyncio.Semaphore(max(1, cfg.relation_verify_concurrency))
@@ -67,10 +80,13 @@ async def verify_relations(
     completed_lock = asyncio.Lock()
 
     async def verify_batch(batch_no: int, batch: list[tuple[int, Relation]]) -> None:
+        """Run one batch: build the payload, call the model, write verdicts back."""
         nonlocal completed
+        # Stop requested: skip this batch entirely.
         if (stop_event is not None and stop_event.is_set()) or (control is not None and control.stop_event.is_set()):
             warnings.append(f"第 {batch_no} 批验证因任务停止而跳过")
             return
+        # Payload: identities, descriptor, raw wording and a +/-800-char evidence window.
         payload = []
         for index, rel in batch:
             ev = rel.evidence
@@ -84,6 +100,7 @@ async def verify_relations(
                 "context": content[max(0, ev.start - 800):ev.end + 800],
             })
         try:
+            # Call the model under the semaphore and require full index coverage.
             async with semaphore:
                 result = await invoke_controlled(
                     model,
@@ -97,14 +114,17 @@ async def verify_relations(
             indices = [v.index for v in result.verdicts]
             if len(indices) != len(expected) or set(indices) != expected:
                 raise ValueError("验证结果缺失、重复或包含未知 index")
+            # Write verdicts back onto the original relation indexes.
             for verdict in result.verdicts:
                 relations[verdict.index].status = verdict.status
                 relations[verdict.index].verification_reason = verdict.reason
+        # Degradations: stop/budget or any failure keeps this batch pending, as a warning.
         except (LLMStopped, LLMBudgetExceeded):
             warnings.append(f"第 {batch_no} 批验证因停止或预算限制保持待确认")
         except Exception:
             warnings.append(f"第 {batch_no} 批语义验证失败，候选关系保持待确认")
         finally:
+            # Shared progress counter: bump under lock and emit batch completion.
             async with completed_lock:
                 completed += len(batch)
                 if progress is not None:

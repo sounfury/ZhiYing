@@ -54,6 +54,7 @@ def create_app() -> FastAPI:
     # ── 启动事件 ──
     @app.on_event("startup")
     async def _on_startup() -> None:
+        """启动收尾：确保 workspace 存在，并把上次异常中断的分析任务标记为 interrupted。"""
         settings.ensure_workspace()
         interrupted = await recover_interrupted_tasks(get_filestore())
         if interrupted:

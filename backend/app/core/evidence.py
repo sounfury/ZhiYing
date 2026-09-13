@@ -3,6 +3,15 @@ from app.models.ledger import Relation
 
 
 def locate_evidence(relation: Relation, content: str) -> bool:
+    """
+    在本章正文中确定性定位证据引用。
+
+    先重置定位状态再重新查找：引用为空、未精确匹配、出现多次均判定位失败
+    （保持 pending 并写明 verification_reason）；唯一定位成功才写入 start/end。
+
+    Returns:
+        True 表示引用已唯一定位，等待语义验证。
+    """
     evidence = relation.evidence
     evidence.start = evidence.end = None
     relation.status = "pending"

@@ -49,32 +49,41 @@ class Filestore:
     """workspace 文件读写层。全同步 I/O。"""
 
     def __init__(self, workspace_root: Path) -> None:
+        """初始化 workspace 根目录，不存在则创建。"""
         self.root: Path = workspace_root
         self.root.mkdir(parents=True, exist_ok=True)
 
     # ── 路径辅助 ──
 
     def book_dir(self, book_id: str) -> Path:
+        """某本书的工作目录：workspace/{book_id}/。"""
         return self.root / book_id
 
     def chapters_dir(self, book_id: str) -> Path:
+        """章节文件目录：workspace/{book_id}/chapters/。"""
         return self.book_dir(book_id) / "chapters"
 
     def ledger_dir(self, book_id: str) -> Path:
+        """章节 ledger 目录：workspace/{book_id}/ledger/。"""
         return self.book_dir(book_id) / "ledger"
 
     def overrides_dir(self, book_id: str) -> Path:
+        """覆盖文件目录：workspace/{book_id}/overrides/。"""
         return self.book_dir(book_id) / "overrides"
 
     def meta_path(self, book_id: str) -> Path:
+        """书籍元数据文件路径：workspace/{book_id}/meta.json。"""
         return self.book_dir(book_id) / "meta.json"
 
     def cast_path(self, book_id: str) -> Path:
+        """人物册文件路径：workspace/{book_id}/cast.json。"""
         return self.book_dir(book_id) / "cast.json"
     def analysis_task_path(self, book_id: str) -> Path:
+        """分析任务快照文件路径：workspace/{book_id}/analysis_task.json。"""
         return self.book_dir(book_id) / "analysis_task.json"
 
     def read_analysis_task(self, book_id: str) -> AnalysisTaskSnapshot | None:
+        """读 analysis_task.json；不存在或解析失败返回 None。"""
         path = self.analysis_task_path(book_id)
         if not path.exists():
             return None
@@ -84,46 +93,59 @@ class Filestore:
             return None
 
     def write_analysis_task(self, book_id: str, task: AnalysisTaskSnapshot) -> None:
+        """原子写入 analysis_task.json。"""
         _atomic_write(self.analysis_task_path(book_id), task.model_dump_json(indent=2))
 
 
     def read_relation_registry(self, book_id: str):
+        """读 relation_registry.json；不存在则返回种子注册表。"""
         from app.domain.relation_types import RelationRegistry, seed_registry
         path = self.book_dir(book_id) / "relation_registry.json"
         return RelationRegistry.model_validate_json(path.read_text(encoding="utf-8")) if path.exists() else seed_registry()
 
     def write_relation_registry(self, book_id: str, registry) -> None:
+        """原子写入 relation_registry.json。"""
         _atomic_write(self.book_dir(book_id) / "relation_registry.json", registry.model_dump_json(indent=2))
 
     def factions_path(self, book_id: str) -> Path:
+        """势力册文件路径：workspace/{book_id}/factions.json。"""
         return self.book_dir(book_id) / "factions.json"
 
     @staticmethod
     def _chapter_filename(chapter_id: int) -> str:
+        """章节文件名：chapter_001.json（三位零填充）。"""
         return f"chapter_{chapter_id:03d}.json"
 
     def chapter_path(self, book_id: str, chapter_id: int) -> Path:
+        """章节文件路径：chapters/chapter_001.json。"""
         return self.chapters_dir(book_id) / self._chapter_filename(chapter_id)
 
     def ledger_path(self, book_id: str, chapter_id: int) -> Path:
+        """章节 ledger 文件路径：ledger/chapter_001.json。"""
         return self.ledger_dir(book_id) / self._chapter_filename(chapter_id)
 
     def extraction_dir(self, book_id: str) -> Path:
+        """原始抽取快照目录：workspace/{book_id}/extraction/。"""
         return self.book_dir(book_id) / "extraction"
 
     def extraction_result_path(self, book_id: str, chapter_id: int) -> Path:
+        """章节抽取快照文件路径：extraction/chapter_001.json。"""
         return self.extraction_dir(book_id) / self._chapter_filename(chapter_id)
 
     def extraction_base_cast_path(self, book_id: str) -> Path:
+        """抽取期基线人物册路径：extraction/base_cast.json。"""
         return self.extraction_dir(book_id) / "base_cast.json"
 
     def pre_reconcile_dir(self, book_id: str) -> Path:
+        """调和前基线快照目录：workspace/{book_id}/pre_reconcile/。"""
         return self.book_dir(book_id) / "pre_reconcile"
 
     def reconcile_overrides_path(self, book_id: str) -> Path:
+        """调和覆盖文件路径：overrides/reconcile_overrides.json。"""
         return self.overrides_dir(book_id) / "reconcile_overrides.json"
 
     def human_edits_path(self, book_id: str) -> Path:
+        """人工编辑文件路径：overrides/human_edits.json。"""
         return self.overrides_dir(book_id) / "human_edits.json"
 
     # ── 书籍目录管理 ──
@@ -148,10 +170,12 @@ class Filestore:
     # ── BookMeta ──
 
     def write_meta(self, book_id: str, meta: BookMeta) -> None:
+        """原子写入 meta.json。"""
         data = meta.model_dump_json(indent=2)
         _atomic_write(self.meta_path(book_id), data)
 
     def read_meta(self, book_id: str) -> BookMeta:
+        """读 meta.json；文件不存在抛 book_not_found。"""
         p = self.meta_path(book_id)
         if not p.exists():
             raise book_not_found(book_id)
@@ -160,10 +184,12 @@ class Filestore:
     # ── Chapter ──
 
     def write_chapter(self, book_id: str, chapter: Chapter) -> None:
+        """原子写入章节文件 chapters/chapter_001.json。"""
         data = chapter.model_dump_json(indent=2)
         _atomic_write(self.chapter_path(book_id, chapter.chapter_id), data)
 
     def read_chapter(self, book_id: str, chapter_id: int) -> Chapter:
+        """读章节文件；文件不存在抛 book_not_found。"""
         p = self.chapter_path(book_id, chapter_id)
         if not p.exists():
             raise book_not_found(book_id)
@@ -196,10 +222,12 @@ class Filestore:
     # ── Raw extraction snapshots / rebuild inputs ──
 
     def write_extraction_base_cast(self, book_id: str, cast: Cast) -> None:
+        """确保 extraction/ 目录存在后，原子写入抽取期基线人物册。"""
         self.extraction_dir(book_id).mkdir(parents=True, exist_ok=True)
         _atomic_write(self.extraction_base_cast_path(book_id), cast.model_dump_json(indent=2))
 
     def read_extraction_base_cast(self, book_id: str) -> Cast | None:
+        """读抽取期基线人物册；不存在返回 None。"""
         p = self.extraction_base_cast_path(book_id)
         if not p.exists():
             return None
@@ -208,6 +236,11 @@ class Filestore:
     def write_extraction_result(
         self, book_id: str, chapter_id: int, ledger: ChapterLedger, cast_buffer: Dict[str, CastPropose]
     ) -> None:
+        """
+        原子写入章节抽取快照（重建与校验用）。
+
+        快照含 snapshot_version、章节内容 sha256、ledger 与 cast_buffer。
+        """
         self.extraction_dir(book_id).mkdir(parents=True, exist_ok=True)
         chapter = self.read_chapter(book_id, chapter_id)
         payload = {
@@ -223,6 +256,7 @@ class Filestore:
         )
 
     def read_extraction_result(self, book_id: str, chapter_id: int) -> dict[str, Any] | None:
+        """读章节抽取快照并还原为模型对象；文件不存在返回 None。"""
         p = self.extraction_result_path(book_id, chapter_id)
         if not p.exists():
             return None
@@ -236,6 +270,11 @@ class Filestore:
         }
 
     def extraction_result_is_current(self, book_id: str, chapter_id: int) -> bool:
+        """
+        判断抽取快照是否仍与当前章节一致。
+
+        快照缺失、版本非 1 或 content sha256 与当前章节不符均视为过期。
+        """
         item = self.read_extraction_result(book_id, chapter_id)
         if item is None or item.get("snapshot_version") != 1 or not item.get("content_sha256"):
             return False
@@ -267,6 +306,12 @@ class Filestore:
         tmp.replace(target)
 
     def restore_pre_reconcile_state(self, book_id: str) -> list[int]:
+        """
+        从 pre_reconcile/ 基线恢复 cast、relation_registry 与全部 ledger。
+
+        先清空 ledger/ 下现有章节文件，再复制基线文件；
+        返回恢复出的章节 id 列表（升序）。基线缺失抛 FileNotFoundError。
+        """
         source = self.pre_reconcile_dir(book_id)
         if not source.exists():
             raise FileNotFoundError("pre_reconcile baseline is missing; run a full analysis first")
@@ -291,22 +336,26 @@ class Filestore:
         return sorted(ids)
 
     def read_human_edits(self, book_id: str) -> dict[str, Any]:
+        """读 human_edits.json；不存在返回空结构（cast_updates/merges 均为空列表）。"""
         p = self.human_edits_path(book_id)
         if not p.exists():
             return {"cast_updates": [], "merges": []}
         return json.loads(p.read_text(encoding="utf-8"))
 
     def write_human_edits(self, book_id: str, data: dict[str, Any]) -> None:
+        """原子写入 human_edits.json。"""
         self.overrides_dir(book_id).mkdir(parents=True, exist_ok=True)
         _atomic_write(self.human_edits_path(book_id), json.dumps(data, indent=2, ensure_ascii=False))
 
     # ── Cast ──
 
     def write_cast(self, book_id: str, cast: Cast) -> None:
+        """原子写入 cast.json。"""
         data = cast.model_dump_json(indent=2)
         _atomic_write(self.cast_path(book_id), data)
 
     def read_cast(self, book_id: str) -> Cast:
+        """读 cast.json；不存在返回空人物册。"""
         p = self.cast_path(book_id)
         if not p.exists():
             return Cast(version=0, persons=[])
@@ -315,6 +364,7 @@ class Filestore:
     # ── Factions（势力册）──
 
     def write_factions(self, book_id: str, factions: FactionBook) -> None:
+        """原子写入 factions.json。"""
         data = factions.model_dump_json(indent=2)
         _atomic_write(self.factions_path(book_id), data)
 
@@ -330,10 +380,12 @@ class Filestore:
 
     # ── Ledger ──
     def write_ledger(self, book_id: str, ledger: ChapterLedger) -> None:
+        """按 ledger.chapter_id 原子写入章节 ledger 文件。"""
         data = ledger.model_dump_json(indent=2)
         _atomic_write(self.ledger_path(book_id, ledger.chapter_id), data)
 
     def read_ledger(self, book_id: str, chapter_id: int) -> ChapterLedger:
+        """读章节 ledger；文件不存在抛 book_not_found。"""
         p = self.ledger_path(book_id, chapter_id)
         if not p.exists():
             raise book_not_found(book_id)
@@ -357,6 +409,7 @@ class Filestore:
     # ── Overrides ──
 
     def relation_overrides_path(self, book_id: str) -> Path:
+        """关系覆盖文件路径：overrides/relation_overrides.json。"""
         return self.overrides_dir(book_id) / "relation_overrides.json"
 
     def read_relation_overrides(self, book_id: str) -> dict[str, list[dict]]:
@@ -375,18 +428,21 @@ class Filestore:
         )
 
     def read_reconcile_overrides(self, book_id: str) -> dict[str, list[dict]]:
+        """读 reconcile_overrides.json；不存在返回空结构（add/remove 均为空列表）。"""
         p = self.reconcile_overrides_path(book_id)
         if not p.exists():
             return {"add": [], "remove": []}
         return json.loads(p.read_text(encoding="utf-8"))
 
     def write_reconcile_overrides(self, book_id: str, data: dict[str, list[dict]]) -> None:
+        """原子写入 reconcile_overrides.json。"""
         self.overrides_dir(book_id).mkdir(parents=True, exist_ok=True)
         _atomic_write(self.reconcile_overrides_path(book_id), json.dumps(data, indent=2, ensure_ascii=False))
 
     # ── Todo List ──
 
     def todo_list_path(self, book_id: str) -> Path:
+        """todo 列表文件路径：workspace/{book_id}/todo_list.json。"""
         return self.book_dir(book_id) / "todo_list.json"
 
     def write_todo_list(self, book_id: str, todos: list[dict]) -> None:
@@ -399,6 +455,7 @@ class Filestore:
     # ── Reconcile Report ──
 
     def reconcile_report_path(self, book_id: str) -> Path:
+        """调和报告文件路径：workspace/{book_id}/reconcile_report.json。"""
         return self.book_dir(book_id) / "reconcile_report.json"
 
     def write_reconcile_report(self, book_id: str, report: dict[str, Any]) -> None:

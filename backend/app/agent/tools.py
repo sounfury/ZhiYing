@@ -74,6 +74,7 @@ class ChapterToolContext:
     read_ranges: List[tuple[int, int]] = field(default_factory=list)
 
     def has_read_all(self, size: int) -> bool:
+        """已读区间并集是否无缝覆盖 [0, size)（中间有缺口即 False）。"""
         end = 0
         for start, stop in sorted(self.read_ranges):
             if start > end:
@@ -891,9 +892,11 @@ class FactionToolContext:
     _content_cache: Dict[int, str] = field(default_factory=dict)
 
     def all_person_ids(self) -> set[str]:
+        """人名册全量 person_id 集合（势力成员校验用）。"""
         return {p.person_id for p in self.cast.persons}
 
     def get_chapter_content(self, chapter_id: int) -> str:
+        """获取指定章正文（按章缓存，避免重复读盘 + 反序列化）。"""
         if chapter_id not in self._content_cache:
             fs = self.filestore or _get_default_filestore()
             self._content_cache[chapter_id] = fs.read_chapter_content(

@@ -7,10 +7,17 @@ from app.models.ledger import Relation
 
 
 def descriptor(value) -> dict:
+    """按 RelationDescriptor 的字段序提取对象的 descriptor 字典。"""
     return {key: getattr(value, key) for key in RelationDescriptor.model_fields}
 
 
 def register(registry: RelationRegistry, value: RelationDescriptor, source="learned") -> RelationDefinition:
+    """
+    注册 descriptor：相同定义直接复用，否则按内容哈希生成 rel_<digest> 标识。
+
+    Raises:
+        ValueError: 生成的 predicate 与已有定义冲突。
+    """
     data = descriptor(value)
     for item in registry.definitions:
         if descriptor(item) == data:
@@ -26,6 +33,7 @@ def register(registry: RelationRegistry, value: RelationDescriptor, source="lear
 
 
 def apply_definition(relation: Relation, definition: RelationDefinition, reverse=False):
+    """把归一定义套到关系上：校验方向一致，reverse 时交换端点，最后标记 normalization_status=resolved。"""
     if relation.directed != definition.directed:
         raise ValueError("不能将有向关系归一成无向关系，或反之")
     if reverse:

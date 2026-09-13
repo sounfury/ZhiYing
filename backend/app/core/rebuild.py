@@ -11,6 +11,7 @@ from app.storage.filestore import Filestore
 
 
 def record_human_cast_update(filestore: Filestore, book_id: str, persons: list[Person]) -> None:
+    """Persist manual person edits into human_edits.json, replacing entries by person_id."""
     edits = filestore.read_human_edits(book_id)
     by_id = {
         item.get("person_id"): item
@@ -31,6 +32,7 @@ def record_human_merge(
     keep_id: str,
     drop_id: str,
 ) -> None:
+    """Record a manual keep/drop merge in human_edits.json, skipping exact duplicates."""
     edits = filestore.read_human_edits(book_id)
     merges = [m for m in edits.get("merges", []) if isinstance(m, dict)]
     item = {"keep_id": keep_id, "drop_id": drop_id}
@@ -124,6 +126,7 @@ def rebuild_cast_from_extractions(
 
 
 def capture_relations_by_id(filestore: Filestore, book_id: str, chapter_ids: list[int]) -> dict[str, dict]:
+    """Snapshot relations from ledgers and auto override adds, keyed by relation_id."""
     captured: dict[str, dict] = {}
     for ledger in filestore.read_ledgers(book_id, chapter_ids):
         for relation in ledger.relations:
@@ -150,6 +153,7 @@ def remap_manual_relation_removals(
     current_ids = {r.relation_id for r in new_relations}
 
     def signature(raw: dict) -> tuple:
+        """Content identity of a relation independent of its unstable id; () when invalid."""
         try:
             relation = Relation.model_validate(raw)
         except Exception:
@@ -199,6 +203,7 @@ def create_staging_filestore(live: Filestore, book_id: str) -> tuple[Filestore, 
 
 
 def discard_staging(txn_root: Path) -> None:
+    """Delete a staging transaction root, ignoring missing paths."""
     shutil.rmtree(txn_root, ignore_errors=True)
 
 

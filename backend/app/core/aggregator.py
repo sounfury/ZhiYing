@@ -26,10 +26,21 @@ class GraphQuery:
 
 class Aggregator:
     def __init__(self, book_id: str, filestore: Filestore):
+        """绑定书 id 与存储层；聚合所需数据在使用时按需读取。"""
         self.book_id = book_id
         self.filestore = filestore
 
     def compile(self, query: GraphQuery | None = None) -> GraphData:
+        """
+        把指定章范围内的 ledger 关系聚合为 GraphData。
+
+        流程：解析章范围 → 汇总出场与关系 → 叠加人工/自动 override
+        → 过滤墓碑与名册外人员 → 按（起点, 终点, 方向）聚合 confirmed 关系为 tag
+        → 节点可见性过滤 → 组装边/节点 → 解析势力块。
+
+        Returns:
+            GraphData；无可用章时返回仅含 book_id/chapter_range/total_chapters 的空图。
+        """
         query = query or GraphQuery()
         meta = self.filestore.read_meta(self.book_id)
         cast = self.filestore.read_cast(self.book_id)
@@ -38,12 +49,14 @@ class Aggregator:
         if not ids:
             return GraphData(book_id=self.book_id, chapter_range=[], total_chapters=meta.total_chapters)
         registry = self.filestore.read_relation_registry(self.book_id)
+        # 汇总各章出场与原始关系
         appearance = defaultdict(set)
         relations = []
         for ledger in self.filestore.read_ledgers(self.book_id, ids):
             for person in ledger.persons:
                 appearance[person.person_id].add(ledger.chapter_id)
             relations.extend(ledger.relations)
+        # 叠加人工 override 与最新一代自动 reconcile override
         manual_overrides = self.filestore.read_relation_overrides(self.book_id)
         auto_overrides = self.filestore.read_reconcile_overrides(self.book_id)
         override_docs = (manual_overrides, auto_overrides)
@@ -62,9 +75,11 @@ class Aggregator:
             )
         relations = [r for r in relations if r.relation_id not in removed
                      and r.person_a in cast_ids and r.person_b in cast_ids]
+        # 统计 pending/rejected，收集 confirmed 关系及其参与者
         counts = {status: sum(r.status == status for r in relations) for status in ("pending", "rejected")}
         confirmed = [r for r in relations if r.status == "confirmed"]
         participants = {pid for r in confirmed for pid in (r.person_a, r.person_b)}
+        # 按（起点, 终点, 方向）聚合 confirmed 关系为 tag
         grouped = defaultdict(dict)
         for rel in confirmed:
             key = rel.predicate if rel.normalization_status == "resolved" else "raw_" + rel.relation_id
@@ -88,6 +103,7 @@ class Aggregator:
             ev = GraphEvidence(chapter_id=cid, quote=rel.evidence.quote)
             if ev not in tag.evidences:
                 tag.evidences.append(ev)
+        # 节点可见性过滤：出现次数达标 / 参与 confirmed / 主角直接可见
         visible, filtered = set(), []
         for person in cast.persons:
             pid = person.person_id
@@ -96,6 +112,7 @@ class Aggregator:
                 visible.add(pid)
             elif count:
                 filtered.append(FilteredPerson(person_id=pid, name=person.canonical_name))
+        # 组装边：计算每个 tag 的 display_score，按分数排序
         edges = []
         for (a, b, directed), tags in sorted(grouped.items()):
             if a not in visible or b not in visible:
@@ -108,6 +125,7 @@ class Aggregator:
                 tag.evidences = tag.evidences[:5]
             edges.append(GraphEdge(person_a=a, person_b=b,
                          tags=sorted(tags.values(), key=lambda t: (-t.display_score, t.key))))
+        # 组装节点并解析势力块
         nodes = self._build_nodes(cast, appearance, visible)
         nodes.sort(key=lambda n: n.person_id)
         resolved = resolve_factions(book=self.filestore.read_factions(self.book_id),
@@ -121,12 +139,14 @@ class Aggregator:
 
     @staticmethod
     def _attach_factions(nodes: List[GraphNode], resolved: ResolvedFactions):
+        """把势力解析结果写回节点：归属列表、主势力、是否来自传播推断。"""
         for n in nodes:
             n.faction_ids = list(resolved.node_factions.get(n.person_id, ()))
             n.primary_faction_id = resolved.primary.get(n.person_id)
             n.faction_inferred = n.person_id in resolved.inferred
 
     def _list_ledger_chapter_ids(self) -> List[int]:
+        """扫描 ledger 目录，返回实际存在的章号（升序）；异常文件名跳过并告警。"""
         d = self.filestore.ledger_dir(self.book_id)
         if not d.exists():
             return []
@@ -173,10 +193,20 @@ class Aggregator:
         meta: BookMeta,
         ledger_ids: List[int],
     ) -> int:
+        """
+        计算前缀模式的有效章数上界。
+
+        - 未指定 to_chapter：取可用章（ledger ∪ 已分析完成）的最大值，且不超过 total_chapters
+        - 指定 to_chapter：只用 ≤N 且已存在的 ledger；N 超过最大已有章时截到最大已有章
+
+        Returns:
+            有效章数；无可用章返回 0。
+        """
         ledger_set = set(ledger_ids)
         done = set(meta.analysis_progress.chapters_done)
         available = ledger_set | done
 
+        # 未指定 N：上界取可用章最大值，且受 total_chapters 约束
         if to_chapter is None:
             if not available:
                 return 0
@@ -199,11 +229,18 @@ class Aggregator:
         appearance: Dict[str, Set[int]],
         visible: Set[str],
     ) -> List[GraphNode]:
+        """
+        把可见人物构建为 GraphNode。
+
+        名册中已缺失的 person_id 兜底生成 minor 节点；
+        gender/importance 兼容枚举与纯字符串两种取值。
+        """
         cast_map = {p.person_id: p for p in cast.persons}
         nodes: list[GraphNode] = []
         for pid in visible:
             person = cast_map.get(pid)
             count = len(appearance.get(pid, ()))
+            # 名册中已不存在的 id：兜底生成 minimal 节点
             if person is None:
                 nodes.append(
                     GraphNode(
@@ -217,6 +254,7 @@ class Aggregator:
                     )
                 )
                 continue
+            # 枚举字段兼容：优先取枚举 value，否则原样转字符串
             gender = (
                 person.gender.value
                 if hasattr(person.gender, "value")

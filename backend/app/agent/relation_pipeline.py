@@ -23,6 +23,13 @@ async def enrich_relations(
     stop_event: Optional[asyncio.Event] = None,
     progress: Optional[ProgressSink] = None,
 ):
+    """
+    Postprocess one chapter's relations: normalize, then verify.
+
+    Loads the registry, chapter content and cast, and reports progress tagged
+    with the chapter id. Verification is skipped once a stop was requested.
+    Persists the registry and returns collected warnings.
+    """
     registry = filestore.read_relation_registry(book_id)
     content = filestore.read_chapter_content(book_id, chapter_id)
     cast = filestore.read_cast(book_id)
@@ -32,20 +39,25 @@ async def enrich_relations(
     }
     started = time.perf_counter()
     async def chapter_progress(data: dict[str, Any]) -> None:
+        """Progress sink that tags events with this chapter's id."""
         if progress is not None:
             await progress({**data, "chapter_id": chapter_id})
 
     if progress is not None:
         await progress({"phase": "relation_normalize", "chapter_id": chapter_id, "processed": 0, "total": len(relations)})
+    # Pass 1: semantic normalization (may mutate the shared registry).
     warnings = await normalize_relations(
         relations, registry, content, cfg, control=control, stop_event=stop_event, progress=chapter_progress
     )
+    # Pass 2: evidence verification, skipped entirely once a stop was requested.
     if stop_event is None or not stop_event.is_set():
         warnings.extend(await verify_relations(
             relations, content, names, cfg, control=control, stop_event=stop_event, progress=chapter_progress
         ))
+    # Persist registry mutations from normalization even when verification was skipped.
     filestore.write_relation_registry(book_id, registry)
     if progress is not None:
+        # Chapter completion summary; "pending" = relations neither confirmed nor rejected.
         await progress({
             "phase": "relations_chapter_done",
             "chapter_id": chapter_id,
@@ -66,6 +78,12 @@ async def enrich_ledger(
     stop_event: Optional[asyncio.Event] = None,
     progress: Optional[ProgressSink] = None,
 ):
+    """
+    Enrich one ledger's relations in place and persist the ledger.
+
+    Warnings are merged deduplicated; any warning marks the ledger partial
+    and flags the chapter result accordingly.
+    """
     ledger = filestore.read_ledger(book_id, result.chapter_id)
     warnings = await enrich_relations(
         book_id,
@@ -126,6 +144,7 @@ async def enrich_ledgers(
                     "processed": 0, "total": len(ledger.relations),
                 })
             async def normalize_progress(data: dict[str, Any], chapter_id: int = cid) -> None:
+                """Progress sink that tags normalization events with the chapter id."""
                 if progress is not None:
                     await progress({**data, "chapter_id": chapter_id})
             warnings = await normalize_relations(
@@ -143,10 +162,13 @@ async def enrich_ledgers(
     verify_sem = asyncio.Semaphore(max(1, cfg.relation_verify_concurrency))
 
     async def verify_one(cid: int) -> None:
+        """Verify one chapter under the shared semaphore and persist its ledger."""
         result, ledger, content, warnings, started = contexts[cid]
         async def verify_progress(data: dict[str, Any]) -> None:
+            """Progress sink that tags verification events with the chapter id."""
             if progress is not None:
                 await progress({**data, "chapter_id": cid})
+        # Skip verification entirely when a stop was already requested.
         if stop_event is None or not stop_event.is_set():
             try:
                 warnings.extend(await verify_relations(
@@ -157,6 +179,7 @@ async def enrich_ledgers(
             except Exception as exc:
                 failures[cid] = str(exc)
                 return
+        # Merge warnings and mark partial; persist the ledger either way.
         ledger.warnings.extend(w for w in warnings if w not in ledger.warnings)
         if warnings:
             ledger.analysis_status = "partial"
@@ -164,6 +187,7 @@ async def enrich_ledgers(
         result.partial = ledger.analysis_status == "partial"
         filestore.write_ledger(book_id, ledger)
         if progress is not None:
+            # Chapter completion summary for the book-level pipeline.
             await progress({
                 "phase": "relations_chapter_done",
                 "chapter_id": cid,

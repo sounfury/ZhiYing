@@ -70,6 +70,7 @@ async def upload_book(
 
     # ── 落盘 ──
     def _persist() -> None:
+        """建书目录并批量写 meta 与各章；中途失败则删目录回滚后重抛。"""
         fs.create_book_dir(book_id)
         try:
             fs.write_meta(book_id, meta)

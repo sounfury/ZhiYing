@@ -77,6 +77,7 @@ class Orchestrator:
         filestore: Filestore,
         cfg: Optional[Settings] = None,
     ) -> None:
+        """初始化并发控制、SSE 广播通道与任务快照占位；运行时状态由 start() 填充。"""
         self.book_id = book_id
         self.filestore = filestore
         self.cfg = cfg or settings
@@ -119,9 +120,11 @@ class Orchestrator:
         return list(self.progress_history), queue
 
     def unsubscribe(self, queue: asyncio.Queue[Dict[str, Any]]) -> None:
+        """移除一个 SSE 订阅队列（客户端断开时调用）。"""
         self._subscribers.discard(queue)
 
     async def _persist_task(self) -> None:
+        """串行化地把任务快照（含 LLM 用量）落盘；无活动任务时直接返回。"""
         if self._task_snapshot is None:
             return
         async with self._task_persist_lock:
@@ -142,16 +145,25 @@ class Orchestrator:
             )
 
     async def _emit(self, event_type: str, data: dict[str, Any]) -> None:
+        """
+        广播一个事件：追加历史、写入任务快照并推送给所有订阅者。
+
+        done 事件终结任务快照（active=False、status/phase/result、finished_at）；
+        只有生命周期事件（无 kind 字段）可以改写持久化的 phase。
+        """
         event_id: int | None = None
+        # 组装事件：有任务快照时带上单调递增的 event_id
         if self._task_snapshot is not None:
             self._task_snapshot.event_seq += 1
             event_id = self._task_snapshot.event_seq
         event: Dict[str, Any] = {"type": event_type, "data": data}
         if event_id is not None:
             event["id"] = event_id
+        # 追加进历史并限制长度（供新订阅者回放）
         self.progress_history.append(event)
         if len(self.progress_history) > 200:
             self.progress_history = self.progress_history[-200:]
+        # 写入任务快照：done 事件终结任务，其余事件追加进事件流
         if self._task_snapshot is not None:
             if event_type == "done":
                 self._task_snapshot.active = False
@@ -176,6 +188,7 @@ class Orchestrator:
             await queue.put(event)
 
     async def _push_progress(self, data: dict[str, Any]) -> None:
+        """以 progress 事件类型广播一条进度数据。"""
         await self._emit("progress", data)
 
     def _chapter_counts(self) -> dict[str, int]:
@@ -201,6 +214,7 @@ class Orchestrator:
         }
 
     async def _set_phase(self, phase: str, **extra: Any) -> None:
+        """更新任务快照的当前阶段，并附带章节计数推送进度。"""
         if self._task_snapshot is not None:
             self._task_snapshot.phase = phase
         await self._push_progress({"phase": phase, **self._chapter_counts(), **extra})
@@ -208,6 +222,7 @@ class Orchestrator:
     async def _set_chapter_state(
         self, chapter_id: int, status: str, *, error: str = "", increment_attempt: bool = False
     ) -> None:
+        """更新单章任务状态（不存在则新建）并持久化任务快照。"""
         if self._task_snapshot is None:
             return
         state = self._task_snapshot.chapter_state(chapter_id)
@@ -222,6 +237,7 @@ class Orchestrator:
         await self._persist_task()
 
     async def _finish_task(self, payload: dict[str, Any]) -> None:
+        """终结任务快照：active=False 并写入最终 status/phase/result。"""
         if self._task_snapshot is None:
             return
         self._task_snapshot.active = False
@@ -762,6 +778,11 @@ class Orchestrator:
         results: Dict[int, AgentResult] = dict(self._preloaded_results)
 
         async def process_chapter(brief: ChapterBrief, *, retry: bool = False) -> None:
+            """
+            提取单章：运行 Chapter Agent、落盘抽取快照并推送逐章进度。
+
+            成功/失败都只更新该章状态与计数；失败章留在结果中等待重试，不中断其他章。
+            """
             # ── stop flag 检查 ──
             if self.stop_flag.is_set():
                 logger.info("Chapter %d skipped (stop flag set)", brief.chapter_id)
@@ -774,6 +795,7 @@ class Orchestrator:
                     return
 
                 try:
+                    # ── 运行章 Agent 并落盘抽取结果 ──
                     await self._set_chapter_state(brief.chapter_id, "running", increment_attempt=True)
                     await self._push_progress({
                         "phase": "extracting",
@@ -790,6 +812,7 @@ class Orchestrator:
                         self.stop_flag,
                         self.llm_control,
                     )
+                    # 记录结果：成功章写抽取快照，首次执行才计入 done 计数
                     first_attempt = brief.chapter_id not in results
                     results[brief.chapter_id] = result
                     if result.success and result.ledger is not None:
@@ -838,6 +861,7 @@ class Orchestrator:
                     )
 
                 except Exception as e:
+                    # 异常兜底：记为失败章，保持计数与状态一致并推送失败进度
                     first_attempt = brief.chapter_id not in results
                     if first_attempt:
                         self._done_count += 1

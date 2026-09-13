@@ -98,6 +98,7 @@ class Settings(BaseSettings):
 
     @property
     def workspace_path(self) -> Path:
+        """workspace 根目录的 Path 形式（不做 mkdir，需要时用 ensure_workspace）。"""
         return Path(self.workspace_root)
 
     @property

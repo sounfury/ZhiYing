@@ -54,11 +54,13 @@ class MergeRequest(BaseModel):
 
 
 def _refuse_if_blocking(meta: BookMeta) -> None:
+    """书籍处于 analyzing/reconciling 时拒绝编辑，避免与运行中的任务互相覆盖。"""
     if meta.status in BLOCKING_STATUSES:
         raise analysis_already_running(meta.book_id)
 
 
 def _bad_request(message: str, *, code: ErrorCode = ErrorCode.VALIDATION_ERROR) -> None:
+    """抛 400 业务错误，默认 code 为 VALIDATION_ERROR。"""
     raise AppError(code, message, status_code=400)
 
 
@@ -249,6 +251,7 @@ async def export_book(
         )
 
     def _build() -> dict:
+        """同步组装导出 bundle：读各册 + 现算图 + 按 id 顺序读全部 ledger。"""
         cast = fs.read_cast(book_id)
         factions = fs.read_factions(book_id)
         overrides = fs.read_relation_overrides(book_id)
@@ -323,6 +326,7 @@ async def rerun_chapter(
 @router.post("/{book_id}/relation-types")
 async def add_relation_definition(book_id: str, body: RelationDescriptor,
                                   fs: Filestore = Depends(get_filestore)) -> dict:
+    """人工向书籍注册表登记一条关系定义（source=human），返回落库后的完整定义。"""
     async with _get_start_lock(book_id):
         meta = await asyncio.to_thread(fs.read_meta, book_id)
         _refuse_if_blocking(meta)

@@ -84,9 +84,11 @@ class Faction(BaseModel):
     inferred: bool = False
 
     def member_ids(self) -> List[str]:
+        """该团体全部成员的 person_id 列表。"""
         return [m.person_id for m in self.members]
 
     def get_member(self, person_id: str) -> Optional[Membership]:
+        """按 person_id 查归属条目，不是成员返回 None。"""
         for m in self.members:
             if m.person_id == person_id:
                 return m
@@ -104,6 +106,7 @@ class FactionBook(BaseModel):
     factions: List[Faction] = Field(default_factory=list)
 
     def get_faction(self, faction_id: str) -> Optional[Faction]:
+        """按 faction_id 查势力，不存在返回 None。"""
         for f in self.factions:
             if f.faction_id == faction_id:
                 return f

@@ -84,6 +84,7 @@ class AnalysisTaskSnapshot(BaseModel):
     events: list[AnalysisTaskEvent] = Field(default_factory=list)
 
     def chapter_state(self, chapter_id: int) -> ChapterTaskState | None:
+        """按章号查当前任务的章节执行状态，不存在返回 None。"""
         return next((c for c in self.chapters if c.chapter_id == chapter_id), None)
 
 

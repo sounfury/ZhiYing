@@ -46,6 +46,12 @@ class Relation(RelationDescriptor):
 
     @model_validator(mode="after")
     def validate_relation(self):
+        """
+        落账前校验与归一：
+        - 禁止自环（person_a == person_b）；
+        - 无向边按字典序统一 person_a/person_b 顺序；
+        - 已归一化（resolved）的关系必须已有 predicate。
+        """
         if self.person_a == self.person_b:
             raise ValueError("Self-loop relation")
         if not self.directed:

@@ -100,12 +100,21 @@ async def progress_sse(book_id: str, request: Request) -> StreamingResponse:
     event: done      data: {chapters_done, chapters_failed}
     """
     async def event_stream():
+        """
+        SSE 生成器：先按 Last-Event-ID 回放历史事件，再转发实时进度。
+
+        两种模式：
+        - 内存中有 Orchestrator → 回放其历史队列后订阅实时事件，done 即终止；
+        - 无（后端重启/任务已结束）→ 只回放持久化任务快照里的事件，
+          快照缺失时退回 meta.analysis_progress 一次性下发。
+        """
         try:
             last_event_id = int(request.headers.get("last-event-id") or "0")
         except ValueError:
             last_event_id = 0
 
         def encode(event_type: str, data: dict, event_id: int | None = None) -> str:
+            """编码为 SSE 帧；带 event_id 时写入 id: 行，供断线后续传去重。"""
             prefix = f"id: {event_id}\n" if event_id is not None else ""
             return f"{prefix}event: {event_type}\ndata: {json.dumps(data, ensure_ascii=False)}\n\n"
 
@@ -118,6 +127,7 @@ async def progress_sse(book_id: str, request: Request) -> StreamingResponse:
             meta = await asyncio.to_thread(fs.read_meta, book_id)
             task = await asyncio.to_thread(fs.read_analysis_task, book_id)
             if task is not None:
+                # 回放快照中晚于 Last-Event-ID 的事件
                 replayed_done = False
                 for item in task.events:
                     if item.event_id <= last_event_id:
@@ -125,10 +135,12 @@ async def progress_sse(book_id: str, request: Request) -> StreamingResponse:
                     if item.type == "done":
                         replayed_done = True
                     yield encode(item.type, item.data, item.event_id)
+                # 快照已带最终 result：确保 done 恰好发一次后结束
                 if task.result:
                     if not replayed_done and (not task.events or task.events[-1].type != "done"):
                         yield encode("done", task.result, task.event_seq or None)
                     return
+                # 任务已终结但无 result（停止/中断）：用章节计数合成 done
                 if not task.active:
                     payload = {
                         "status": task.status, "phase": task.phase,
@@ -138,6 +150,7 @@ async def progress_sse(book_id: str, request: Request) -> StreamingResponse:
                     }
                     yield encode("done", payload, task.event_seq or None)
                     return
+            # 连任务快照都没有：退回 meta.analysis_progress 一次性下发
             progress = meta.analysis_progress
             payload = {
                 "chapters_done": len(progress.chapters_done),
@@ -151,6 +164,7 @@ async def progress_sse(book_id: str, request: Request) -> StreamingResponse:
             yield encode("done", payload)
             return
 
+        # 有内存任务：先回放历史队列，再转入实时订阅
         history, live_queue = orch.subscribe()
         try:
             for history_event in history:
@@ -161,6 +175,7 @@ async def progress_sse(book_id: str, request: Request) -> StreamingResponse:
                 data = history_event.get("data", {})
                 yield encode(event_type, data, event_id)
 
+            # 历史回放完任务已结束：补发 done 后立即收尾
             if orch.finished and orch.final_result is not None:
                 if not history or history[-1].get("type") != "done":
                     event_id = orch._task_snapshot.event_seq if orch._task_snapshot is not None else None
@@ -168,6 +183,7 @@ async def progress_sse(book_id: str, request: Request) -> StreamingResponse:
                         yield encode("done", orch.final_result, event_id)
                 return
 
+            # 实时事件循环：30 秒无事件发 keepalive，收到 done 即终止
             while True:
                 try:
                     event = await asyncio.wait_for(live_queue.get(), timeout=30.0)
@@ -202,6 +218,7 @@ async def progress_sse(book_id: str, request: Request) -> StreamingResponse:
 
 @router.post("/{book_id}/analyze/retry-failed")
 async def retry_failed_chapters(book_id: str, body: RetryFailedRequest = RetryFailedRequest()) -> dict:
+    """重试失败章（body.chapter_ids 缺省为全部失败章）。内存中无活跃任务时 409。"""
     orch = get_orchestrator(book_id)
     if orch is None:
         raise AppError(
@@ -214,6 +231,7 @@ async def retry_failed_chapters(book_id: str, body: RetryFailedRequest = RetryFa
 
 @router.post("/{book_id}/analyze/skip-failed")
 async def skip_failed_chapters(book_id: str) -> dict:
+    """把失败章标记为跳过并让任务继续收尾。内存中无活跃任务时 409。"""
     orch = get_orchestrator(book_id)
     if orch is None:
         raise AppError(
@@ -405,6 +423,7 @@ async def run_faction_extraction(book_id: str) -> dict:
 
 @router.get("/{book_id}/relation-types")
 async def book_relation_types(book_id: str, fs: Filestore = Depends(get_filestore)) -> dict:
+    """返回该书的开放关系注册表（version + 全部 definitions）。"""
     await asyncio.to_thread(fs.read_meta, book_id)
     registry = await asyncio.to_thread(fs.read_relation_registry, book_id)
     return {"version": registry.version, "relation_types": [d.model_dump() for d in registry.definitions]}
