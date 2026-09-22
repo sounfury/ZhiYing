@@ -8,8 +8,9 @@
 | 文档 | 说明 |
 |------|------|
 | [docs/PRD.md](./docs/PRD.md) | 产品目标与长期需求 SSOT |
-| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 当前技术架构；关系后处理 V2 落地后同步重写 |
-| [重构方案.md](./重构方案.md) | 当前关系后处理 / Identity / Display Policy V2 目标方案 |
+| [docs/human/分析流水线.md](./docs/human/分析流水线.md) | 当前分析流水线：哪一步调用哪个 Agent，哪一步是纯逻辑 |
+| [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 2026-07 架构设计稿；与代码不一致时以分析流水线为准 |
+| [docs/design/重构方案.md](./docs/design/重构方案.md) | 关系后处理 V2 目标方案，Phase 2 起尚未实施 |
 
 ## 状态
 

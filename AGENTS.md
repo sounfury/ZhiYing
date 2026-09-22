@@ -27,6 +27,10 @@ PRD 不应记录临时实现细节，也不应被某次代码实现反向绑死�
 
 不要把尚未实施的大型方案长期堆进 `ARCHITECTURE.md`；实施前的方案放到 `docs/design/`。
 
+### `docs/human/` —— 给人看的说明
+
+写法以 `docs/human/agent.md` 为准。这里的文档必须让人类维护者读得懂。
+
 ### `docs/design/` —— 临时设计文档
 
 `docs/design/` 专门存放大范围代码变更开始前的临时设计方案。
@@ -121,6 +125,7 @@ docs/design/relation-pipeline-v2.md
 ```text
 用户最终想要什么？          → PRD.md
 系统现在实际上怎么工作？    → ARCHITECTURE.md
+要给人看懂现在怎么跑？      → docs/human/
 这次准备怎么大改、还没落地？ → docs/design/
 ```
 
