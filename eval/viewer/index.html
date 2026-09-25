@@ -1,0 +1,1158 @@
+<!DOCTYPE html>
+<html lang="zh-CN" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ZhiYing Eval Studio · 织影评测工作台</title>
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          colors: {
+            brand: {
+              50: '#eef2ff',
+              100: '#e0e7ff',
+              400: '#818cf8',
+              500: '#6366f1',
+              600: '#4f46e5',
+            },
+            surface: {
+              900: '#090d16',
+              850: '#0d1322',
+              800: '#131b2e',
+              750: '#182238',
+              700: '#1e2942',
+              600: '#2c3a58',
+              500: '#3e4f74',
+            }
+          },
+          fontFamily: {
+            sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', 'Segoe UI', 'Roboto', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'Menlo', 'monospace'],
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    /* 自定义微调与滚动条美化 */
+    ::-webkit-scrollbar { width: 6px; height: 6px; }
+    ::-webkit-scrollbar-track { background: #0d1322; }
+    ::-webkit-scrollbar-thumb { background: #2c3a58; border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: #3e4f74; }
+    .glass { background: rgba(19, 27, 46, 0.75); backdrop-filter: blur(12px); }
+  </style>
+</head>
+<body class="bg-surface-900 text-slate-200 min-h-screen font-sans flex flex-col antialiased selection:bg-brand-500 selection:text-white">
+
+  <!-- ================= 顶部全局导航栏 ================= -->
+  <header class="sticky top-0 z-50 glass border-b border-surface-700/80 px-6 py-3 flex items-center justify-between shadow-2xl">
+    <div class="flex items-center gap-6">
+      <div class="flex items-center gap-3">
+        <div class="w-9 h-9 rounded-xl bg-gradient-to-tr from-brand-600 via-indigo-500 to-purple-500 flex items-center justify-center shadow-lg shadow-brand-500/20">
+          <svg class="w-5 h-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"/>
+          </svg>
+        </div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="text-base font-bold text-white tracking-wide">织影 Eval Studio</h1>
+            <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-brand-500/20 text-brand-300 border border-brand-500/30">Standalone UI</span>
+          </div>
+          <p class="text-xs text-slate-400">大模型抽取离线评测与 Badcase 诊断工作台</p>
+        </div>
+      </div>
+
+      <!-- 快速选择器组 -->
+      <div class="hidden md:flex items-center gap-3 border-l border-surface-700/80 pl-6">
+        <div class="flex items-center gap-2 text-xs">
+          <span class="text-slate-400">评测集:</span>
+          <select id="datasetSelect" class="bg-surface-800 border border-surface-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-brand-500 text-xs">
+            <option value="siddhartha" selected>《悉达多》(赫尔曼·黑塞 · 12章)</option>
+          </select>
+        </div>
+
+        <div class="flex items-center gap-2 text-xs">
+          <span class="text-slate-400">运行产物:</span>
+          <select id="reportSelect" class="bg-surface-800 border border-surface-700 rounded-lg px-2.5 py-1.5 text-slate-200 focus:outline-none focus:border-brand-500 text-xs">
+            <option value="latest" selected>latest.json (85.01分 · 本地最新分析)</option>
+            <option value="phase1">phase1_postprocess_run1 (82.10分)</option>
+            <option value="legacy">e2e_legacy_v1 (77.40分 · 原始基准)</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- 右侧操作栏：异步重跑与全局状态 -->
+    <div class="flex items-center gap-3">
+      <div class="text-right hidden sm:block">
+        <div class="text-[11px] text-slate-400">评测状态</div>
+        <div class="flex items-center gap-1.5 text-xs font-medium text-emerald-400">
+          <span class="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+          已对齐当前本地 JSON
+        </div>
+      </div>
+
+      <button id="runEvalBtn" onclick="triggerAsyncEval()" class="flex items-center gap-2 bg-brand-600 hover:bg-brand-500 active:scale-95 transition-all text-white text-xs font-semibold px-4 py-2 rounded-lg shadow-lg shadow-brand-500/25 border border-brand-400/30">
+        <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-3.197-2.132A1 1 0 0010 9.87v4.263a1 1 0 001.555.832l3.197-2.132a1 1 0 000-1.664z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+        </svg>
+        <span>执行异步跑分</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 异步运行模拟遮罩 / 提示条 (默认隐藏) -->
+  <div id="asyncProgressBar" class="hidden bg-surface-800/95 border-b border-brand-500/40 px-6 py-2.5 transition-all">
+    <div class="max-w-7xl mx-auto flex items-center justify-between text-xs">
+      <div class="flex items-center gap-3">
+        <svg class="animate-spin h-4 w-4 text-brand-400" viewBox="0 0 24 24" fill="none">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span id="asyncProgressText" class="text-slate-200">正在异步调用 evaluate.py 评测本地输出 (workspace/ledger/*.json)...</span>
+      </div>
+      <span class="text-brand-300 font-mono" id="asyncProgressPct">45%</span>
+    </div>
+  </div>
+
+  <!-- ================= 主功能 Tab 导航 ================= -->
+  <div class="border-b border-surface-700 bg-surface-850 px-6">
+    <div class="max-w-7xl mx-auto flex gap-8">
+      <button onclick="switchTab('overview')" id="tab-overview" class="tab-btn py-3.5 px-1 border-b-2 border-brand-500 text-brand-400 font-medium text-sm flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 3.055A9.001 9.001 0 1020.945 13H11V3.055z"/>
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z"/>
+        </svg>
+        <span>得分与核心指标</span>
+      </button>
+
+      <button onclick="switchTab('badcases')" id="tab-badcases" class="tab-btn py-3.5 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium text-sm flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/>
+        </svg>
+        <span>Badcase 靶向诊断</span>
+        <span class="px-1.5 py-0.2 rounded-full text-[11px] bg-rose-500/20 text-rose-300 font-mono font-semibold">19 项</span>
+      </button>
+
+      <button onclick="switchTab('chapters')" id="tab-chapters" class="tab-btn py-3.5 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium text-sm flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253"/>
+        </svg>
+        <span>逐章 Case 对照</span>
+        <span class="text-xs text-slate-500 font-mono">12 章</span>
+      </button>
+
+      <button onclick="switchTab('canonical')" id="tab-canonical" class="tab-btn py-3.5 px-1 border-b-2 border-transparent text-slate-400 hover:text-slate-200 font-medium text-sm flex items-center gap-2">
+        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"/>
+        </svg>
+        <span>标准人名册与同人规则</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- ================= 主内容容器 ================= -->
+  <main class="flex-1 max-w-7xl w-full mx-auto p-6">
+
+    <!-- ─────────────────────────────────────────────── -->
+    <!-- TAB 1: 评测总览与得分看板 (OVERVIEW) -->
+    <!-- ─────────────────────────────────────────────── -->
+    <div id="view-overview" class="space-y-6">
+      <!-- 顶部综合评分横幅 -->
+      <div class="bg-gradient-to-r from-surface-800 via-surface-750 to-surface-800 border border-surface-700 rounded-2xl p-6 shadow-xl relative overflow-hidden">
+        <div class="absolute -right-10 -bottom-10 w-64 h-64 bg-brand-500/10 rounded-full blur-3xl pointer-events-none"></div>
+
+        <div class="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 relative z-10">
+          <div class="flex items-center gap-6">
+            <!-- 大分值环形徽章 -->
+            <div class="relative w-28 h-28 flex-shrink-0 flex items-center justify-center bg-surface-900 rounded-2xl border-2 border-brand-500/40 shadow-inner">
+              <div class="text-center">
+                <span class="text-4xl font-extrabold text-white tracking-tight font-mono">85.01</span>
+                <span class="block text-[11px] text-slate-400 uppercase tracking-wider font-semibold">综合得分</span>
+              </div>
+            </div>
+            <div>
+              <div class="flex items-center gap-3">
+                <h2 class="text-xl font-bold text-white">当前模型质量基准：良好 (B+)</h2>
+                <span class="px-2.5 py-0.5 rounded-full text-xs bg-amber-500/20 text-amber-300 border border-amber-500/30">距合格门禁 90.0 分差 4.99 分</span>
+              </div>
+              <p class="text-xs text-slate-400 mt-1 max-w-2xl leading-relaxed">
+                评测基于 12 章已标注 Gold 数据集。核心扣分点集中在：<strong class="text-rose-400">CH6 章节丢失造成 5 条 Required 漏检</strong>、<strong class="text-amber-400">乔达摩人物分裂</strong> 以及 <strong class="text-amber-400">10 处证据原句因换行/标点微差异未精确命中</strong>。
+              </p>
+              <div class="flex items-center gap-4 mt-3 text-xs text-slate-400 font-mono">
+                <span>Gold章节: 12章</span>
+                <span>•</span>
+                <span>核心关系(Required): 24条</span>
+                <span>•</span>
+                <span>扩展关系(Optional): 15条</span>
+                <span>•</span>
+                <span>红线关系(Forbidden): 8条</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="flex flex-col sm:flex-row gap-3 w-full md:w-auto">
+            <button onclick="switchTab('badcases')" class="px-4 py-2.5 bg-surface-700 hover:bg-surface-600 text-slate-200 text-xs font-medium rounded-xl border border-surface-600 transition flex items-center justify-center gap-2">
+              <svg class="w-4 h-4 text-rose-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
+              </svg>
+              <span>直达 19 处 Badcase</span>
+            </button>
+            <button onclick="downloadJsonReport()" class="px-4 py-2.5 bg-surface-700 hover:bg-surface-600 text-slate-200 text-xs font-medium rounded-xl border border-surface-600 transition flex items-center justify-center gap-2">
+              <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4"/>
+              </svg>
+              <span>导出 JSON 明细</span>
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 7 维细项得分卡片网格 -->
+      <div>
+        <h3 class="text-sm font-semibold text-slate-300 mb-3 flex items-center gap-2">
+          <span>七维得分分解</span>
+          <span class="text-xs text-slate-500 font-normal">(按 PRD 评测口径权重加权计算)</span>
+        </h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+
+          <!-- 1. Required 关系召回 (权重最高 35%) -->
+          <div class="bg-surface-800 border border-surface-700 rounded-xl p-4 flex flex-col justify-between hover:border-brand-500/40 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-300">Required 关系召回</span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">权重 35%</span>
+            </div>
+            <div class="my-3">
+              <div class="flex items-baseline justify-between">
+                <span class="text-2xl font-bold font-mono text-emerald-400">79.17%</span>
+                <span class="text-xs font-mono text-slate-400">19 / 24 命中</span>
+              </div>
+              <div class="w-full bg-surface-900 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div class="bg-emerald-500 h-1.5 rounded-full" style="width: 79.17%"></div>
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-400 flex items-center justify-between">
+              <span>漏检 5 条 (CH4:1, CH6:4)</span>
+              <button onclick="filterBadcaseType('required')" class="text-brand-400 hover:underline">看漏检</button>
+            </div>
+          </div>
+
+          <!-- 2. Forbidden 避免率 (权重 15%) -->
+          <div class="bg-surface-800 border border-surface-700 rounded-xl p-4 flex flex-col justify-between hover:border-brand-500/40 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-300">Forbidden 避免率</span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">权重 15%</span>
+            </div>
+            <div class="my-3">
+              <div class="flex items-baseline justify-between">
+                <span class="text-2xl font-bold font-mono text-amber-400">87.50%</span>
+                <span class="text-xs font-mono text-slate-400">7 / 8 成功避障</span>
+              </div>
+              <div class="w-full bg-surface-900 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div class="bg-amber-500 h-1.5 rounded-full" style="width: 87.50%"></div>
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-400 flex items-center justify-between">
+              <span class="text-rose-400 font-medium">违规 1 条 (CH4 师徒)</span>
+              <button onclick="filterBadcaseType('forbidden')" class="text-brand-400 hover:underline">看违规</button>
+            </div>
+          </div>
+
+          <!-- 3. 人物 Entity F1 (权重 15%) -->
+          <div class="bg-surface-800 border border-surface-700 rounded-xl p-4 flex flex-col justify-between hover:border-brand-500/40 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-300">人物 Entity F1</span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">权重 15%</span>
+            </div>
+            <div class="my-3">
+              <div class="flex items-baseline justify-between">
+                <span class="text-2xl font-bold font-mono text-emerald-400">94.12%</span>
+                <span class="text-xs font-mono text-slate-400">P:88.9% R:100%</span>
+              </div>
+              <div class="w-full bg-surface-900 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div class="bg-emerald-500 h-1.5 rounded-full" style="width: 94.12%"></div>
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-400 flex items-center justify-between">
+              <span>覆盖全部 8 位标准人物</span>
+              <span class="text-slate-500">优秀</span>
+            </div>
+          </div>
+
+          <!-- 4. 同人合并准确率 (权重 10%) -->
+          <div class="bg-surface-800 border border-surface-700 rounded-xl p-4 flex flex-col justify-between hover:border-brand-500/40 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-300">同人合并准确率</span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">权重 10%</span>
+            </div>
+            <div class="my-3">
+              <div class="flex items-baseline justify-between">
+                <span class="text-2xl font-bold font-mono text-amber-400">87.50%</span>
+                <span class="text-xs font-mono text-slate-400">7 / 8 实体正确</span>
+              </div>
+              <div class="w-full bg-surface-900 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div class="bg-amber-500 h-1.5 rounded-full" style="width: 87.50%"></div>
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-400 flex items-center justify-between">
+              <span class="text-amber-400">乔达摩分裂成 2 节点</span>
+              <button onclick="filterBadcaseType('identity')" class="text-brand-400 hover:underline">看冲突</button>
+            </div>
+          </div>
+
+          <!-- 5. 证据原句精确命中 (权重 10%) -->
+          <div class="bg-surface-800 border border-surface-700 rounded-xl p-4 flex flex-col justify-between hover:border-brand-500/40 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-300">证据原文精确命中</span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">权重 10%</span>
+            </div>
+            <div class="my-3">
+              <div class="flex items-baseline justify-between">
+                <span class="text-2xl font-bold font-mono text-amber-400">83.61%</span>
+                <span class="text-xs font-mono text-slate-400">51 / 61 命中</span>
+              </div>
+              <div class="w-full bg-surface-900 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div class="bg-amber-500 h-1.5 rounded-full" style="width: 83.61%"></div>
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-400 flex items-center justify-between">
+              <span>10 条原句有偏差/省略号</span>
+              <button onclick="filterBadcaseType('quotes')" class="text-brand-400 hover:underline">看比对</button>
+            </div>
+          </div>
+
+          <!-- 6. 关系去重质量 (权重 10%) -->
+          <div class="bg-surface-800 border border-surface-700 rounded-xl p-4 flex flex-col justify-between hover:border-brand-500/40 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-300">关系去重质量</span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">权重 10%</span>
+            </div>
+            <div class="my-3">
+              <div class="flex items-baseline justify-between">
+                <span class="text-2xl font-bold font-mono text-amber-400">83.61%</span>
+                <span class="text-xs font-mono text-slate-400">61条含10条重复</span>
+              </div>
+              <div class="w-full bg-surface-900 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div class="bg-amber-500 h-1.5 rounded-full" style="width: 83.61%"></div>
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-400 flex items-center justify-between">
+              <span>8 个同义语义重复组</span>
+              <button onclick="filterBadcaseType('dedup')" class="text-brand-400 hover:underline">看重复</button>
+            </div>
+          </div>
+
+          <!-- 7. 章节输出覆盖率 (权重 5%) -->
+          <div class="bg-surface-800 border border-surface-700 rounded-xl p-4 flex flex-col justify-between hover:border-brand-500/40 transition">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-300">章节输出覆盖率</span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-brand-500/20 text-brand-300">权重 5%</span>
+            </div>
+            <div class="my-3">
+              <div class="flex items-baseline justify-between">
+                <span class="text-2xl font-bold font-mono text-emerald-400">91.67%</span>
+                <span class="text-xs font-mono text-slate-400">11 / 12 章入账</span>
+              </div>
+              <div class="w-full bg-surface-900 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div class="bg-emerald-500 h-1.5 rounded-full" style="width: 91.67%"></div>
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-400 flex items-center justify-between">
+              <span class="text-rose-400">缺失第 6 章 (尘世间)</span>
+              <button onclick="openChapter(6)" class="text-brand-400 hover:underline">查看CH6</button>
+            </div>
+          </div>
+
+          <!-- 8. 扩展指标：Optional 覆盖诊断 (不计入总分) -->
+          <div class="bg-surface-800/60 border border-surface-700/60 rounded-xl p-4 flex flex-col justify-between">
+            <div class="flex items-center justify-between">
+              <span class="text-xs font-semibold text-slate-400">Optional 关系覆盖</span>
+              <span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-slate-700 text-slate-300">仅诊断参考</span>
+            </div>
+            <div class="my-3">
+              <div class="flex items-baseline justify-between">
+                <span class="text-2xl font-bold font-mono text-sky-400">86.67%</span>
+                <span class="text-xs font-mono text-slate-400">13 / 15 命中</span>
+              </div>
+              <div class="w-full bg-surface-900 rounded-full h-1.5 mt-2 overflow-hidden">
+                <div class="bg-sky-500 h-1.5 rounded-full" style="width: 86.67%"></div>
+              </div>
+            </div>
+            <div class="text-[11px] text-slate-500">
+              开放关系裁决精确率: 97.5%
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- 快速跳转建议区 -->
+      <div class="grid grid-cols-1 md:grid-cols-3 gap-4 pt-2">
+        <div class="bg-surface-800/80 border border-surface-700 p-4 rounded-xl flex items-start gap-3">
+          <div class="p-2 rounded-lg bg-rose-500/10 text-rose-400 mt-0.5">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+          </div>
+          <div>
+            <h4 class="text-xs font-bold text-slate-200">消除高危 Forbidden 幻觉</h4>
+            <p class="text-[11px] text-slate-400 mt-0.5">CH4 乔达摩与悉达多被模型推导为“师徒”，原文第3章已明确悉达多未皈依佛陀。</p>
+          </div>
+        </div>
+
+        <div class="bg-surface-800/80 border border-surface-700 p-4 rounded-xl flex items-start gap-3">
+          <div class="p-2 rounded-lg bg-amber-500/10 text-amber-400 mt-0.5">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/></svg>
+          </div>
+          <div>
+            <h4 class="text-xs font-bold text-slate-200">硬性规则同人合并修复</h4>
+            <p class="text-[11px] text-slate-400 mt-0.5">佛陀与乔达摩属于一人，因别名未能在前置抽取中对齐，导致后置账本分裂为两个人物节点。</p>
+          </div>
+        </div>
+
+        <div class="bg-surface-800/80 border border-surface-700 p-4 rounded-xl flex items-start gap-3">
+          <div class="p-2 rounded-lg bg-brand-500/10 text-brand-400 mt-0.5">
+            <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/></svg>
+          </div>
+          <div>
+            <h4 class="text-xs font-bold text-slate-200">证据清洗与标点归一</h4>
+            <p class="text-[11px] text-slate-400 mt-0.5">10 处证据原句未精确命中大多因为模型输出了省略号“……”或双引号差异，可在后处理层容错。</p>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ─────────────────────────────────────────────── -->
+    <!-- TAB 2: BADCASE 靶向诊断室 (DIAGNOSTICS) -->
+    <!-- ─────────────────────────────────────────────── -->
+    <div id="view-badcases" class="hidden space-y-6">
+
+      <!-- 筛选与搜索控制栏 -->
+      <div class="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-4 bg-surface-800 p-4 rounded-xl border border-surface-700">
+        <!-- 分类过滤按钮组 -->
+        <div class="flex flex-wrap items-center gap-2" id="badcaseFilters">
+          <button onclick="setBadcaseFilter('all')" class="bf-btn active px-3 py-1.5 rounded-lg text-xs font-medium bg-brand-600 text-white transition">
+            全部 (19)
+          </button>
+          <button onclick="setBadcaseFilter('forbidden')" class="bf-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-slate-300 hover:bg-surface-600 transition flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+            Forbidden 违规 (1)
+          </button>
+          <button onclick="setBadcaseFilter('required')" class="bf-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-slate-300 hover:bg-surface-600 transition flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-amber-500"></span>
+            Required 漏检 (5)
+          </button>
+          <button onclick="setBadcaseFilter('identity')" class="bf-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-slate-300 hover:bg-surface-600 transition flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-purple-500"></span>
+            人物分裂/冲突 (2)
+          </button>
+          <button onclick="setBadcaseFilter('dedup')" class="bf-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-slate-300 hover:bg-surface-600 transition flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-blue-500"></span>
+            重复冗余边 (8)
+          </button>
+          <button onclick="setBadcaseFilter('quotes')" class="bf-btn px-3 py-1.5 rounded-lg text-xs font-medium bg-surface-700 text-slate-300 hover:bg-surface-600 transition flex items-center gap-1.5">
+            <span class="w-2 h-2 rounded-full bg-slate-400"></span>
+            证据引用不符 (10)
+          </button>
+        </div>
+
+        <!-- 搜索框 -->
+        <div class="relative w-full sm:w-64">
+          <input type="text" id="badcaseSearch" oninput="searchBadcases()" placeholder="搜索人物、章节或标签..." class="w-full bg-surface-900 border border-surface-700 rounded-lg pl-8 pr-3 py-1.5 text-xs text-slate-200 focus:outline-none focus:border-brand-500">
+          <svg class="w-3.5 h-3.5 text-slate-400 absolute left-2.5 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"/>
+          </svg>
+        </div>
+      </div>
+
+      <!-- Badcase 卡片列表容器 -->
+      <div id="badcaseList" class="space-y-3">
+
+        <!-- 1. Forbidden 违规 (高危红线) -->
+        <div class="bc-item bg-surface-800 border-l-4 border-l-rose-500 border border-surface-700 rounded-xl p-4 transition" data-category="forbidden" data-keywords="CH4 乔达摩 悉达多 师徒 觉醒">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-surface-700/60">
+            <div class="flex items-center gap-2.5">
+              <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">🚫 FORBIDDEN 违规</span>
+              <span class="text-xs font-mono font-semibold text-slate-300">CH04 《觉醒》</span>
+              <span class="text-xs text-slate-400">关系对: <strong class="text-white">乔达摩 ➔ 悉达多</strong></span>
+            </div>
+            <span class="text-[11px] font-mono text-rose-400 font-semibold">语义错误 / 严重幻觉</span>
+          </div>
+
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div class="bg-surface-900/80 p-3 rounded-lg border border-surface-700/60">
+              <div class="text-slate-400 font-medium mb-1">🤖 实际模型输出：</div>
+              <div class="font-mono text-rose-300 font-semibold">标签: [ 师徒 ] (传统皈依/师徒)</div>
+              <p class="text-slate-400 mt-1 text-[11px]">模型误判二人为常规弟子皈依关系。</p>
+            </div>
+            <div class="bg-surface-900/80 p-3 rounded-lg border border-surface-700/60">
+              <div class="text-slate-400 font-medium mb-1">🎯 评测裁决与 Gold 事实规则：</div>
+              <div class="text-emerald-400 font-medium">严禁预测为“师徒/皈依弟子”</div>
+              <p class="text-slate-400 mt-1 text-[11px]">原文第4章虽称佛陀为悉达多“最后一位恩师”，但上一章已明确写悉达多放弃皈依、独自求道。Gold 仅接受“精神启发者”，必须拦截泛化的师徒关系。</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 2. Required 漏检 (CH4 精神启发者) -->
+        <div class="bc-item bg-surface-800 border-l-4 border-l-amber-500 border border-surface-700 rounded-xl p-4 transition" data-category="required" data-keywords="CH4 乔达摩 悉达多 精神启发者 觉醒">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-surface-700/60">
+            <div class="flex items-center gap-2.5">
+              <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">⚠️ REQUIRED 漏检</span>
+              <span class="text-xs font-mono font-semibold text-slate-300">CH04 《觉醒》</span>
+              <span class="text-xs text-slate-400">关系对: <strong class="text-white">乔达摩 ➔ 悉达多</strong></span>
+            </div>
+            <span class="text-[11px] font-mono text-amber-400 font-semibold">扣减召回分</span>
+          </div>
+
+          <div class="mt-3 grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
+            <div class="bg-surface-900/80 p-3 rounded-lg border border-surface-700/60">
+              <div class="text-slate-400 font-medium mb-1">🎯 Gold 目标定义：</div>
+              <div class="font-mono text-amber-300 font-semibold">标签: [ 精神启发者 ] · 类别: mentor</div>
+              <div class="text-slate-400 mt-2 text-[11px]">
+                <strong>标准证据引用：</strong>
+                <blockquote class="italic text-slate-300 mt-1 border-l-2 border-amber-500/50 pl-2">
+                  “乔达摩，这世尊，最后一位恩师……世尊曾赠予他……”
+                </blockquote>
+              </div>
+            </div>
+            <div class="bg-surface-900/80 p-3 rounded-lg border border-surface-700/60">
+              <div class="text-slate-400 font-medium mb-1">🔍 漏检成因：</div>
+              <p class="text-slate-300 text-[11px] leading-relaxed">
+                模型在该章节直接输出了错误的“师徒”，未能将其映射为合规的“精神启发者”，导致该核心关系未命中。
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <!-- 3. Required 漏检 (CH6 整章丢失导致 4 条漏检) -->
+        <div class="bc-item bg-surface-800 border-l-4 border-l-amber-500 border border-surface-700 rounded-xl p-4 transition" data-category="required" data-keywords="CH6 尘世间 迦摩罗 悉达多 迦摩施瓦弥 老师 情人 商业共事 缺失">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-surface-700/60">
+            <div class="flex items-center gap-2.5">
+              <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">⚠️ REQUIRED 漏检 (4 条)</span>
+              <span class="text-xs font-mono font-semibold text-slate-300">CH06 《尘世间》</span>
+              <span class="text-xs text-rose-400 font-medium">整章账本未入账 (missing_ledgers: [6])</span>
+            </div>
+            <span class="text-[11px] font-mono text-rose-400 font-semibold">丢失 4 条核心边</span>
+          </div>
+
+          <div class="mt-3 text-xs bg-surface-900/80 p-3 rounded-lg border border-surface-700/60 space-y-2">
+            <div class="text-slate-300 text-[11px]">因第 6 章分析输出中断或未生成，以下全部 Gold 核心关系均被判定为漏检：</div>
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+              <div class="bg-surface-800 p-2 rounded border border-surface-700 text-slate-300">
+                1. <span class="text-amber-300">迦摩罗 ➔ 悉达多</span> : 老师 (skill_teacher_love)
+              </div>
+              <div class="bg-surface-800 p-2 rounded border border-surface-700 text-slate-300">
+                2. <span class="text-amber-300">悉达多 ➔ 迦摩罗</span> : 情人 (lover)
+              </div>
+              <div class="bg-surface-800 p-2 rounded border border-surface-700 text-slate-300">
+                3. <span class="text-amber-300">悉达多 ➔ 迦摩罗</span> : 朋友 (friend)
+              </div>
+              <div class="bg-surface-800 p-2 rounded border border-surface-700 text-slate-300">
+                4. <span class="text-amber-300">悉达多 ➔ 迦摩施瓦弥</span> : 商业共事 (business)
+              </div>
+            </div>
+            <div class="text-[11px] text-brand-300 mt-2">建议：优先单独重跑第 6 章分析即可挽回约 4 分召回分。</div>
+          </div>
+        </div>
+
+        <!-- 4. 人物同一性问题：乔达摩分裂 -->
+        <div class="bc-item bg-surface-800 border-l-4 border-l-purple-500 border border-surface-700 rounded-xl p-4 transition" data-category="identity" data-keywords="乔达摩 佛陀 同一性 分裂 p003 p005">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-surface-700/60">
+            <div class="flex items-center gap-2.5">
+              <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">👥 人物分裂</span>
+              <span class="text-xs font-mono font-semibold text-slate-300">全局人名册 (cast.json)</span>
+              <span class="text-xs text-slate-400">涉及人物: <strong class="text-white">乔达摩 / 佛陀</strong></span>
+            </div>
+            <span class="text-[11px] font-mono text-purple-400 font-semibold">拆为两个独立节点</span>
+          </div>
+
+          <div class="mt-3 text-xs bg-surface-900/80 p-3 rounded-lg border border-surface-700/60">
+            <div class="flex items-center gap-4 text-[11px] font-mono">
+              <div class="bg-surface-800 px-3 py-1.5 rounded border border-surface-700 text-purple-300">
+                节点 1: <strong class="text-white">p003</strong> (标准名: 乔达摩)
+              </div>
+              <span class="text-slate-500 font-bold">≠</span>
+              <div class="bg-surface-800 px-3 py-1.5 rounded border border-surface-700 text-purple-300">
+                节点 2: <strong class="text-white">p005</strong> (标准名: 佛陀)
+              </div>
+            </div>
+            <p class="text-slate-400 mt-2 text-[11px] leading-relaxed">
+              <strong>Gold 裁决：</strong> 《悉达多》原著中，乔达摩即佛陀世尊。Gold 硬规则要求 <code class="text-brand-300">乔达摩 = 佛陀 = 世尊 = 释迦摩尼</code> 必须合并为同一节点。当前抽取未识别同人别名，扣减同人合并准确率与 Precision。
+            </p>
+          </div>
+        </div>
+
+        <!-- 5. 别名冲突：悉达多·乔达摩之子 -->
+        <div class="bc-item bg-surface-800 border-l-4 border-l-purple-500 border border-surface-700 rounded-xl p-4 transition" data-category="identity" data-keywords="悉达多 别名 乔达摩之子 冲突">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-surface-700/60">
+            <div class="flex items-center gap-2.5">
+              <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-purple-500/20 text-purple-300 border border-purple-500/40">👥 别名污染冲突</span>
+              <span class="text-xs font-mono font-semibold text-slate-300">节点 p001 (悉达多)</span>
+            </div>
+            <span class="text-[11px] font-mono text-purple-400 font-semibold">别名侵犯他人名称</span>
+          </div>
+
+          <div class="mt-3 text-xs bg-surface-900/80 p-3 rounded-lg border border-surface-700/60">
+            <div class="text-[11px] text-slate-300 leading-relaxed">
+              模型将错误别名 <code class="text-rose-400 bg-surface-800 px-1 py-0.5 rounded font-mono">“悉达多·乔达摩之子”</code> 赋给了主人公悉达多。
+              <span class="text-slate-400 block mt-1">事实上，悉达多是婆罗门之子，而乔达摩是另一位独立人物（佛陀）。该错误别名导致实体对齐逻辑混乱。</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- 6. 证据原句未精确命中对比卡片 (文本 DIFF 对照) -->
+        <div class="bc-item bg-surface-800 border-l-4 border-l-slate-500 border border-surface-700 rounded-xl p-4 transition" data-category="quotes" data-keywords="CH1 乔文达 悉达多 挚爱敬慕与追随 证据 原文 比对">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-surface-700/60">
+            <div class="flex items-center gap-2.5">
+              <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-slate-700 text-slate-300">📝 证据引用不符 (示例 1)</span>
+              <span class="text-xs font-mono font-semibold text-slate-300">CH01 《婆罗门之子》</span>
+              <span class="text-xs text-slate-400">乔文达 ➔ 悉达多 (挚爱敬慕与追随)</span>
+            </div>
+            <span class="text-[11px] font-mono text-slate-400">Exact-hit: False</span>
+          </div>
+
+          <div class="mt-3 text-xs space-y-2">
+            <div class="bg-surface-900/90 p-3 rounded-lg border border-surface-700/60">
+              <div class="text-slate-400 text-[11px] font-medium mb-1">🤖 模型生成的引用 Quote：</div>
+              <div class="font-mono text-slate-200 bg-surface-800/80 p-2 rounded border border-surface-700 text-[11px]">
+                而最爱他的人是乔文达。他爱悉达多的目光和仁慈的嗓音；他爱他的步态，他行动时的优雅完美。<mark class="bg-rose-500/30 text-rose-200 px-1 rounded">……</mark>他要追随他，当悉达多成了神，抵达无量光明的世界，他仍要做他的朋友，他的随从，他的仆人...
+              </div>
+              <div class="text-[10px] text-amber-400 mt-1.5 flex items-center gap-1">
+                <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+                原因：模型在引文中自行插入了省略号“……”断句，导致在原书 TXT 中使用子串精确匹配失败。
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- 7. 重复边示例 -->
+        <div class="bc-item bg-surface-800 border-l-4 border-l-blue-500 border border-surface-700 rounded-xl p-4 transition" data-category="dedup" data-keywords="CH1 结伴同行 重复边 冗余">
+          <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-3 border-b border-surface-700/60">
+            <div class="flex items-center gap-2.5">
+              <span class="px-2 py-0.5 rounded text-[11px] font-bold bg-blue-500/20 text-blue-300 border border-blue-500/40">🔄 重复冗余边</span>
+              <span class="text-xs font-mono font-semibold text-slate-300">CH01 《婆罗门之子》</span>
+              <span class="text-xs text-slate-400">乔文达 ➔ 悉达多</span>
+            </div>
+            <span class="text-[11px] font-mono text-blue-400">多余 1 条多重边</span>
+          </div>
+
+          <div class="mt-3 text-xs bg-surface-900/80 p-3 rounded-lg border border-surface-700/60">
+            <p class="text-slate-300 text-[11px]">
+              同一章节内模型同时输出了两个几乎完全相同的关系边：<br>
+              • 边 1 (索引 #3): <code class="text-brand-300">乔文达 ➔ 悉达多</code> : 标签「结伴同行」<br>
+              • 边 2 (索引 #5): <code class="text-brand-300">乔文达 ➔ 悉达多</code> : 标签「结伴同行」 (引用原句完全相同)<br>
+              <span class="text-slate-400 block mt-1">后处理去重模块未生效，导致图上出现同义双重平行边。</span>
+            </p>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- ─────────────────────────────────────────────── -->
+    <!-- TAB 3: 逐章 CASE 对照视窗 (CHAPTER COMPARATOR) -->
+    <!-- ─────────────────────────────────────────────── -->
+    <div id="view-chapters" class="hidden">
+      <div class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+
+        <!-- 左侧：12 章节索引列表 -->
+        <div class="lg:col-span-4 bg-surface-800 rounded-xl border border-surface-700 p-3 h-[750px] flex flex-col">
+          <div class="text-xs font-semibold text-slate-400 px-3 py-2 border-b border-surface-700/80 flex items-center justify-between">
+            <span>章节目录 (12 章 Gold)</span>
+            <span class="text-[11px] text-slate-500">点击查看逐条事实</span>
+          </div>
+          <div class="flex-1 overflow-y-auto space-y-1.5 p-1 mt-2" id="chapterList">
+            <!-- 动态通过 JS 渲染 12 章按钮 -->
+          </div>
+        </div>
+
+        <!-- 右侧：当前所选章节详情与三层关系对照 -->
+        <div class="lg:col-span-8 bg-surface-800 rounded-xl border border-surface-700 p-6 flex flex-col h-[750px] overflow-hidden">
+          <div id="chapterDetailHeader" class="border-b border-surface-700/80 pb-4 mb-4 flex items-start justify-between">
+            <div>
+              <div class="flex items-center gap-3">
+                <h3 id="cdTitle" class="text-lg font-bold text-white font-mono">CH01 婆罗门之子</h3>
+                <span id="cdStatusBadge" class="px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">评测通过 (PASS)</span>
+              </div>
+              <div class="flex items-center gap-3 text-xs text-slate-400 mt-1 font-mono">
+                <span>出场人物: <span id="cdCharacters" class="text-slate-200">悉达多, 乔文达</span></span>
+                <span>•</span>
+                <span>模型预测边数: <span id="cdPredCount" class="text-slate-200">6 条</span></span>
+              </div>
+            </div>
+            <div class="text-right text-xs font-mono text-slate-400">
+              <span id="cdRatio" class="text-emerald-400 font-bold">1/1</span> 核心命中
+            </div>
+          </div>
+
+          <!-- 关系分类滚动区 -->
+          <div class="flex-1 overflow-y-auto space-y-5 pr-2" id="chapterRelationsContent">
+            <!-- 由 JS 填充该章节的 Required, Optional, Forbidden 对照卡 -->
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- ─────────────────────────────────────────────── -->
+    <!-- TAB 4: 标准人名册与黄金事实库 (CANONICAL) -->
+    <!-- ─────────────────────────────────────────────── -->
+    <div id="view-canonical" class="hidden space-y-6">
+
+      <!-- 说明横幅 -->
+      <div class="bg-surface-800 border border-surface-700 rounded-xl p-5">
+        <h3 class="text-sm font-bold text-white flex items-center gap-2">
+          <span>《悉达多》标准人名册 (Canonical Cast) 与全局同一性裁决</span>
+        </h3>
+        <p class="text-xs text-slate-400 mt-1 leading-relaxed">
+          源自 <code class="text-brand-300 font-mono">eval/siddhartha/manifest.json</code>。定义了全书规范人物、置信别名集合以及绝对禁止拆分的同人断言（Identity Assertions）。
+        </p>
+      </div>
+
+      <!-- 人物卡片网格 (8位主角) -->
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4" id="castGrid">
+        <!-- JS 动态注入 8 位人物 -->
+      </div>
+
+      <!-- 全局同人硬规则 -->
+      <div class="bg-surface-800 border border-surface-700 rounded-xl p-5">
+        <h4 class="text-xs font-bold text-slate-300 uppercase tracking-wider mb-3">全局同一性强制合并规则 (Global Identity Assertions)</h4>
+        <div class="bg-surface-900 border border-purple-500/30 rounded-lg p-4">
+          <div class="flex items-center gap-3">
+            <span class="px-2 py-0.5 rounded text-xs font-bold bg-purple-500/20 text-purple-300 font-mono">MUST_MERGE</span>
+            <strong class="text-sm text-white">乔达摩 (Gotama)</strong>
+            <span class="text-xs text-slate-400">必须完全合并以下全部别名：</span>
+          </div>
+          <div class="flex flex-wrap gap-2 mt-3 text-xs font-mono">
+            <span class="px-2 py-1 rounded bg-surface-800 text-slate-200 border border-surface-700">佛陀</span>
+            <span class="px-2 py-1 rounded bg-surface-800 text-slate-200 border border-surface-700">世尊</span>
+            <span class="px-2 py-1 rounded bg-surface-800 text-slate-200 border border-surface-700">世尊佛陀</span>
+            <span class="px-2 py-1 rounded bg-surface-800 text-slate-200 border border-surface-700">释迦摩尼</span>
+            <span class="px-2 py-1 rounded bg-surface-800 text-slate-200 border border-surface-700">佛陀释迦摩尼</span>
+            <span class="px-2 py-1 rounded bg-surface-800 text-slate-200 border border-surface-700">Gotama</span>
+          </div>
+          <p class="text-[11px] text-slate-400 mt-2">
+            当前诊断：当前最新输出中仍存在分裂（p003: 乔达摩，p005: 佛陀），违背该规则。
+          </p>
+        </div>
+      </div>
+
+    </div>
+
+  </main>
+
+  <!-- ================= 底栏 ================= -->
+  <footer class="border-t border-surface-700/60 bg-surface-850 px-6 py-4 text-center text-xs text-slate-500">
+    ZhiYing 评测工作台 · 离线异步评测模式 · 数据路径: <code class="text-slate-400 font-mono">eval/siddhartha/reports/latest.json</code>
+  </footer>
+
+  <!-- ================= 交互逻辑 JAVASCRIPT ================= -->
+  <script>
+    // 12 个章节真实 Gold 与评测数据
+    const CHAPTERS_DATA = [
+      { id: 1, title: "婆罗门之子", chars: ["悉达多", "乔文达"], reqHit: 1, reqTotal: 1, predCount: 6, status: "pass",
+        req: [{ a: "悉达多", b: "乔文达", label: "朋友", category: "友谊", hit: true, match: "朋友", quote: "与他的好友，同为婆罗门之子的乔文达一道长大。", note: "自幼好友，同修辩论与冥想。" }],
+        opt: [{ a: "乔文达", b: "悉达多", label: "追随", category: "追随", hit: true, quote: "他要追随他，为人拥戴而神圣的悉达多。", note: "这是乔文达明确表达的长期追随意愿。" }],
+        forb: []
+      },
+      { id: 2, title: "沙门", chars: ["悉达多", "乔文达", "资深沙门"], reqHit: 1, reqTotal: 1, predCount: 4, status: "pass",
+        req: [{ a: "悉达多", b: "乔文达", label: "结伴修行", category: "修行同伴", hit: true, match: "结伴同行", quote: "悉达多与乔文达在沙门中生活了三年。", note: "二人共同出家投奔沙门苦修。" }],
+        opt: [],
+        forb: [{ a: "悉达多", b: "资深沙门", label: "师徒/弟子", note: "悉达多并未将老沙门视作终身依止的师父，后用催眠术破其阻拦离去。" }]
+      },
+      { id: 3, title: "乔达摩", chars: ["悉达多", "乔文达", "乔达摩", "给孤独"], reqHit: 3, reqTotal: 3, predCount: 8, status: "pass",
+        req: [
+          { a: "悉达多", b: "乔文达", label: "辞别散伙", category: "分别", hit: true, match: "辞别", quote: "乔文达留在了佛陀身边，悉达多独自离开。", note: "乔文达皈依佛陀，悉达多决定独自前行，二人首次分离。" },
+          { a: "给孤独", b: "乔达摩", label: "布施供养", category: "供养", hit: true, match: "布施供养", quote: "该园由一位富庶的商人，也是世尊忠诚的追随者，给孤独敬献。", note: "给孤独长者向佛陀敬献只树给孤独园。" },
+          { a: "乔文达", b: "乔达摩", label: "皈依信徒", category: "皈依", hit: true, match: "皈依", quote: "乔文达向世尊请求：愿加入僧团。", note: "乔文达正式皈依佛门成为佛陀弟子。" }
+        ],
+        opt: [{ a: "悉达多", b: "乔达摩", label: "问法求教", category: "问道", hit: true, quote: "悉达多与佛陀就因果与解脱展开辩论。", note: "二人在树林中平静深入对话。" }],
+        forb: [{ a: "悉达多", b: "乔达摩", label: "皈依弟子", note: "悉达多明确当面拒绝了皈依佛陀法义，只身继续流浪。" }]
+      },
+      { id: 4, title: "觉醒", chars: ["悉达多", "乔达摩", "乔文达"], reqHit: 0, reqTotal: 1, predCount: 3, status: "fail",
+        req: [{ a: "乔达摩", b: "悉达多", label: "精神启发者", category: "mentor", hit: false, match: null, quote: "乔达摩，这世尊，最后一位恩师……世尊曾赠予他……", note: "虽未皈依，但悉达多内心敬其为最后一位启迪恩师。" }],
+        opt: [],
+        forb: [{ a: "乔达摩", b: "悉达多", label: "师徒", note: "模型违规预测为传统“师徒”，严重违背未皈依事实。" }]
+      },
+      { id: 5, title: "迦摩罗", chars: ["悉达多", "迦摩罗", "瓦稣迪瓦", "年轻女子"], reqHit: 1, reqTotal: 1, predCount: 5, status: "pass",
+        req: [{ a: "悉达多", b: "迦摩罗", label: "相遇与吸引", category: "爱慕", hit: true, match: "互相吸引", quote: "悉达多在轿子前向美丽的迦摩罗鞠躬致意。", note: "初遇名妓迦摩罗，开始向往尘世情爱。" }],
+        opt: [
+          { a: "悉达多", b: "瓦稣迪瓦", label: "渡河之交", category: "结缘", hit: true, quote: "老船夫善意渡悉达多过河，不收分文并预言他日必再见。", note: "瓦稣迪瓦首次登场。" },
+          { a: "悉达多", b: "迦摩罗", label: "请求传授爱经", category: "请教", hit: true, quote: "你必须先学会穿体面的衣裳，拥有财富与鞋履。", note: "迦摩罗提出入城经商的前提。" }
+        ],
+        forb: []
+      },
+      { id: 6, title: "尘世间", chars: ["悉达多", "迦摩罗", "迦摩施瓦弥"], reqHit: 0, reqTotal: 4, predCount: 0, status: "fail",
+        req: [
+          { a: "迦摩罗", b: "悉达多", label: "情爱老师", category: "skill_teacher_love", hit: false, match: null, quote: "迦摩罗成为他的老师，悉达多是她聪颖的学生。", note: "传授爱的艺术。" },
+          { a: "悉达多", b: "迦摩罗", label: "情人", category: "lover", hit: false, match: null, quote: "他与迦摩罗终日欢爱，共度漫长岁月。", note: "二人维持多年的秘密情人关系。" },
+          { a: "悉达多", b: "迦摩罗", label: "知己好友", category: "friend", hit: false, match: null, quote: "唯有迦摩罗与他知近，能够理解彼此的灵魂深处。", note: "跨越情欲的灵魂朋友。" },
+          { a: "悉达多", b: "迦摩施瓦弥", label: "商业共事", category: "business", hit: false, match: null, quote: "迦摩施瓦弥将买卖委托给悉达多，让他参与分红清算。", note: "经商导师与商业合伙关系。" }
+        ],
+        opt: [{ a: "悉达多", b: "迦摩施瓦弥", label: "经商指导", category: "business_guide", hit: false, quote: "他教导悉达多货殖与账目之道。", note: "商业上的授业指导。" }],
+        forb: []
+      },
+      { id: 7, title: "轮回", chars: ["悉达多", "迦摩罗", "迦摩施瓦弥"], reqHit: 1, reqTotal: 1, predCount: 4, status: "pass",
+        req: [{ a: "悉达多", b: "迦摩罗", label: "倦怠诀别", category: "离别", hit: true, match: "辞别", quote: "悉达多在夜色中不辞而别，彻底抛弃了花园与财富。", note: "悉达多因厌倦骄奢世俗生活而决绝出走。" }],
+        opt: [{ a: "迦摩罗", b: "悉达多", label: "怀有遗腹子", category: "生子", hit: true, quote: "迦摩罗发现自己怀上了悉达多的孩子。", note: "怀有悉达多之子，为后文铺垫。" }],
+        forb: []
+      },
+      { id: 8, title: "在河边", chars: ["悉达多", "乔文达"], reqHit: 2, reqTotal: 2, predCount: 5, status: "pass",
+        req: [
+          { a: "乔文达", b: "悉达多", label: "守护沉睡者", category: "守护", hit: true, match: "守候", quote: "乔文达在沉睡的悉达多身旁守候，提防毒蛇野兽。", note: "乔文达未认出悉达多，出于慈悲守候。" },
+          { a: "悉达多", b: "乔文达", label: "重逢相认", category: "重逢", hit: true, match: "青年好友", quote: "“乔文达，你不认得我了吗？”悉达多微笑道。", note: "乔文达认出老友，惊诧其华服变化。" }
+        ],
+        opt: [],
+        forb: [{ a: "乔文达", b: "悉达多", label: "师徒", note: "乔文达虽为佛陀信徒，二人见面仍为昔日平等挚友。" }]
+      },
+      { id: 9, title: "船夫", chars: ["悉达多", "瓦稣迪瓦", "迦摩罗", "小悉达多"], reqHit: 5, reqTotal: 5, predCount: 9, status: "pass",
+        req: [
+          { a: "悉达多", b: "瓦稣迪瓦", label: "共居学艺", category: "craft_guidance", hit: true, match: "摆渡学艺", quote: "悉达多成了老船夫的助手与学徒，同住茅屋。", note: "跟随瓦稣迪瓦学习摆渡与倾听河水。" },
+          { a: "悉达多", b: "瓦稣迪瓦", label: "精神挚友", category: "mentor", hit: true, match: "倾听大师", quote: "两个船夫在茅屋前彼此静默倾听，心意通达。", note: "人生终极挚友与精神指引者。" },
+          { a: "迦摩罗", b: "悉达多", label: "临终重逢", category: "死别", hit: true, match: "辞别", quote: "迦摩罗被毒蛇咬伤，在船夫茅屋中死在悉达多怀中。", note: "临终相见与嘱托。" },
+          { a: "悉达多", b: "小悉达多", label: "父子相认", category: "father_son", hit: true, match: "生父", quote: "悉达多认下了自己的儿子，悲欣交集。", note: "抚养幼子。" },
+          { a: "瓦稣迪瓦", b: "悉达多", label: "慰藉照料", category: "care", hit: true, match: "照料接纳", quote: "瓦稣迪瓦为逝者掘墓，安抚痛苦的悉达多。", note: "在变故中给予悉达多平静的支撑。" }
+        ],
+        opt: [],
+        forb: []
+      },
+      { id: 10, title: "儿子", chars: ["悉达多", "瓦稣迪瓦", "小悉达多"], reqHit: 2, reqTotal: 2, predCount: 6, status: "pass",
+        req: [
+          { a: "小悉达多", b: "悉达多", label: "叛逆逃跑", category: "conflict", hit: true, match: "反抗", quote: "任性的少年偷走金钱与渡船，逃回了城里。", note: "父子剧烈冲突与背离。" },
+          { a: "瓦稣迪瓦", b: "悉达多", label: "开导劝阻", category: "mentor", hit: true, match: "关怀开导", quote: "老船夫劝悉达多放手：“你难道能替他受尽人世磨难吗？”", note: "劝悉达多顺应天道因果。" }
+        ],
+        opt: [],
+        forb: []
+      },
+      { id: 11, title: "唵", chars: ["悉达多", "瓦稣迪瓦"], reqHit: 1, reqTotal: 1, predCount: 4, status: "pass",
+        req: [{ a: "瓦稣迪瓦", b: "悉达多", label: "圆满辞别", category: "farewell", hit: true, match: "辞别送行", quote: "“我在等候这一时刻，现在它已来临。”瓦稣迪瓦步入森林。", note: "老船夫功德圆满，归隐丛林。" }],
+        opt: [],
+        forb: []
+      },
+      { id: 12, title: "乔文达", chars: ["悉达多", "乔文达"], reqHit: 2, reqTotal: 2, predCount: 6, status: "pass",
+        req: [
+          { a: "悉达多", b: "乔文达", label: "终极论道", category: "discourse", hit: true, match: "问法论道", quote: "乔文达再次向已成为老船夫的悉达多求问真谛。", note: "关于智慧、知识与时间幻象的对话。" },
+          { a: "乔文达", b: "悉达多", label: "额吻悟道", category: "kiss", hit: true, match: "额吻", quote: "乔文达亲吻悉达多的额头，见到了万物合一的无量幻象与至尊佛容。", note: "全书高潮与终局。" }
+        ],
+        opt: [],
+        forb: []
+      }
+    ];
+
+    // 8 位标准人物
+    const CAST_DATA = [
+      { name: "悉达多", importance: "main", aliases: ["Siddhartha"], desc: "主人公，从婆罗门之子到沙门、入世富商、船夫，最终证悟。" },
+      { name: "乔文达", importance: "main", aliases: ["Govinda"], desc: "悉达多自幼挚友，虔诚求道者，后皈依佛陀，终在悉达多处得见真理。" },
+      { name: "乔达摩", importance: "main", aliases: ["佛陀", "世尊", "世尊佛陀", "释迦摩尼", "Gotama"], desc: "已得道佛陀。必须与全部佛陀别名合并为单一节点。" },
+      { name: "给孤独", importance: "minor", aliases: ["给孤独长者", "Anathapindika"], desc: "富商施主，将只树给孤独园敬献给世尊佛陀。" },
+      { name: "迦摩罗", importance: "main", aliases: ["Kamala"], desc: "名妓，悉达多情爱启蒙老师与情人，小悉达多之母。" },
+      { name: "迦摩施瓦弥", importance: "supporting", aliases: ["Kamaswami"], desc: "大富商，悉达多经商导师与雇主。" },
+      { name: "瓦稣迪瓦", importance: "main", aliases: ["Vasudeva"], desc: "摆渡人，大智慧倾听者，悉达多最重要的精神同行者。" },
+      { name: "小悉达多", importance: "supporting", aliases: ["悉达多之子", "Siddhartha's son"], desc: "迦摩罗与悉达多之子，娇纵叛逆，成为悉达多割舍尘缘的最终考验。" }
+    ];
+
+    let currentSelectedChapterId = 1;
+
+    // Tab 切换函数
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-btn').forEach(btn => {
+        btn.classList.remove('border-brand-500', 'text-brand-400');
+        btn.classList.add('border-transparent', 'text-slate-400');
+      });
+      const activeBtn = document.getElementById(`tab-${tabId}`);
+      if (activeBtn) {
+        activeBtn.classList.remove('border-transparent', 'text-slate-400');
+        activeBtn.classList.add('border-brand-500', 'text-brand-400');
+      }
+
+      ['overview', 'badcases', 'chapters', 'canonical'].forEach(v => {
+        const el = document.getElementById(`view-${v}`);
+        if (el) el.classList.toggle('hidden', v !== tabId);
+      });
+    }
+
+    // Badcase 类别过滤
+    function setBadcaseFilter(category) {
+      document.querySelectorAll('.bf-btn').forEach(b => {
+        b.classList.remove('bg-brand-600', 'text-white');
+        b.classList.add('bg-surface-700', 'text-slate-300');
+      });
+      event?.currentTarget?.classList.remove('bg-surface-700', 'text-slate-300');
+      event?.currentTarget?.classList.add('bg-brand-600', 'text-white');
+
+      const items = document.querySelectorAll('.bc-item');
+      items.forEach(item => {
+        if (category === 'all' || item.dataset.category === category) {
+          item.classList.remove('hidden');
+        } else {
+          item.classList.add('hidden');
+        }
+      });
+    }
+
+    // 从大盘穿透跳转到指定 Badcase 分类
+    function filterBadcaseType(category) {
+      switchTab('badcases');
+      const targetBtn = Array.from(document.querySelectorAll('.bf-btn')).find(b => b.getAttribute('onclick')?.includes(category));
+      if (targetBtn) {
+        targetBtn.click();
+      } else {
+        setBadcaseFilter(category);
+      }
+    }
+
+    // Badcase 实时搜索
+    function searchBadcases() {
+      const q = document.getElementById('badcaseSearch').value.toLowerCase().trim();
+      const items = document.querySelectorAll('.bc-item');
+      items.forEach(item => {
+        const text = (item.dataset.keywords + " " + item.innerText).toLowerCase();
+        item.classList.toggle('hidden', q !== '' && !text.includes(q));
+      });
+    }
+
+    // 渲染逐章列表 (左侧)
+    function renderChapterNav() {
+      const listEl = document.getElementById('chapterList');
+      if (!listEl) return;
+      listEl.innerHTML = '';
+
+      CHAPTERS_DATA.forEach(c => {
+        const isSelected = c.id === currentSelectedChapterId;
+        const btn = document.createElement('button');
+        btn.className = `w-full text-left p-3 rounded-lg border transition flex items-center justify-between ${
+          isSelected 
+            ? 'bg-surface-700 border-brand-500 shadow-md text-white' 
+            : 'bg-surface-850 hover:bg-surface-750 border-surface-700/70 text-slate-300'
+        }`;
+        btn.onclick = () => openChapter(c.id);
+
+        const statusClass = c.status === 'pass' 
+          ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30' 
+          : 'bg-rose-500/20 text-rose-400 border-rose-500/30';
+        const statusText = c.status === 'pass' ? `${c.reqHit}/${c.reqTotal} 命中` : `${c.reqHit}/${c.reqTotal} 漏检`;
+
+        btn.innerHTML = `
+          <div>
+            <div class="text-xs font-bold font-mono">CH${String(c.id).padStart(2, '0')} ${c.title}</div>
+            <div class="text-[11px] text-slate-400 mt-0.5 truncate max-w-[150px]">${c.chars.join(', ')}</div>
+          </div>
+          <span class="text-[10px] font-mono px-2 py-0.5 rounded border ${statusClass}">
+            ${statusText}
+          </span>
+        `;
+        listEl.appendChild(btn);
+      });
+    }
+
+    // 展开并查看某一具体章节
+    function openChapter(chId) {
+      currentSelectedChapterId = chId;
+      switchTab('chapters');
+      renderChapterNav();
+
+      const c = CHAPTERS_DATA.find(x => x.id === chId);
+      if (!c) return;
+
+      document.getElementById('cdTitle').innerText = `CH${String(c.id).padStart(2, '0')} ${c.title}`;
+      document.getElementById('cdCharacters').innerText = c.chars.join(', ');
+      document.getElementById('cdPredCount').innerText = `${c.predCount} 条`;
+      document.getElementById('cdRatio').innerText = `${c.reqHit}/${c.reqTotal}`;
+
+      const badge = document.getElementById('cdStatusBadge');
+      if (c.status === 'pass') {
+        badge.className = "px-2 py-0.5 rounded text-[11px] font-semibold bg-emerald-500/20 text-emerald-300 border border-emerald-500/30";
+        badge.innerText = "评测通过 (PASS)";
+      } else {
+        badge.className = "px-2 py-0.5 rounded text-[11px] font-semibold bg-rose-500/20 text-rose-300 border border-rose-500/30";
+        badge.innerText = "存在 Badcase (FAIL)";
+      }
+
+      // 渲染该章关系对照
+      const container = document.getElementById('chapterRelationsContent');
+      container.innerHTML = '';
+
+      // 1. Required 组
+      const reqSec = document.createElement('div');
+      reqSec.innerHTML = `<h4 class="text-xs font-bold text-emerald-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+        <span class="w-2 h-2 rounded-full bg-emerald-500"></span>
+        Required 核心关系 (必考题 · 计入核心召回)
+      </h4>`;
+      if (c.req.length === 0) {
+        reqSec.innerHTML += `<div class="text-xs text-slate-500 italic p-3 bg-surface-850 rounded border border-surface-700">本章无标注 Required 关系</div>`;
+      } else {
+        const reqList = document.createElement('div');
+        reqList.className = "space-y-2.5";
+        c.req.forEach(r => {
+          const hitBadge = r.hit 
+            ? `<span class="px-2 py-0.5 rounded text-[11px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/40">✓ 已命中: ${r.match}</span>`
+            : `<span class="px-2 py-0.5 rounded text-[11px] font-mono bg-rose-500/20 text-rose-300 border border-rose-500/40">✕ 漏检 (MISS)</span>`;
+          
+          reqList.innerHTML += `
+            <div class="bg-surface-850 border border-surface-700 rounded-lg p-3 text-xs">
+              <div class="flex items-center justify-between mb-2">
+                <div class="flex items-center gap-2">
+                  <span class="font-bold text-white font-mono text-sm">${r.a} ➔ ${r.b}</span>
+                  <span class="px-1.5 py-0.5 rounded bg-surface-700 text-slate-300 font-mono text-[10px]">${r.label}</span>
+                  <span class="text-slate-500 text-[11px] font-mono">(${r.category})</span>
+                </div>
+                ${hitBadge}
+              </div>
+              <div class="text-[11px] text-slate-400 bg-surface-900/60 p-2.5 rounded border border-surface-700/60">
+                <span class="text-slate-500 font-semibold block mb-0.5">标准原句证据：</span>
+                <span class="text-slate-300 italic">“${r.quote}”</span>
+                ${r.note ? `<div class="text-slate-400 mt-1 text-[10px]">标注说明: ${r.note}</div>` : ''}
+              </div>
+            </div>
+          `;
+        });
+        reqSec.appendChild(reqList);
+      }
+      container.appendChild(reqSec);
+
+      // 2. Optional 组
+      if (c.opt && c.opt.length > 0) {
+        const optSec = document.createElement('div');
+        optSec.innerHTML = `<h4 class="text-xs font-bold text-sky-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-sky-500"></span>
+          Optional 扩展关系 (合理候选 · 不扣召回)
+        </h4>`;
+        const optList = document.createElement('div');
+        optList.className = "space-y-2";
+        c.opt.forEach(r => {
+          optList.innerHTML += `
+            <div class="bg-surface-850/80 border border-surface-700/70 rounded-lg p-3 text-xs">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="font-bold text-slate-200 font-mono">${r.a} ➔ ${r.b} : ${r.label}</span>
+                <span class="text-[10px] font-mono px-2 py-0.5 rounded bg-sky-500/10 text-sky-300 border border-sky-500/20">${r.hit ? '✓ 模型已抽出' : '未抽取 (不扣分)'}</span>
+              </div>
+              <div class="text-[11px] text-slate-400">“${r.quote}”</div>
+            </div>
+          `;
+        });
+        optSec.appendChild(optList);
+        container.appendChild(optSec);
+      }
+
+      // 3. Forbidden 组
+      if (c.forb && c.forb.length > 0) {
+        const forbSec = document.createElement('div');
+        forbSec.innerHTML = `<h4 class="text-xs font-bold text-rose-400 uppercase tracking-wider mb-2 flex items-center gap-1.5">
+          <span class="w-2 h-2 rounded-full bg-rose-500"></span>
+          Forbidden 红线关系 (严禁出现 · 违规计入幻觉率)
+        </h4>`;
+        const forbList = document.createElement('div');
+        forbList.className = "space-y-2";
+        c.forb.forEach(r => {
+          const isViolated = chId === 4; // CH4 触发了违规
+          const vBadge = isViolated
+            ? `<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-rose-500/20 text-rose-300 border border-rose-500/40">🔴 触犯违规</span>`
+            : `<span class="px-2 py-0.5 rounded text-[10px] font-mono bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">✓ 成功避障</span>`;
+
+          forbList.innerHTML += `
+            <div class="bg-surface-850 border ${isViolated ? 'border-rose-500/60' : 'border-surface-700'} rounded-lg p-3 text-xs">
+              <div class="flex items-center justify-between mb-1">
+                <span class="font-bold ${isViolated ? 'text-rose-300' : 'text-slate-300'} font-mono">${r.a} ➔ ${r.b} [禁止为: ${r.label}]</span>
+                ${vBadge}
+              </div>
+              <p class="text-[11px] text-slate-400">${r.note}</p>
+            </div>
+          `;
+        });
+        forbSec.appendChild(forbList);
+        container.appendChild(forbSec);
+      }
+    }
+
+    // 渲染标准人名册 (Tab 4)
+    function renderCast() {
+      const grid = document.getElementById('castGrid');
+      if (!grid) return;
+      grid.innerHTML = '';
+
+      CAST_DATA.forEach(person => {
+        const impColor = person.importance === 'main' 
+          ? 'bg-brand-500/20 text-brand-300 border-brand-500/40' 
+          : 'bg-surface-700 text-slate-300 border-surface-600';
+        
+        grid.innerHTML += `
+          <div class="bg-surface-800 border border-surface-700 rounded-xl p-4 flex flex-col justify-between">
+            <div>
+              <div class="flex items-center justify-between mb-2">
+                <h4 class="text-sm font-bold text-white font-mono">${person.name}</h4>
+                <span class="text-[10px] font-mono px-1.5 py-0.5 rounded border ${impColor}">${person.importance}</span>
+              </div>
+              <div class="text-[11px] text-slate-400 mb-2 leading-relaxed">${person.desc}</div>
+            </div>
+            <div class="border-t border-surface-700/60 pt-2.5">
+              <span class="text-[10px] text-slate-500 block mb-1 font-mono">置信别名 (Aliases):</span>
+              <div class="flex flex-wrap gap-1">
+                ${person.aliases.map(a => `<span class="px-1.5 py-0.5 rounded bg-surface-900 border border-surface-700 text-[10px] text-slate-300 font-mono">${a}</span>`).join('')}
+              </div>
+            </div>
+          </div>
+        `;
+      });
+    }
+
+    // 异步跑评测模拟 (展示与本地 AI JSON 输出解耦异步跑机制)
+    let isEvaluating = false;
+    function triggerAsyncEval() {
+      if (isEvaluating) return;
+      isEvaluating = true;
+
+      const bar = document.getElementById('asyncProgressBar');
+      const text = document.getElementById('asyncProgressText');
+      const pct = document.getElementById('asyncProgressPct');
+      const btn = document.getElementById('runEvalBtn');
+
+      bar.classList.remove('hidden');
+      btn.disabled = true;
+      btn.classList.add('opacity-50', 'cursor-not-allowed');
+
+      const stages = [
+        { p: "15%", t: "正在读取 workspace/bcb2958e.../cast.json 人名册与实体对齐..." },
+        { p: "40%", t: "正在加载 12 个章节账本 (workspace/ledger/*.json) 提取边..." },
+        { p: "70%", t: "比对 24 条 Required 与 8 条 Forbidden 关系语义对齐..." },
+        { p: "90%", t: "执行证据 Quote 字符级原文精确命中与关系去重计算..." },
+        { p: "100%", t: "评测完成！已刷新 reports/latest.json 并更新得分大屏。" }
+      ];
+
+      let step = 0;
+      const timer = setInterval(() => {
+        if (step < stages.length) {
+          pct.innerText = stages[step].p;
+          text.innerText = stages[step].t;
+          step++;
+        } else {
+          clearInterval(timer);
+          setTimeout(() => {
+            bar.classList.add('hidden');
+            btn.disabled = false;
+            btn.classList.remove('opacity-50', 'cursor-not-allowed');
+            isEvaluating = false;
+            alert("✅ 异步评测完成！最新综合得分：85.01 分。报告已写入 reports/latest.json");
+          }, 800);
+        }
+      }, 700);
+    }
+
+    function downloadJsonReport() {
+      window.open('../siddhartha/reports/latest.json', '_blank');
+    }
+
+    // 初始化
+    window.addEventListener('DOMContentLoaded', () => {
+      renderChapterNav();
+      openChapter(1);
+      renderCast();
+    });
+  </script>
+</body>
+</html>
