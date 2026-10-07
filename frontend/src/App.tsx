@@ -1,15 +1,24 @@
-import { GraphView } from './components/GraphView'
+/**
+ * 应用外壳：顶栏 + 主体两栏（图谱区 + 侧栏，≤900px 侧栏落到图下方），外加书架抽屉与提示条。
+ * 只负责把全局状态接到各区域组件上，并处理页面级快捷键（Esc 退出中心视图 / 取消选中）。
+ */
+import { useCallback, useEffect, useState } from 'react'
+import { GraphView, type ZoomRequest } from './components/GraphView'
 import { HeaderBar } from './components/HeaderBar'
-import { ControlPanel } from './components/ControlPanel'
+import { GraphToolbar } from './components/GraphToolbar'
 import { AnalysisProgress } from './components/AnalysisProgress'
 import { DetailPanel } from './components/DetailPanel'
 import { CastPanel } from './components/CastPanel'
 import { LedgerPanel } from './components/LedgerPanel'
 import { SidePanel } from './components/SidePanel'
 import { EmptyState } from './components/EmptyState'
+import { BookShelf } from './components/BookShelf'
 import { AppStateProvider } from './state/AppStateProvider'
+import { ALL_BOOK_FOCUS } from './types'
 import { useAppState } from './state/useAppState'
 import './App.css'
+import './styles/graph.css'
+import './styles/progress.css'
 import './panels.css'
 
 export default function App() {
@@ -20,182 +29,225 @@ export default function App() {
   )
 }
 
+/** 普通提示几秒后自动消失；错误一直留着，等用户关掉 */
+const MSG_TTL_MS = 6000
+
 function AppLayout() {
   const s = useAppState()
   const hasBook = Boolean(s.bookId)
+  const [shelfOpen, setShelfOpen] = useState(false)
+  const closeShelf = useCallback(() => setShelfOpen(false), [])
+  // 图工具条的放大 / 缩小请求（GraphToolbar → GraphView）
+  const [zoomRequest, setZoomRequest] = useState<ZoomRequest | null>(null)
+  const requestZoom = useCallback((kind: ZoomRequest['kind']) => setZoomRequest({ kind, nonce: Date.now() }), [])
+
+  const { msg, error, clearBanner } = s
+  useEffect(() => {
+    if (!msg || error) return
+    const t = window.setTimeout(clearBanner, MSG_TTL_MS)
+    return () => window.clearTimeout(t)
+  }, [msg, error, clearBanner])
+
+  // Esc：先退出中心视图，再取消选中（输入框里的 Esc 留给输入框自己）
+  const { egoPersonId, setEgoPersonId, setSelectedNode, setSelectedEdge } = s
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || shelfOpen) return
+      const el = e.target as HTMLElement | null
+      if (el && ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName)) return
+      if (egoPersonId) {
+        setEgoPersonId(null)
+      } else {
+        setSelectedNode(null)
+        setSelectedEdge(null)
+      }
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [shelfOpen, egoPersonId, setEgoPersonId, setSelectedNode, setSelectedEdge])
 
   return (
     <div className="app">
       <HeaderBar
-        bookId={s.bookId}
         selectedBook={s.selectedBook}
+        contentChapters={s.contentChapters}
         isRunning={s.isRunning}
         graph={s.graph}
         exporting={s.exporting}
+        toChapter={s.toChapter}
+        onToChapterChange={s.setToChapter}
+        onOpenShelf={() => setShelfOpen(true)}
         onPickPerson={s.onPickPerson}
-        onUpload={s.onUpload}
         onAnalyze={s.onAnalyze}
         onStop={s.onStop}
         onExport={s.onExport}
       />
 
-      {hasBook && (
-        <ControlPanel
-          books={s.books}
-          bookId={s.bookId}
-          onBookChange={s.handleBookChange}
-          contentChapters={s.contentChapters}
-          toChapter={s.toChapter}
-          singleChapterOnly={s.singleChapterOnly}
-          onToChapterChange={s.setToChapter}
-          onSingleChapterOnlyChange={s.setSingleChapterOnly}
-          minAppearance={s.minAppearance}
-          onMinAppearanceChange={s.setMinAppearance}
-          categoryFilter={s.categoryFilter}
-          onCategoryFilterChange={s.setCategoryFilter}
-          typeFilter={s.typeFilter}
-          onTypeFilterChange={s.setTypeFilter}
-          relationTypes={s.relationTypes}
-          layoutMode={s.layoutMode}
-          onLayoutModeChange={s.setLayoutMode}
-          factions={s.graph?.factions ?? []}
-          selectedFactions={s.selectedFactions}
-          onSelectedFactionsChange={s.setSelectedFactions}
-          isRunning={s.isRunning}
-          graphLoading={s.graphLoading}
-          factionLoading={s.factionLoading}
-          factionsStale={Boolean(s.selectedBook?.factions_stale)}
-          onRefreshGraph={() => void s.handleLoadGraph()}
-          onExtractFactions={() => void s.onExtractFactions()}
-          onOpenSide={s.openSide}
-        />
-      )}
-
-      {hasBook && (
-        <AnalysisProgress
-          analysis={s.analysis}
-          onRetryChapter={(chapterId) => void s.onRetryChapter(chapterId)}
-          onRetryFailed={() => void s.onRetryFailed()}
-          onSkipFailed={() => void s.onSkipFailed()}
-        />
-      )}
-
-      {(s.error || s.msg) && (
-        <div className={`banner ${s.error ? 'err' : 'ok'}`}>{s.error || s.msg}</div>
-      )}
-
-      <main
-        className={`main${s.sideCollapsed ? ' side-collapsed' : ''}${hasBook ? '' : ' solo'}`}
-      >
-        <div className="canvas-wrap">
-          {hasBook && (
-            <button
-              type="button"
-              className="side-toggle"
-              onClick={s.toggleSide}
-              title={s.sideCollapsed ? '展开侧栏' : '收起侧栏'}
-              aria-expanded={!s.sideCollapsed}
-              aria-controls="detail-side"
-            >
-              {s.sideCollapsed ? '◀' : '▶'}
-            </button>
-          )}
+      <main className={`main${hasBook ? '' : ' solo'}`}>
+        <section className="stage" aria-label="人物关系图">
           {!hasBook ? (
-            <EmptyState
-              books={s.books}
-              onSelectBook={s.handleBookChange}
-              onUpload={s.onUpload}
+            <EmptyState books={s.books} onSelectBook={s.handleBookChange} onUpload={s.onUpload} />
+          ) : s.graph && s.graph.nodes.length > 0 ? (
+            <GraphView
+              data={s.graph}
+              layoutMode={s.layoutMode}
+              selectedFactions={s.selectedFactions}
+              focusRequest={s.focusRequest}
+              zoomRequest={zoomRequest}
+              selectedPersonId={s.selectedNode?.person_id ?? null}
+              selectedEdge={s.selectedEdge}
+              egoPersonId={s.egoPersonId}
+              refitToken={s.refitToken}
+              scopeLabel={s.scopeLabel}
+              onExitEgo={() => s.setEgoPersonId(null)}
+              onEnterEgo={s.setEgoPersonId}
+              onSelectEdge={(e) => {
+                s.setSelectedEdge(e)
+                if (e) s.openSide('detail')
+              }}
+              onSelectNode={(n) => {
+                s.setSelectedNode(n)
+                if (n) s.openSide('detail')
+              }}
             />
-          ) : s.isRunning ? (
-            <div className="graph-empty">
-              分析进行中，完成后会自动刷新图…
-              <br />
-              <span className="hint">当前阶段：{s.analysis.phase}</span>
-            </div>
-          ) : s.graphLoading && !s.graph ? (
-            <div className="graph-empty">正在铺开人物图…</div>
-          ) : s.graph ? (
-            s.graph.nodes.length === 0 ? (
-              <div className="graph-empty">
-                这一段还没有人物入图。
-                <br />
-                <span className="hint">也许尚未分析，或筛选过严。</span>
-              </div>
-            ) : (
-              <GraphView
-                data={s.graph}
-                layoutMode={s.layoutMode}
-                selectedFactions={s.selectedFactions}
-                focusRequest={s.focusRequest}
-                selectedPersonId={s.selectedNode?.person_id ?? null}
-                egoPersonId={s.egoPersonId}
-                refitToken={s.refitToken}
-                onExitEgo={() => s.setEgoPersonId(null)}
-                onSelectEdge={(e) => {
-                  s.setSelectedEdge(e)
-                  if (e) s.openSide('detail')
-                }}
-                onSelectNode={(n) => {
-                  s.setSelectedNode(n)
-                  if (n) s.openSide('detail')
-                }}
-              />
-            )
           ) : (
             <div className="graph-empty">
-              尚未成图。
-              <br />
-              <span className="hint">点上方「启动分析」，把人物织进关系图。</span>
+              {s.isRunning ? (
+                <>
+                  分析进行中，完成后会自动出图…
+                  <br />
+                  <span className="hint">{s.analysis.phase}</span>
+                </>
+              ) : s.graphLoading ? (
+                '正在铺开人物图…'
+              ) : s.graph ? (
+                <>
+                  这个范围里还没有人物入图。
+                  <br />
+                  <span className="hint">换个章节范围，或放宽筛选条件。</span>
+                </>
+              ) : (
+                <>
+                  尚未成图。
+                  <br />
+                  <span className="hint">点右上角「开始分析」，把人物织进关系图。</span>
+                </>
+              )}
             </div>
           )}
-        </div>
+
+          {hasBook && (
+            <GraphToolbar
+              contentChapters={s.contentChapters}
+              chapterFocus={s.chapterFocus}
+              onChapterFocusChange={s.setChapterFocus}
+              layoutMode={s.layoutMode}
+              onLayoutModeChange={s.setLayoutMode}
+              factions={s.graph?.factions ?? []}
+              selectedFactions={s.selectedFactions}
+              onSelectedFactionsChange={s.setSelectedFactions}
+              minAppearance={s.minAppearance}
+              onMinAppearanceChange={s.setMinAppearance}
+              categoryFilter={s.categoryFilter}
+              onCategoryFilterChange={s.setCategoryFilter}
+              typeFilter={s.typeFilter}
+              onTypeFilterChange={s.setTypeFilter}
+              relationTypes={s.relationTypes}
+              filteredCount={s.graph?.filtered_count ?? 0}
+              onRefit={s.requestRefit}
+              isRunning={s.isRunning}
+              onZoom={requestZoom}
+              hasGraph={!!s.graph?.nodes.length}
+              chapterPeopleCount={s.graph?.chapter_focus?.mode === 'single' ? s.graph.nodes.length : undefined}
+            />
+          )}
+
+          {hasBook && (
+            <AnalysisProgress
+              analysis={s.analysis}
+              bookTitle={s.selectedBook?.title ?? ''}
+              chapters={s.contentChapters}
+              hasPrevious={Boolean(s.graph)}
+              onStop={() => void s.onStop()}
+              onRetryFailed={() => void s.onRetryFailed()}
+              onDismiss={s.onDismissAnalysis}
+            />
+          )}
+        </section>
+
         {hasBook && (
           <SidePanel
             tab={s.sideTab}
             onTab={s.openSide}
-            castCount={s.cast?.persons.length}
+            castCount={s.graph?.nodes.length}
+            focus={s.graph?.chapter_focus}
+            chapters={s.contentChapters}
+            onShowAll={() => s.setChapterFocus(ALL_BOOK_FOCUS)}
             detail={
               <DetailPanel
                 graph={s.graph}
+                book={s.selectedBook}
+                castCount={s.cast?.persons.length}
+                chapters={s.contentChapters}
+                chapterLabel={s.chapterLabel}
                 selectedNode={s.selectedNode}
                 selectedEdge={s.selectedEdge}
                 egoPersonId={s.egoPersonId}
-                chapterLabel={s.chapterLabel}
+                focusLedger={s.focusLedger}
+                focusLedgerLoading={s.focusLedgerLoading}
                 onSetEgo={s.setEgoPersonId}
+                onFocusPerson={s.onFocusCastPerson}
+                onJumpChapter={(chapter) => s.setChapterFocus({ mode: 'single', chapter })}
+                onSelectEdge={(edge) => {
+                  s.setSelectedNode(null)
+                  s.setSelectedEdge(edge)
+                }}
               />
             }
             cast={
               <CastPanel
-                cast={s.cast}
-                loading={s.castLoading}
-                saving={s.castSaving}
-                error={s.castError}
                 graph={s.graph}
-                disabled={s.isRunning}
-                onSavePerson={s.saveCastPerson}
-                onMerge={s.mergeCast}
+                chapters={s.contentChapters}
+                loading={s.graphLoading}
                 onFocusPerson={s.onFocusCastPerson}
               />
             }
             ledger={
               <LedgerPanel
                 chapters={s.contentChapters}
-                chapterId={s.ledgerChapterId}
-                onChapterChange={s.setLedgerChapterId}
-                ledger={s.ledger}
-                loading={s.ledgerLoading}
-                missing={s.ledgerMissing}
-                error={s.ledgerError}
-                rerunning={s.rerunning}
+                progress={s.selectedBook?.analysis_progress}
+                focus={s.chapterFocus}
+                entries={s.chapterLedgers}
+                onRequest={s.requestChapterLedger}
+                rerunningChapterId={s.rerunningChapterId}
                 disabled={s.isRunning}
                 nameOf={s.personName}
-                onRerun={() => void s.onRerunChapter()}
+                onFocusChapter={(chapter) => s.setChapterFocus({ mode: 'single', chapter })}
+                onRerun={(chapterId) => void s.onRerunChapter(chapterId)}
                 onFocusPerson={s.onFocusCastPerson}
               />
             }
           />
         )}
       </main>
+
+      <BookShelf
+        open={shelfOpen}
+        books={s.books}
+        bookId={s.bookId}
+        onClose={closeShelf}
+        onSelect={s.handleBookChange}
+        onUpload={s.onUpload}
+      />
+
+      {(error || msg) && (
+        <div className={`toast ${error ? 'err' : 'ok'}`} role={error ? 'alert' : 'status'}>
+          <span>{error || msg}</span>
+          <button type="button" className="btn ghost" onClick={clearBanner} aria-label="关闭提示">
+            ✕
+          </button>
+        </div>
+      )}
     </div>
   )
 }

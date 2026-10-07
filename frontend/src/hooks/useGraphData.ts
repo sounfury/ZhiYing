@@ -31,14 +31,9 @@ export function useGraphData(
       setGraphLoading(true)
 
       try {
-        if (filters.singleChapterOnly && filters.toChapter === '') {
-          setGraph(null)
-          return { error: '勾选「仅该章」时请先选择具体章节', msg: '' }
-        }
-
         const data = await getGraph(bookId, {
-          to_chapter: filters.toChapter === '' ? undefined : filters.toChapter,
-          single_chapter: filters.singleChapterOnly,
+          chapter: filters.chapterFocus.mode === 'all' ? undefined : filters.chapterFocus.chapter,
+          chapter_mode: filters.chapterFocus.mode === 'all' ? undefined : filters.chapterFocus.mode,
           min_appearance: filters.minAppearance,
           category_filter: filters.categoryFilter.length ? filters.categoryFilter.join(',') : undefined,
           predicate_filter: filters.typeFilter.length
@@ -49,12 +44,14 @@ export function useGraphData(
         setGraph(data)
 
         let rangeLabel = ' · 无章数据'
-        if (data.chapter_range.length >= 2) {
-          const [lo, hi] = data.chapter_range
+        if (data.chapter_focus) {
+          const { chapter, mode } = data.chapter_focus
           rangeLabel =
-            lo === hi
-              ? ` · 仅「${chapterLabel(lo)}」`
-              : ` · 截至「${chapterLabel(hi)}」（累计）`
+            mode === 'single'
+              ? ` · 仅「${chapterLabel(chapter)}」`
+              : ` · 前 ${chapter} 章（累计）`
+        } else if (data.chapter_range?.length >= 2) {
+          rangeLabel = ' · 全书'
         }
 
         const msg =
@@ -73,8 +70,8 @@ export function useGraphData(
     },
     [
       bookId,
-      filters.toChapter,
-      filters.singleChapterOnly,
+      filters.chapterFocus.mode,
+      filters.chapterFocus.chapter,
       filters.minAppearance,
       filters.typeFilter,
       filters.categoryFilter,

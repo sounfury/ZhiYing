@@ -1,0 +1,427 @@
+/* 分析进度样式（AnalysisProgress）：运行中的居中进度卡与淡遮罩、失败结果卡、右下角成功 / 取消提示、折叠日志。 */
+
+/* ── 运行中：图谱区淡遮罩，旧图隐约可见 ── */
+.progress-scrim {
+  position: absolute;
+  inset: 0;
+  z-index: 9;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: color-mix(in srgb, var(--canvas) 72%, transparent);
+  backdrop-filter: blur(2px);
+  overflow: auto;
+}
+
+.progress-card {
+  width: min(640px, 100%);
+  max-height: 100%;
+  overflow: auto;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+}
+
+.progress-card h2 {
+  margin: 0;
+  font-family: var(--serif);
+  font-size: 19px;
+  font-weight: 600;
+  line-height: 1.4;
+}
+
+/* 失败结果：不加遮罩，卡片浮在图谱区上部，旧图仍可操作 */
+.progress-card.result {
+  position: absolute;
+  z-index: 9;
+  top: 64px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: min(600px, calc(100% - 28px));
+  max-height: calc(100% - 84px);
+}
+
+.progress-card.failed {
+  border-top: 3px solid var(--err);
+}
+
+.progress-card.failed h2 {
+  color: var(--err);
+}
+
+/* ── 阶段步骤条 ── */
+.steps {
+  display: flex;
+  gap: 6px;
+  margin: 18px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.steps li {
+  flex: 1;
+  min-width: 0;
+  padding-top: 9px;
+  border-top: 3px solid var(--line);
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  transition: border-color 0.3s, color 0.3s;
+}
+
+.steps li.done {
+  border-color: var(--accent);
+  color: var(--ink-2);
+}
+
+.steps li.cur {
+  border-color: var(--warn);
+  color: var(--ink);
+  font-weight: 600;
+}
+
+/* ── 逐章网格 ── */
+.pfold {
+  display: inline-block;
+  margin: 0 0 8px;
+  font-size: 12px;
+}
+
+.pgrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(118px, 1fr));
+  gap: 8px;
+  max-height: min(300px, 40vh);
+  overflow: auto;
+  padding: 1px;
+}
+
+.pgrid.single {
+  grid-template-columns: minmax(0, 240px);
+}
+
+.pc {
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--panel);
+}
+
+.pc.failed {
+  border-color: color-mix(in srgb, var(--err) 45%, var(--line));
+  background: var(--err-soft);
+}
+
+.pc b {
+  display: block;
+  overflow: hidden;
+  font-family: var(--serif);
+  font-size: 13.5px;
+  font-weight: 600;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pc .bars {
+  display: flex;
+  gap: 3px;
+  margin: 7px 0 5px;
+}
+
+.pc .bars i {
+  flex: 1;
+  height: 5px;
+  border-radius: 2px;
+  background: var(--line);
+}
+
+.pc .bars i.d {
+  background: var(--accent);
+}
+
+/* 复用的章：已完成但没有重新调用模型，颜色淡一些 */
+.pc .bars i.d.reused {
+  background: color-mix(in srgb, var(--accent) 45%, var(--line));
+}
+
+.pc .bars i.r {
+  background: var(--warn);
+  animation: pc-blink 1.2s ease-in-out infinite;
+}
+
+.pc .bars i.f {
+  background: var(--err);
+}
+
+@keyframes pc-blink {
+  50% {
+    opacity: 0.35;
+  }
+}
+
+.pc small {
+  display: block;
+  overflow: hidden;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.pc .st-run {
+  color: var(--warn);
+}
+
+.pc .st-ok {
+  color: var(--accent);
+}
+
+.pc .st-err {
+  color: var(--err);
+  font-weight: 600;
+}
+
+/* ── 实时数据与说明 ── */
+.pmeta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 18px;
+  margin-top: 16px;
+  color: var(--ink-2);
+  font-size: 12.5px;
+}
+
+.pmeta b {
+  font-variant-numeric: tabular-nums;
+}
+
+.phint {
+  margin: 8px 0 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.pnote {
+  margin: 10px 0 0;
+  color: var(--ink-2);
+  line-height: 1.6;
+}
+
+.pactions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+/* ── 失败章节列表 ── */
+.pfail {
+  display: grid;
+  gap: 6px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.pfail li {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr);
+  gap: 10px;
+  align-items: baseline;
+  padding: 8px 10px;
+  border: 1px solid color-mix(in srgb, var(--err) 30%, var(--line));
+  border-radius: 8px;
+  background: var(--err-soft);
+}
+
+.pfail b {
+  font-family: var(--serif);
+  font-size: 13.5px;
+  white-space: nowrap;
+}
+
+.pfail span {
+  color: var(--ink-2);
+  font-size: 12.5px;
+  word-break: break-word;
+}
+
+.pfail-msg {
+  margin: 12px 0 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  background: var(--err-soft);
+  color: var(--ink-2);
+}
+
+/* ── 详细日志（默认收起） ── */
+.plog {
+  margin-top: 14px;
+  border-top: 1px dashed var(--line);
+  padding-top: 8px;
+}
+
+.plog summary {
+  width: fit-content;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.plog ul {
+  max-height: 9rem;
+  overflow: auto;
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+}
+
+.plog li {
+  padding: 2px 0;
+  border-bottom: 1px dashed var(--line);
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.plog .log-ok {
+  color: var(--accent);
+}
+
+.plog .log-fail {
+  color: var(--err);
+}
+
+.plog .log-phase {
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.plog .log-info {
+  color: var(--muted);
+}
+
+/* ── 成功 / 取消：右下角小提示 ── */
+.progress-notice {
+  position: absolute;
+  z-index: 9;
+  right: 14px;
+  bottom: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  max-width: min(480px, calc(100% - 28px));
+  padding: 8px 6px 8px 12px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
+  box-shadow: var(--shadow-lg);
+  font-size: 13px;
+  animation: notice-in 0.3s ease-out;
+  transition: opacity 0.4s, transform 0.4s;
+}
+
+.progress-notice.leaving {
+  opacity: 0;
+  transform: translateY(6px);
+}
+
+.progress-notice .dot {
+  display: grid;
+  flex: none;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--panel-2);
+  color: var(--muted);
+  font-size: 10px;
+}
+
+.progress-notice.ok .dot {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.progress-notice .txt {
+  min-width: 0;
+  color: var(--ink);
+  line-height: 1.5;
+}
+
+.progress-notice .sub {
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+@keyframes notice-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .pc .bars i.r,
+  .progress-notice {
+    animation: none;
+  }
+}
+
+/* ── 窄屏 ── */
+@media (max-width: 520px) {
+  .progress-scrim {
+    align-items: flex-start;
+    padding: 12px;
+  }
+
+  .progress-card {
+    padding: 16px;
+  }
+
+  .progress-card h2 {
+    font-size: 17px;
+  }
+
+  .progress-card.result {
+    top: 12px;
+    width: calc(100% - 24px);
+    max-height: calc(100% - 24px);
+  }
+
+  .steps {
+    gap: 4px;
+    margin: 14px 0;
+  }
+
+  .steps li {
+    font-size: 11px;
+  }
+
+  .pgrid {
+    grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
+  }
+
+  .pmeta {
+    gap: 4px 12px;
+  }
+
+  .progress-notice {
+    left: 10px;
+    right: 10px;
+    bottom: 10px;
+    max-width: none;
+  }
+}

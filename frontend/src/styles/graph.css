@@ -1,0 +1,721 @@
+/* 图谱区样式：势力扩展色槽、画布容器、图上悬浮件（章节聚焦卡、竖排工具条、筛选浮层、图例、中心视图路径条、悬停浮卡）。 */
+
+/*
+ * 势力色槽：tokens.css 只定了 --f1…--f3，这里补齐 --f4…--f8 与未归属 --f0（浅 / 跟随系统深色 / 强制深色三套）。
+ * factions.ts 返回 var(--fN)，图谱画布由 GraphView/style.ts 读同名变量。
+ */
+:root {
+  --f0: #8f877d;
+  --f0-soft: #efebe4;
+  --f4: #9a7a2c;
+  --f4-soft: #f3ecd8;
+  --f5: #8a4a7a;
+  --f5-soft: #f2e3ee;
+  --f6: #3f7f99;
+  --f6-soft: #dcebf1;
+  --f7: #a84a4a;
+  --f7-soft: #f6e1df;
+  --f8: #5e7330;
+  --f8-soft: #e7edd8;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    --f0: #8f877d;
+    --f0-soft: #2a2724;
+    --f4: #d4b263;
+    --f4-soft: #382f1c;
+    --f5: #d08bbf;
+    --f5-soft: #36233a;
+    --f6: #6fb4cf;
+    --f6-soft: #1d3039;
+    --f7: #e08585;
+    --f7-soft: #3a2222;
+    --f8: #a3bd6a;
+    --f8-soft: #29301c;
+  }
+}
+
+:root[data-theme='dark'] {
+  --f0: #8f877d;
+  --f0-soft: #2a2724;
+  --f4: #d4b263;
+  --f4-soft: #382f1c;
+  --f5: #d08bbf;
+  --f5-soft: #36233a;
+  --f6: #6fb4cf;
+  --f6-soft: #1d3039;
+  --f7: #e08585;
+  --f7-soft: #3a2222;
+  --f8: #a3bd6a;
+  --f8-soft: #29301c;
+}
+
+/* ── 画布 ── */
+/* 不设 min-height：图要能跟着 .stage 一起缩，否则会把整页顶出滚动条 */
+.graph-wrap {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.graph-canvas {
+  width: 100%;
+  height: 100%;
+}
+
+/* 线型符号（与侧栏同款；这里限定在图谱区，避免依赖侧栏样式的加载） */
+.stage .hsym {
+  display: inline-block;
+  width: 22px;
+  height: 0;
+  border-top: 2px solid var(--hard);
+  vertical-align: middle;
+  flex-shrink: 0;
+}
+
+.stage .hsym.medium {
+  border-top: 2px dashed var(--medium);
+}
+
+.stage .hsym.soft {
+  border-top: 2px dotted var(--soft);
+}
+
+/* ── 左上：章节聚焦卡 ── */
+.fx-chapter {
+  z-index: 3;
+  top: 14px;
+  left: 14px;
+  padding: 10px 12px;
+  width: min(440px, calc(100% - 28px - 70px));
+}
+
+.fx-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.fx-row .lbl {
+  margin-left: auto;
+  font-size: 12px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+/* 刻度滑轨（≤ 12 章） */
+.track {
+  position: relative;
+  margin: 12px 18px 2px;
+  height: 34px;
+}
+
+.track .rail,
+.track .fill {
+  position: absolute;
+  left: 0;
+  top: 9px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.track .rail {
+  right: 0;
+  background: var(--line);
+}
+
+.track .fill {
+  background: var(--accent);
+  transition: width 0.2s;
+}
+
+.tick {
+  position: absolute;
+  top: 0;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+  padding: 0;
+}
+
+.tick i {
+  display: block;
+  width: 14px;
+  height: 14px;
+  margin-top: 4px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--line-2);
+  transition: transform 0.15s, background 0.15s, border-color 0.15s;
+}
+
+.tick span {
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.tick:hover i {
+  border-color: var(--accent);
+}
+
+.tick.in i {
+  border-color: var(--accent);
+}
+
+.tick.cur i {
+  background: var(--accent);
+  border-color: var(--accent);
+  transform: scale(1.25);
+}
+
+.tick.cur span {
+  color: var(--ink);
+  font-weight: 600;
+}
+
+.tick:disabled {
+  cursor: not-allowed;
+}
+
+.tick:focus-visible {
+  outline: none;
+}
+
+.tick:focus-visible i {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+/* 全书模式：滑轨变灰，点刻度会切到单章 */
+.track.disabled .fill {
+  background: var(--line-2);
+}
+
+/* 章节很多时的滑块 */
+.chapter-slider {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 10px 0 2px;
+}
+
+.chapter-slider input[type='range'] {
+  flex: 1;
+  min-width: 0;
+  accent-color: var(--accent);
+}
+
+.chapter-slider.disabled input[type='range'] {
+  accent-color: var(--line-2);
+}
+
+.chapter-slider .step {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink-2);
+  cursor: pointer;
+  line-height: 1;
+}
+
+.chapter-slider .step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.chapter-slider .pos {
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.fx-chapter .cap {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 2px 6px;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--ink-2);
+}
+
+.fx-chapter .cap b {
+  font-family: var(--serif);
+  color: var(--ink);
+}
+
+.fx-chapter .cap .ttl {
+  font-family: var(--serif);
+  max-width: 16em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── 右上：竖排图标工具 ── */
+.fx-tools {
+  z-index: 3;
+  top: 14px;
+  right: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 6px;
+}
+
+.fx-tools button {
+  position: relative;
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  border: 0;
+  border-radius: 8px;
+  background: none;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.fx-tools button svg {
+  width: 18px;
+  height: 18px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.5;
+  stroke-linecap: round;
+}
+
+.fx-tools button:hover:not(:disabled),
+.fx-tools button.on {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+.fx-tools button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.fx-tools button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: -2px;
+}
+
+/* 筛选调离默认时的小红点 */
+.fx-tools .badge {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--warn);
+}
+
+.fx-tools hr {
+  border: 0;
+  border-top: 1px solid var(--line);
+  margin: 0 4px;
+}
+
+/* ── 筛选浮层 ── */
+.filterpop {
+  z-index: 5;
+  top: 14px;
+  right: 62px;
+  width: 280px;
+  max-height: calc(100% - 28px);
+  overflow: auto;
+  padding: 12px 14px;
+}
+
+.fp-sec + .fp-sec {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--line);
+}
+
+.fp-sec h5 {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin: 0 0 6px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+.fp-sec h5 span {
+  font-weight: 400;
+}
+
+.fp-sec h5 b {
+  color: var(--ink);
+}
+
+.fp-reset {
+  margin-left: auto;
+  border: 0;
+  background: none;
+  padding: 0;
+  font-size: 12px;
+  color: var(--accent);
+  cursor: pointer;
+}
+
+.fp-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.fp-check input {
+  margin: 0;
+  accent-color: var(--accent);
+}
+
+.fp-check small {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.fp-check .nm {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fp-check em {
+  font-style: normal;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.fp-sec input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+
+.fp-note {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.fp-factions {
+  max-height: 176px;
+  overflow: auto;
+}
+
+.fp-more {
+  margin-top: 6px;
+  font-size: 12px;
+}
+
+.type-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 5px;
+  margin-bottom: 6px;
+}
+
+.type-chips .hsym {
+  width: 16px;
+  margin-right: 2px;
+}
+
+.type-chip {
+  border: 1px solid var(--line);
+  border-radius: 99px;
+  padding: 1px 8px;
+  background: var(--panel-2);
+  font-size: 11.5px;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.type-chip:hover:not(:disabled) {
+  border-color: var(--line-2);
+}
+
+.type-chip.on {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.dot {
+  display: inline-block;
+  flex-shrink: 0;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+}
+
+/* ── 左下：图例 ── */
+.fx-legend {
+  z-index: 2;
+  left: 14px;
+  bottom: 14px;
+  max-width: min(560px, calc(100% - 28px - 70px));
+  padding: 8px 12px;
+  font-size: 12px;
+}
+
+.fx-legend summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  list-style: none;
+  font-weight: 600;
+  color: var(--ink-2);
+  cursor: pointer;
+}
+
+.fx-legend summary::-webkit-details-marker {
+  display: none;
+}
+
+.fx-legend summary::after {
+  content: '▾';
+  font-size: 10px;
+  color: var(--muted);
+}
+
+.fx-legend:not([open]) summary::after {
+  content: '▸';
+}
+
+.fx-legend .lg {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 16px;
+  margin-top: 8px;
+}
+
+.fx-legend .lg > div {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+  color: var(--ink-2);
+}
+
+.fx-legend .lg svg {
+  width: 30px;
+  height: 8px;
+  flex-shrink: 0;
+}
+
+/* 势力多时限高滚动，名字过长截断 */
+.fx-legend .lg-factions {
+  max-height: 3.9em;
+  overflow: auto;
+  gap: 4px 14px;
+  margin-top: 6px;
+}
+
+.fx-legend .lg-factions .nm {
+  max-width: 11em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fx-legend .lg-hint {
+  margin-top: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+/* ── 顶部：中心视图路径条 ── */
+/*
+ * 居中在「章节卡右边缘」与「工具条左边缘」之间的空档里（两侧 inset + 自动外边距），
+ * 不压章节卡；空档太窄时（中等宽度窗口）挪到章节卡下方。
+ */
+.fx-crumb {
+  z-index: 3;
+  top: 14px;
+  left: calc(14px + min(440px, 100% - 98px) + 10px);
+  right: 62px;
+  width: fit-content;
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 6px 5px 12px;
+  font-size: 12.5px;
+  white-space: nowrap;
+}
+
+.fx-crumb > span {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.fx-crumb b {
+  font-family: var(--serif);
+}
+
+.fx-crumb button {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 4px;
+  border: 0;
+  border-radius: 6px;
+  background: var(--panel-2);
+  padding: 3px 8px;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.fx-crumb button:hover {
+  background: var(--line);
+}
+
+@media (min-width: 901px) and (max-width: 1180px) {
+  .fx-crumb {
+    top: 146px;
+    left: 14px;
+    right: auto;
+    margin: 0;
+    max-width: calc(100% - 98px);
+  }
+}
+
+/* ── 悬停浮卡 ── */
+.graph-tip {
+  z-index: 8;
+  width: 240px;
+  padding: 10px 12px;
+  font-size: 12.5px;
+  pointer-events: none;
+}
+
+.graph-tip b {
+  font-family: var(--serif);
+  font-size: 14px;
+}
+
+.graph-tip .meta {
+  font-size: 11.5px;
+  color: var(--muted);
+}
+
+.graph-tip p {
+  display: -webkit-box;
+  margin: 4px 0;
+  overflow: hidden;
+  color: var(--ink-2);
+  -webkit-line-clamp: 3;
+  -webkit-box-orient: vertical;
+}
+
+.graph-tip ul {
+  margin: 6px 0;
+  padding: 0;
+  list-style: none;
+}
+
+.graph-tip li {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 2px 0;
+}
+
+.graph-tip li em {
+  font-style: normal;
+  font-size: 10.5px;
+  padding: 0 6px;
+  border-radius: 99px;
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-weight: 600;
+}
+
+/* ── 窄屏 ── */
+@media (max-width: 900px) {
+  .fx-legend {
+    display: none;
+  }
+
+  .fx-crumb {
+    top: auto;
+    bottom: 14px;
+    left: 14px;
+    right: 14px;
+    max-width: none;
+  }
+}
+
+@media (max-width: 520px) {
+  .fx-chapter {
+    width: calc(100% - 28px);
+  }
+
+  .fx-row .lbl {
+    display: none;
+  }
+
+  .track {
+    margin: 12px 16px 2px;
+  }
+
+  .tick span {
+    font-size: 10px;
+  }
+
+  /* 工具条横到底部 */
+  .fx-tools {
+    top: auto;
+    bottom: 14px;
+    flex-direction: row;
+  }
+
+  .fx-tools hr {
+    border-top: 0;
+    border-left: 1px solid var(--line);
+    margin: 4px 0;
+  }
+
+  .filterpop {
+    top: auto;
+    bottom: 62px;
+    left: 14px;
+    right: 14px;
+    width: auto;
+    max-height: calc(100% - 200px);
+  }
+
+  .graph-tip {
+    display: none;
+  }
+
+  /* 底部让给横排工具条 */
+  .fx-crumb {
+    bottom: 64px;
+  }
+}

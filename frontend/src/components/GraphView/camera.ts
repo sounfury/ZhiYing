@@ -1,3 +1,4 @@
+/** 镜头工具：搜索命中后的一段式推进（dollyTo）、适应窗口时避开悬浮工具条的边距（fitPadding）。 */
 import type { Graph } from '@antv/g6'
 
 /** 搜索命中后的镜头推进 */
@@ -78,4 +79,39 @@ export function dollyTo(
   raf = requestAnimationFrame(step)
 
   return stop
+}
+
+/** 图上的悬浮件（章节条、工具条、图例、路径条），适应窗口时要给它们留边 */
+const FLOATS = '.fx-chapter, .fx-tools, .fx-legend, .fx-crumb'
+
+/**
+ * 适应窗口的四边留白 [上, 右, 下, 左]：量出每个可见悬浮件，挑「让开它损失面积最小」的那一边加边距。
+ * 宽屏时章节条在上、工具条在右、图例在下；窄屏布局变了也照样适用，不必按断点写死数值。
+ */
+export function fitPadding(container: HTMLElement): [number, number, number, number] {
+  const base = 24
+  const pad: [number, number, number, number] = [base, base, base, base]
+  const stage = container.closest('.stage') ?? container.parentElement
+  if (!stage) return pad
+  const s = stage.getBoundingClientRect()
+  if (s.width < 1 || s.height < 1) return pad
+  stage.querySelectorAll<HTMLElement>(FLOATS).forEach((el) => {
+    const r = el.getBoundingClientRect()
+    if (r.width < 1 || r.height < 1) return
+    const need = [r.bottom - s.top, s.right - r.left, s.bottom - r.top, r.right - s.left]
+    const cost = [need[0] * s.width, need[1] * s.height, need[2] * s.width, need[3] * s.height]
+    const side = cost.indexOf(Math.min(...cost))
+    pad[side] = Math.max(pad[side], need[side] + 12)
+  })
+  // 留白不能吃掉大半画布：超了按比例缩回
+  const fitAxis = (a: number, b: number, size: number) => {
+    const max = size * 0.55
+    if (pad[a] + pad[b] <= max) return
+    const k = max / (pad[a] + pad[b])
+    pad[a] *= k
+    pad[b] *= k
+  }
+  fitAxis(0, 2, s.height)
+  fitAxis(1, 3, s.width)
+  return pad
 }

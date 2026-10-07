@@ -1,53 +1,48 @@
-import type { FormEvent } from 'react'
+/** 未选书时的画布：介绍一句，拖放上传 EPUB，并列出书架上已有的书供直接打开。 */
 import type { BookMeta } from '../api'
-import { statusLabel } from '../labels'
+import { formatWords, shortTitle, statusIsWarn, statusLabel } from '../labels'
+import { coverGradient } from '../bookCover'
+import { EpubDropZone } from './EpubDropZone'
 
 interface EmptyStateProps {
   books: BookMeta[]
   onSelectBook: (bookId: string) => void
-  onUpload: (file: File | null) => void
+  onUpload: (file: File | null) => Promise<void>
 }
 
-/**
- * 未选书时的画布：平静的上传 / 选书入口，不再偷偷挑一本演示 UUID。
- */
 export function EmptyState({ books, onSelectBook, onUpload }: EmptyStateProps) {
   return (
     <div className="empty-state">
-      <p className="empty-kicker">织影</p>
-      <h2>把电子书织成人物关系图</h2>
+      <p className="empty-kicker">织影 ZHIYING</p>
+      <h2>把一本小说织成人物关系图</h2>
       <p className="empty-lead">
-        先建人名册，再按章入账。关系多标签共存，软硬有权重——像读一本可以翻开的人物谱。
+        导入 EPUB，系统逐章阅读、自动归并人物与关系，出图后可按章节翻看、点人物看原文依据。
       </p>
 
-      <label className="btn primary file-btn empty-upload">
-        上传 EPUB
-        <input
-          type="file"
-          accept=".epub"
-          hidden
-          onChange={(e: FormEvent<HTMLInputElement>) => {
-            void onUpload(e.currentTarget.files?.[0] ?? null)
-            e.currentTarget.value = ''
-          }}
-        />
-      </label>
+      <EpubDropZone onUpload={onUpload} className="empty-drop" />
 
       {books.length > 0 && (
         <div className="empty-shelf">
-          <p className="empty-shelf-label">已在案头的书</p>
-          <ul>
-            {books.map((b) => (
-              <li key={b.book_id}>
-                <button type="button" onClick={() => onSelectBook(b.book_id)}>
-                  <strong>{b.title || '未题名'}</strong>
-                  <span>
-                    {b.author || '未知作者'} · {b.total_chapters} 章 · {statusLabel(b.status)}
-                  </span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <p className="empty-shelf-label">书架上的书</p>
+          {books.map((b) => {
+            const title = shortTitle(b.title || '未题名')
+            return (
+              <button key={b.book_id} type="button" className="bk" onClick={() => onSelectBook(b.book_id)} title={b.title}>
+                <span className="cover" style={{ background: coverGradient(b.title) }}>
+                  {title.slice(0, 8)}
+                </span>
+                <span className="bk-body">
+                  <h4>{title}</h4>
+                  <p>
+                    {[b.author || '未知作者', b.total_words ? formatWords(b.total_words) : ''].filter(Boolean).join(' · ')}
+                  </p>
+                  <p>
+                    <span className={`pill${statusIsWarn(b.status) ? ' warn' : ''}`}>{statusLabel(b.status)}</span>
+                  </p>
+                </span>
+              </button>
+            )
+          })}
         </div>
       )}
     </div>

@@ -1,0 +1,114 @@
+/* 设计令牌：颜色 / 阴影 / 字体 / 圆角，浅色、跟随系统深色、强制深色三套；组件只引用这里的变量，不写死色值。 */
+
+:root {
+  color-scheme: light;
+  /* 表面：页面底 / 面板 / 次级面板 / 图画布 */
+  --bg: #f3efe6;
+  --panel: #fffdf8;
+  --panel-2: #f8f4ec;
+  --canvas: #faf7f0;
+  /* 文字：主 / 次 / 弱；分隔线：浅 / 深 */
+  --ink: #1f1d1a;
+  --ink-2: #4a4540;
+  --muted: #857d74;
+  --line: #e4ddd0;
+  --line-2: #d6cdbd;
+  /* 主色（墨绿）与强调色（赭石）；-ink 为色块上的文字，-soft 为浅底 */
+  --accent: #2c5f4a;
+  --accent-ink: #ffffff;
+  --accent-soft: #e3eee8;
+  --warn: #b5541f;
+  --warn-soft: #fbeee4;
+  /* 错误（效果图未定义，按同一明度体系补齐） */
+  --err: #9b2c2c;
+  --err-soft: #fbe6e3;
+  /* 势力调色：前三块固定色，其余由图谱区按需取色 */
+  --f1: #b8643a;
+  --f1-soft: #f6e6dc;
+  --f2: #2f7d6d;
+  --f2-soft: #dcefea;
+  --f3: #4f5fa8;
+  --f3-soft: #e2e5f5;
+  /* 关系强度线色：硬 / 中 / 软（PRD §5.7.2） */
+  --hard: #2a2622;
+  --medium: #6d665e;
+  --soft: #aaa196;
+
+  --shadow: 0 1px 2px rgba(40, 30, 20, 0.06), 0 6px 18px rgba(40, 30, 20, 0.08);
+  --shadow-lg: 0 12px 40px rgba(40, 30, 20, 0.16);
+  --scrim: rgba(20, 15, 10, 0.28);
+
+  /* 标题与人名用衬线，界面文字用无衬线 */
+  --serif: 'Noto Serif SC', 'Songti SC', 'STSong', 'SimSun', serif;
+  --sans: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', 'Segoe UI', sans-serif;
+  --mono: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+
+  --r: 10px;
+  --r-sm: 7px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme='light']) {
+    color-scheme: dark;
+    --bg: #171614;
+    --panel: #201e1b;
+    --panel-2: #272421;
+    --canvas: #1b1a17;
+    --ink: #ece6dc;
+    --ink-2: #c9c1b5;
+    --muted: #958c80;
+    --line: #35312c;
+    --line-2: #45403a;
+    --accent: #6fb592;
+    --accent-ink: #10201a;
+    --accent-soft: #22362c;
+    --warn: #e28a52;
+    --warn-soft: #3a281c;
+    --err: #e5847a;
+    --err-soft: #3a211e;
+    --f1: #e08e60;
+    --f1-soft: #3b2a20;
+    --f2: #5dbba7;
+    --f2-soft: #1f3631;
+    --f3: #8f9be0;
+    --f3-soft: #262a44;
+    --hard: #ece6dc;
+    --medium: #b3aa9e;
+    --soft: #6f685f;
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.3);
+    --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+    --scrim: rgba(0, 0, 0, 0.5);
+  }
+}
+
+:root[data-theme='dark'] {
+  color-scheme: dark;
+  --bg: #171614;
+  --panel: #201e1b;
+  --panel-2: #272421;
+  --canvas: #1b1a17;
+  --ink: #ece6dc;
+  --ink-2: #c9c1b5;
+  --muted: #958c80;
+  --line: #35312c;
+  --line-2: #45403a;
+  --accent: #6fb592;
+  --accent-ink: #10201a;
+  --accent-soft: #22362c;
+  --warn: #e28a52;
+  --warn-soft: #3a281c;
+  --err: #e5847a;
+  --err-soft: #3a211e;
+  --f1: #e08e60;
+  --f1-soft: #3b2a20;
+  --f2: #5dbba7;
+  --f2-soft: #1f3631;
+  --f3: #8f9be0;
+  --f3-soft: #262a44;
+  --hard: #ece6dc;
+  --medium: #b3aa9e;
+  --soft: #6f685f;
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 6px 18px rgba(0, 0, 0, 0.3);
+  --shadow-lg: 0 12px 40px rgba(0, 0, 0, 0.5);
+  --scrim: rgba(0, 0, 0, 0.5);
+}

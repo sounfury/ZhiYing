@@ -1,3 +1,4 @@
+/** 顶栏人物搜索：正名 / 别名 / ID 模糊匹配，按 / 聚焦、Esc 清空，选中后交给上层聚焦到图上。 */
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { GraphData } from '../api'
 import { factionColor } from '../factions'
@@ -60,6 +61,21 @@ export function PersonSearch({ graph, onPick }: PersonSearchProps) {
   const [open, setOpen] = useState(false)
   const [cursor, setCursor] = useState(0)
   const wrapRef = useRef<HTMLDivElement>(null)
+  const inputRef = useRef<HTMLInputElement>(null)
+
+  // 全局快捷键：/ 聚焦搜索（正在别的输入框里打字时不抢）
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== '/' || e.ctrlKey || e.metaKey || e.altKey) return
+      const el = e.target as HTMLElement | null
+      if (el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName))) return
+      e.preventDefault()
+      inputRef.current?.focus()
+      inputRef.current?.select()
+    }
+    document.addEventListener('keydown', onKey)
+    return () => document.removeEventListener('keydown', onKey)
+  }, [])
 
   useEffect(() => {
     if (!open) return
@@ -135,12 +151,17 @@ export function PersonSearch({ graph, onPick }: PersonSearchProps) {
     if (!hit) return
     onPick(hit)
     setOpen(false)
-    setQuery(hit.name)
+    setQuery('')
+    inputRef.current?.blur()
   }
 
   const onKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
     if (e.key === 'Escape') {
+      // 不冒泡：Esc 在页面别处另有「取消选中 / 退出中心视图」的含义
+      e.stopPropagation()
+      setQuery('')
       setOpen(false)
+      e.currentTarget.blur()
       return
     }
     if (!hits.length) return
@@ -161,9 +182,12 @@ export function PersonSearch({ graph, onPick }: PersonSearchProps) {
   const total = graph?.nodes.length ?? 0
 
   return (
-    <div className="person-search" ref={wrapRef}>
+    <div className="search" ref={wrapRef}>
+      <span className="ic" aria-hidden>⌕</span>
       <input
-        type="search"
+        ref={inputRef}
+        type="text"
+        autoComplete="off"
         value={query}
         placeholder={total ? `搜索人物（共 ${total} 人）` : '搜索人物'}
         disabled={!graph}
@@ -175,6 +199,7 @@ export function PersonSearch({ graph, onPick }: PersonSearchProps) {
         onKeyDown={onKeyDown}
         aria-label="搜索人物"
       />
+      <kbd aria-hidden>/</kbd>
 
       {open && query.trim() && (
         <div className="person-search-pop">

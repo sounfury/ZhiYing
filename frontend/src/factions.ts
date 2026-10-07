@@ -2,8 +2,9 @@
  * 势力块配色与文案。
  *
  * 势力是**归属**（块），关系是**连边**——两层正交（PRD §5.7.5 A）。
- * 所以势力用「面/块」通道（节点填色 + 块名 + 楔形），关系继续用线色/线型，
- * 两套色板刻意区分：势力偏中性哑光，关系边保留原来的红/蓝/灰。
+ * 势力用「面 / 块」通道（节点底色与描边、半透明区块），关系只用线型与深浅，两套色板互不混用。
+ * 颜色一律返回 CSS 变量（--f1…--f8，未归属 --f0，定义见 styles/graph.css），深浅色主题自动跟随；
+ * 画布里要用真实色值时由图谱区读 getComputedStyle 解析同名变量。
  */
 
 import type { GraphFaction } from './api'
@@ -21,37 +22,23 @@ export const FACTION_KIND_LABEL: Record<string, string> = {
   other: '其他',
 }
 
-/**
- * 势力块色板：哑光、彼此可分、深浅足够撑住白底描边。
- * 按块的环形序取用，保证相邻块颜色不撞。
- */
-const FACTION_PALETTE = [
-  '#2f6f5e', // 松绿
-  '#a8582c', // 陶土
-  '#3b5c93', // 靛蓝
-  '#8a6a2f', // 赭黄
-  '#7a3f6d', // 紫绛
-  '#417a8c', // 湖蓝
-  '#9c4040', // 砖红
-  '#556b2a', // 橄榄
-  '#6b5a8e', // 藤紫
-  '#8c5a3c', // 褐
-  '#2d6b7a', // 青
-  '#7d4a55', // 玫褐
-]
+/** 势力色槽数量（--f1…--f8），超过的块按环形序循环取色 */
+export const FACTION_SLOTS = 8
 
-const UNASSIGNED_COLOR = '#a8a09a'
-
-export function factionColor(faction: GraphFaction | undefined): string {
-  if (!faction || faction.faction_id === UNASSIGNED_FACTION_ID) return UNASSIGNED_COLOR
-  return FACTION_PALETTE[faction.order % FACTION_PALETTE.length]
+/** 势力 → 色槽：0 = 未归属 / 无势力，1…8 按块的环形序取，相邻块颜色不撞 */
+export function factionSlot(faction: GraphFaction | undefined): number {
+  if (!faction || faction.faction_id === UNASSIGNED_FACTION_ID) return 0
+  return (faction.order % FACTION_SLOTS) + 1
 }
 
-/** 节点填色：势力色的极淡版，保证名字仍可读 */
+/** 势力主色（描边、色点、文字） */
+export function factionColor(faction: GraphFaction | undefined): string {
+  return `var(--f${factionSlot(faction)})`
+}
+
+/** 势力浅底（节点底色、区块底色、头像底） */
 export function factionFill(faction: GraphFaction | undefined): string {
-  if (!faction || faction.faction_id === UNASSIGNED_FACTION_ID) return '#f6f4f1'
-  const hex = factionColor(faction)
-  return `${hex}14` // 8% alpha
+  return `var(--f${factionSlot(faction)}-soft)`
 }
 
 export function factionLabel(faction: GraphFaction): string {

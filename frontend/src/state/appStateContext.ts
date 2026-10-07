@@ -1,8 +1,8 @@
+/** 全局应用状态的类型契约与 React Context；实现见 AppStateProvider。 */
 import { createContext } from 'react'
 import type {
   BookMeta,
   Cast,
-  CastPerson,
   ChapterBrief,
   ChapterLedger,
   GraphData,
@@ -11,8 +11,9 @@ import type {
   RelationTypeMeta,
 } from '../api'
 import type { FocusRequest, LayoutMode } from '../components/GraphView'
+import type { LedgerEntry } from '../hooks/useLedger'
 import type { PersonHit } from '../components/PersonSearch'
-import type { AnalysisUi, SideTab } from '../types'
+import type { AnalysisUi, ChapterFocusState, SideTab } from '../types'
 
 export type AppStateValue = {
   books: BookMeta[]
@@ -24,8 +25,11 @@ export type AppStateValue = {
   chapterLabel: (id: number | undefined) => string
   toChapter: number | ''
   setToChapter: (v: number | '') => void
-  singleChapterOnly: boolean
-  setSingleChapterOnly: (v: boolean) => void
+  chapterFocus: ChapterFocusState
+  setChapterFocus: (v: ChapterFocusState) => void
+  scopeLabel: string
+  focusLedger: ChapterLedger | null
+  focusLedgerLoading: boolean
   minAppearance: number
   setMinAppearance: (v: number) => void
   categoryFilter: string[]
@@ -36,13 +40,11 @@ export type AppStateValue = {
 
   graph: GraphData | null
   graphLoading: boolean
-  handleLoadGraph: () => Promise<void>
 
   layoutMode: LayoutMode
   setLayoutMode: (v: LayoutMode) => void
   selectedFactions: string[]
   setSelectedFactions: (ids: string[]) => void
-  factionLoading: boolean
 
   selectedEdge: GraphEdge | null
   setSelectedEdge: (e: GraphEdge | null) => void
@@ -52,46 +54,43 @@ export type AppStateValue = {
   setEgoPersonId: (id: string | null) => void
   focusRequest: FocusRequest | null
 
-  sideCollapsed: boolean
   sideTab: SideTab
-  setSideTab: (tab: SideTab) => void
-  refitToken: number
-  toggleSide: () => void
+  /** 切侧栏页签 */
   openSide: (tab: SideTab) => void
+  /** 图重新适应窗口的计数器（传给 GraphView.refitToken）；requestRefit 递增它 */
+  refitToken: number
+  requestRefit: () => void
 
   error: string
   msg: string
+  clearBanner: () => void
 
   analysis: AnalysisUi
   isRunning: boolean
 
   onUpload: (file: File | null) => Promise<void>
-  onAnalyze: () => Promise<void>
+  /** 启动整书分析；force=true 全部重读，否则复用仍有效的章节结果（即只补读失败 / 未读章） */
+  onAnalyze: (opts?: { force?: boolean }) => Promise<void>
   onStop: () => Promise<void>
-  onRetryChapter: (chapterId: number) => Promise<void>
+  /** 分析失败后的补救：整书分析只补读失败章（不 force）；单章重跑则再重跑那一章 */
   onRetryFailed: () => Promise<void>
-  onSkipFailed: () => Promise<void>
-  onExtractFactions: () => Promise<void>
+  /** 收起分析结束提示 / 失败卡 */
+  onDismissAnalysis: () => void
   onPickPerson: (hit: PersonHit) => void
   onExport: () => Promise<void>
   exporting: boolean
 
   cast: Cast | null
   castLoading: boolean
-  castSaving: boolean
-  castError: string
-  saveCastPerson: (person: CastPerson) => Promise<void>
-  mergeCast: (keepId: string, dropId: string) => Promise<void>
+  /** 在图上聚焦某人并切到人物页签 */
   onFocusCastPerson: (personId: string) => void
 
-  ledgerChapterId: number | ''
-  setLedgerChapterId: (id: number | '') => void
-  ledger: ChapterLedger | null
-  ledgerLoading: boolean
-  ledgerMissing: boolean
-  ledgerError: string
-  rerunning: boolean
-  onRerunChapter: () => Promise<void>
+  /** 章节页签：各章分析结果的按需缓存（按 chapter_id） */
+  chapterLedgers: Record<number, LedgerEntry>
+  requestChapterLedger: (chapterId: number) => void
+  /** 正在单章重跑的章节；null = 没有 */
+  rerunningChapterId: number | null
+  onRerunChapter: (chapterId: number) => Promise<void>
   personName: (personId: string) => string
 }
 

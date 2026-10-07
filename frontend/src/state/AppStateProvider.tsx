@@ -1,10 +1,12 @@
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
+/**
+ * 全局应用状态：当前书、章节聚焦与过滤、图数据、选中与人物聚焦、侧栏页签、分析任务、导出、人名册与章节结果。
+ * 只做编排（读接口、调 hook、写状态），具体展示交给各组件。
+ */
+import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   analysisChapters,
   downloadExport,
-  extractFactions,
   getBook,
-  rerunChapter,
   uploadBook,
   type BookMeta,
 } from '../api'
@@ -15,32 +17,59 @@ import { useCast } from '../hooks/useCast'
 import { useChapters } from '../hooks/useChapters'
 import { useGraphData } from '../hooks/useGraphData'
 import { useAnalysis } from '../hooks/useAnalysis'
-import { useLedger } from '../hooks/useLedger'
+import { useChapterLedgers, useLedger } from '../hooks/useLedger'
 import { useRelationTypes } from '../hooks/useRelationTypes'
-import type { GraphFilters, SideTab } from '../types'
+import { ALL_BOOK_FOCUS, type ChapterFocusState, type GraphFilters, type SideTab } from '../types'
+import { chapterShortName } from '../chapterNames'
 import { AppStateContext, type AppStateValue } from './appStateContext'
+
+const BOOK_KEY = 'zhiying.bookId'
+
+/** 初始选中的书：URL ?book= 优先，其次上次打开的书 */
+function initialBookId(): string {
+  try {
+    const fromUrl = new URLSearchParams(window.location.search).get('book')
+    if (fromUrl) return fromUrl
+    return localStorage.getItem(BOOK_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
   const { books, refreshBooks } = useBooks()
-  const [bookId, setBookId] = useState('')
+  const [bookId, setBookId] = useState(initialBookId)
+
+  // 记住当前书，刷新后直接回到它
+  useEffect(() => {
+    try {
+      if (bookId) localStorage.setItem(BOOK_KEY, bookId)
+      else localStorage.removeItem(BOOK_KEY)
+    } catch {
+      /* 无法写 localStorage 时不记忆 */
+    }
+  }, [bookId])
+
+  // 记住的书已被删除：书单加载后找不到就回到空态
+  useEffect(() => {
+    if (bookId && books.length && !books.some((b) => b.book_id === bookId)) setBookId('')
+  }, [bookId, books])
   const [bookDetail, setBookDetail] = useState<BookMeta | undefined>(undefined)
 
   const { contentChapters, chapterLabel } = useChapters(bookId, (list) => {
     const allowed = new Set(analysisChapters(list).map((c) => c.chapter_id))
     setToChapter((prev) => (prev !== '' && allowed.has(prev) ? prev : ''))
-    setSingleChapterOnly(false)
-    setLedgerChapterId((prev) => (prev !== '' && allowed.has(prev) ? prev : ''))
   })
 
   const [toChapter, setToChapter] = useState<number | ''>('')
-  const [singleChapterOnly, setSingleChapterOnly] = useState(false)
-  const [minAppearance, setMinAppearance] = useState(1)
+  const [chapterFocus, setChapterFocusRaw] = useState<ChapterFocusState>(ALL_BOOK_FOCUS)
+  // 路人过滤默认「至少出场 2 章」（PRD §5.7.7）
+  const [minAppearance, setMinAppearance] = useState(2)
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<string[]>([])
 
   const filters: GraphFilters = {
-    toChapter,
-    singleChapterOnly,
+    chapterFocus,
     minAppearance,
     typeFilter,
     categoryFilter,
@@ -49,9 +78,40 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const { graph, graphLoading, loadGraph } = useGraphData(bookId, filters, chapterLabel)
   const relationTypes = useRelationTypes(bookId, graph)
 
+  /** 切换章节聚焦：从「全书」切到单章/前 N 章时，章节缺省取已有选择或第一章；章节不在可选范围时回落第一章 */
+  const setChapterFocus = useCallback(
+    (next: ChapterFocusState) => {
+      if (next.mode === 'all') {
+        setChapterFocusRaw(ALL_BOOK_FOCUS)
+        return
+      }
+      const ids = contentChapters.map((c) => c.chapter_id)
+      const chapter = ids.includes(next.chapter) ? next.chapter : (ids[0] ?? 0)
+      if (!chapter) return
+      setChapterFocusRaw({ mode: next.mode, chapter })
+    },
+    [contentChapters],
+  )
+
+  /** 当前范围说明（图例 / 导出提示用），以后端返回的 chapter_focus 为准 */
+  const scopeLabel = useMemo(() => {
+    const f = graph?.chapter_focus
+    if (!f) return '全书'
+    // chapter 是章节 id，不是正文序号；显示用正文里的序号与短名
+    const i = contentChapters.findIndex((c) => c.chapter_id === f.chapter)
+    if (i < 0) return f.mode === 'single' ? chapterLabel(f.chapter) : `截至「${chapterLabel(f.chapter)}」`
+    return f.mode === 'single' ? chapterShortName(contentChapters, f.chapter) : `前 ${i + 1} 章`
+  }, [graph, chapterLabel, contentChapters])
+
+  // 单章聚焦时取该章结果，详情里显示本章摘要
+  const {
+    ledger: focusLedger,
+    loading: focusLedgerLoading,
+    refresh: refreshFocusLedger,
+  } = useLedger(bookId, chapterFocus.mode === 'single' ? chapterFocus.chapter : '')
+
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('faction')
   const [selectedFactions, setSelectedFactions] = useState<string[]>([])
-  const [factionLoading, setFactionLoading] = useState(false)
 
   useEffect(() => {
     if (!selectedFactions.length) return
@@ -65,33 +125,23 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const [egoPersonId, setEgoPersonId] = useState<string | null>(null)
   const [focusRequest, setFocusRequest] = useState<FocusRequest | null>(null)
 
-  const [sideCollapsed, setSideCollapsed] = useState(false)
   const [sideTab, setSideTab] = useState<SideTab>('detail')
+  const openSide = setSideTab
+  /** 递增即让图重新适应窗口（GraphView 的 refitToken） */
   const [refitToken, setRefitToken] = useState(0)
-  const sideCollapsedRef = useRef(false)
-  sideCollapsedRef.current = sideCollapsed
-  const toggleSide = useCallback(() => {
-    setSideCollapsed((v) => !v)
-    setRefitToken((t) => t + 1)
-  }, [])
-
-  const openSide = useCallback((tab: SideTab) => {
-    setSideTab(tab)
-    if (sideCollapsedRef.current) {
-      setSideCollapsed(false)
-      setRefitToken((t) => t + 1)
-    }
-  }, [])
+  const requestRefit = useCallback(() => setRefitToken((t) => t + 1), [])
 
   const [error, setError] = useState('')
   const [msg, setMsg] = useState('')
+  const clearBanner = useCallback(() => {
+    setError('')
+    setMsg('')
+  }, [])
   const [exporting, setExporting] = useState(false)
-  const [rerunning, setRerunning] = useState(false)
+  const [rerunningChapterId, setRerunningChapterId] = useState<number | null>(null)
 
   const handleLoadGraph = useCallback(async () => {
     setError('')
-    setSelectedEdge(null)
-    setSelectedNode(null)
     setEgoPersonId(null)
     const { error: err, msg: m } = await loadGraph()
     if (err.startsWith('409:') && bookId) {
@@ -111,36 +161,39 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setMsg(m)
   }, [bookId, loadGraph])
 
-  const {
-    cast,
-    loading: castLoading,
-    saving: castSaving,
-    error: castError,
-    refresh: refreshCast,
-    savePerson: saveCastPerson,
-    merge: mergeCast,
-  } = useCast(bookId)
+  // 图重新加载（换章节范围 / 过滤）后，选中的人或连线若仍在图上就换成新对象，不在则取消选中
+  useEffect(() => {
+    const nodes = graph?.nodes ?? []
+    setSelectedNode((prev) => (prev ? (nodes.find((n) => n.person_id === prev.person_id) ?? null) : null))
+    setSelectedEdge((prev) =>
+      prev
+        ? ((graph?.edges ?? []).find(
+            (e) => e.person_a === prev.person_a && e.person_b === prev.person_b,
+          ) ?? null)
+        : null,
+    )
+  }, [graph])
 
-  const [ledgerChapterId, setLedgerChapterId] = useState<number | ''>('')
+  const { cast, loading: castLoading, refresh: refreshCast } = useCast(bookId)
+
   const {
-    ledger,
-    loading: ledgerLoading,
-    missing: ledgerMissing,
-    error: ledgerError,
-    refresh: refreshLedger,
-  } = useLedger(bookId, ledgerChapterId)
+    entries: chapterLedgers,
+    request: requestChapterLedger,
+    invalidate: invalidateChapterLedgers,
+  } = useChapterLedgers(bookId)
 
   const {
     analysis, start: startAnalysis, stop: stopAnalysis, resume: resumeAnalysis,
-    retryFailed: retryFailedAnalysis, skipFailed: skipFailedAnalysis,
-    disconnect: disconnectAnalysis, isRunning, pushLog,
+    dismiss: dismissAnalysis,
+    disconnect: disconnectAnalysis, isRunning, pushLog, rerun: rerunAnalysis,
   } = useAnalysis({
       chapterLabel,
       onAnalysisDone: async () => {
         await refreshBooks()
         await handleLoadGraph()
         await refreshCast()
-        await refreshLedger()
+        invalidateChapterLedgers()
+        await refreshFocusLedger()
       },
       onBanner: (err, m) => {
         setError(err)
@@ -172,9 +225,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const serverRunning = selectedBook?.status === 'analyzing' || selectedBook?.status === 'reconciling'
   const effectiveRunning = isRunning || serverRunning
 
+  // 运行中则接上进度；最近一次失败则展示失败章与原因（PRD §5.9）
   useEffect(() => {
     if (!bookId || !bookDetail) return
-    if (bookDetail.status === 'analyzing' || bookDetail.status === 'reconciling') {
+    if (['analyzing', 'reconciling', 'failed'].includes(bookDetail.status)) {
       void resumeAnalysis(bookId)
     }
   }, [bookId, bookDetail, resumeAnalysis])
@@ -203,6 +257,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setMsg(`已上传「${res.title}」，可以启动分析`)
         await refreshBooks()
         setBookId(res.book_id)
+        setChapterFocusRaw(ALL_BOOK_FOCUS)
         setTypeFilter([])
         setCategoryFilter([])
         setEgoPersonId(null)
@@ -215,9 +270,9 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     [pushLog, refreshBooks],
   )
 
-  const onAnalyze = useCallback(async () => {
+  const onAnalyze = useCallback(async (opts?: { force?: boolean }) => {
     if (!bookId) return
-    await startAnalysis(bookId, toChapter)
+    await startAnalysis(bookId, toChapter, opts?.force ?? false)
   }, [bookId, startAnalysis, toChapter])
 
   const onStop = useCallback(async () => {
@@ -225,24 +280,21 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     await stopAnalysis(bookId)
   }, [bookId, stopAnalysis])
 
-  const onRetryChapter = useCallback(async (chapterId: number) => {
-    if (!bookId) return
-    await retryFailedAnalysis(bookId, [chapterId])
-  }, [bookId, retryFailedAnalysis])
-
+  /** 失败后的补救：整书分析 = 再次启动（不 force，只补读失败章）；单章重跑 = 再重跑那一章 */
   const onRetryFailed = useCallback(async () => {
     if (!bookId) return
-    await retryFailedAnalysis(bookId, analysis.failedChapterIds)
-  }, [bookId, retryFailedAnalysis, analysis.failedChapterIds])
-
-  const onSkipFailed = useCallback(async () => {
-    if (!bookId) return
-    await skipFailedAnalysis(bookId)
-  }, [bookId, skipFailedAnalysis])
+    const task = analysis.task
+    if (task?.kind === 'rerun' && task.chapters[0]) {
+      await rerunAnalysis(bookId, task.chapters[0].chapter_id)
+      return
+    }
+    await startAnalysis(bookId, toChapter, false)
+  }, [bookId, analysis.task, rerunAnalysis, startAnalysis, toChapter])
 
   const handleBookChange = useCallback((newBookId: string) => {
     disconnectAnalysis()
     setBookId(newBookId)
+    setChapterFocusRaw(ALL_BOOK_FOCUS)
     setEgoPersonId(null)
     setSelectedNode(null)
     setSelectedEdge(null)
@@ -252,46 +304,27 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setSideTab('detail')
   }, [disconnectAnalysis])
 
-  const onExtractFactions = useCallback(async () => {
-    if (!bookId) return
-    setError('')
-    setMsg('正在归纳势力块（单次 LLM 会话，约需 1 分钟）…')
-    setFactionLoading(true)
-    try {
-      const res = await extractFactions(bookId)
-      pushLog('ok', `势力归纳完成：${res.factions} 块 / ${res.members} 条归属`)
-      setLayoutMode('faction')
-      await handleLoadGraph()
-      setMsg(`势力归纳完成：${res.factions} 块 · ${res.members} 条归属`)
-    } catch (e) {
-      setMsg('')
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setFactionLoading(false)
-    }
-  }, [bookId, handleLoadGraph, pushLog])
-
   const onExport = useCallback(async () => {
     if (!bookId) return
     setExporting(true)
     setError('')
     try {
-      const filename = await downloadExport(bookId)
-      setMsg(`已导出 ${filename}`)
-      pushLog('ok', `导出 ${filename}`)
+      const filename = await downloadExport(bookId, chapterFocus.mode === 'all' ? null : { mode: chapterFocus.mode, chapter: chapterFocus.chapter })
+      setMsg(`已导出 ${filename}（范围：${scopeLabel}）`)
+      pushLog('ok', `导出 ${filename}（范围：${scopeLabel}）`)
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e))
     } finally {
       setExporting(false)
     }
-  }, [bookId, pushLog])
+  }, [bookId, chapterFocus, scopeLabel, pushLog])
 
   const onPickPerson = useCallback(
     (hit: PersonHit) => {
       setError('')
       if (hit.filtered) {
         setMsg(
-          `「${hit.name}」被 min_appearance=${minAppearance} 过滤了，调低阈值后可在图上看到`,
+          `「${hit.name}」出场不足 ${minAppearance} 章，被当作路人隐藏了；在筛选里调低路人阈值后可在图上看到`,
         )
         return
       }
@@ -345,63 +378,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     [graph, cast, onPickPerson],
   )
 
-  const saveCastPersonAndRefresh = useCallback(
-    async (person: Parameters<typeof saveCastPerson>[0]) => {
-      await saveCastPerson(person)
-      await handleLoadGraph()
-    },
-    [saveCastPerson, handleLoadGraph],
-  )
-
-  const mergeCastAndRefresh = useCallback(
-    async (keepId: string, dropId: string) => {
-      await mergeCast(keepId, dropId)
-      await handleLoadGraph()
-      await refreshLedger()
-    },
-    [mergeCast, handleLoadGraph, refreshLedger],
-  )
-
-  const onRerunChapter = useCallback(async () => {
-    if (!bookId || ledgerChapterId === '') return
-    setRerunning(true)
-    setError('')
-    setMsg('正在暂存重跑此章，并重建人物、关系处理与全书校对结果…')
-    try {
-      const res = await rerunChapter(bookId, ledgerChapterId)
-      const chapterState = res.partial ? '章节仅部分完成' : '章节重跑完成'
-      if (res.reconcile_done === false) {
-        const detail = res.reconcile_warning ? `：${res.reconcile_warning}` : ''
-        pushLog('info', `${chapterState}：第 ${res.chapter_id} 章 · ${res.steps_used} 步；全书校对未完成${detail}`)
-      } else {
-        pushLog(res.partial ? 'info' : 'ok', `${chapterState}：第 ${res.chapter_id} 章 · ${res.steps_used} 步；全书校对已重建`)
+  /** 单章重跑：进度与提示走分析任务（useAnalysis），完成后由 onAnalysisDone 刷新图、人名册与章节结果 */
+  const onRerunChapter = useCallback(
+    async (chapterId: number) => {
+      if (!bookId || rerunningChapterId != null) return
+      setRerunningChapterId(chapterId)
+      try {
+        await rerunAnalysis(bookId, chapterId)
+      } finally {
+        setRerunningChapterId(null)
       }
-      await refreshBooks()
-      await refreshCast()
-      await refreshLedger()
-      await handleLoadGraph()
-      const suffix = res.reconcile_done === false
-        ? `；章节结果已发布，但全书校对失败${res.reconcile_warning ? `：${res.reconcile_warning}` : ''}`
-        : res.factions_stale
-          ? '；全书校对已重建，势力结果待更新'
-          : '；全书校对已重建'
-      setMsg(`${chapterLabel(res.chapter_id)}：${chapterState}${suffix}`)
-    } catch (e) {
-      setMsg('')
-      setError(e instanceof Error ? e.message : String(e))
-    } finally {
-      setRerunning(false)
-    }
-  }, [
-    bookId,
-    ledgerChapterId,
-    pushLog,
-    refreshBooks,
-    refreshCast,
-    refreshLedger,
-    handleLoadGraph,
-    chapterLabel,
-  ])
+    },
+    [bookId, rerunningChapterId, rerunAnalysis],
+  )
 
   const personName = useCallback(
     (personId: string) =>
@@ -409,17 +398,6 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       cast?.persons.find((p) => p.person_id === personId)?.canonical_name ??
       personId,
     [graph, cast],
-  )
-
-  const openSideWithLedgerDefault = useCallback(
-    (tab: SideTab) => {
-      if (tab === 'ledger' && ledgerChapterId === '') {
-        const hint = toChapter !== '' ? toChapter : contentChapters[0]?.chapter_id
-        if (hint != null) setLedgerChapterId(hint)
-      }
-      openSide(tab)
-    },
-    [ledgerChapterId, toChapter, contentChapters, openSide],
   )
 
   const value = useMemo<AppStateValue>(
@@ -432,8 +410,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       chapterLabel,
       toChapter,
       setToChapter,
-      singleChapterOnly,
-      setSingleChapterOnly,
+      chapterFocus,
+      setChapterFocus,
+      scopeLabel,
+      focusLedger,
+      focusLedgerLoading,
       minAppearance,
       setMinAppearance,
       typeFilter,
@@ -443,12 +424,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       relationTypes,
       graph,
       graphLoading,
-      handleLoadGraph,
       layoutMode,
       setLayoutMode,
       selectedFactions,
       setSelectedFactions,
-      factionLoading,
       selectedEdge,
       setSelectedEdge,
       selectedNode,
@@ -456,40 +435,29 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       egoPersonId,
       setEgoPersonId,
       focusRequest,
-      sideCollapsed,
       sideTab,
-      setSideTab,
       refitToken,
-      toggleSide,
-      openSide: openSideWithLedgerDefault,
+      requestRefit,
+      openSide,
       error,
       msg,
+      clearBanner,
       analysis,
       isRunning: effectiveRunning,
       onUpload,
       onAnalyze,
       onStop,
-      onRetryChapter,
       onRetryFailed,
-      onSkipFailed,
-      onExtractFactions,
+      onDismissAnalysis: dismissAnalysis,
       onPickPerson,
       onExport,
       exporting,
       cast,
       castLoading,
-      castSaving,
-      castError,
-      saveCastPerson: saveCastPersonAndRefresh,
-      mergeCast: mergeCastAndRefresh,
       onFocusCastPerson,
-      ledgerChapterId,
-      setLedgerChapterId,
-      ledger,
-      ledgerLoading,
-      ledgerMissing,
-      ledgerError,
-      rerunning,
+      chapterLedgers,
+      requestChapterLedger,
+      rerunningChapterId,
       onRerunChapter,
       personName,
     }),
@@ -501,53 +469,46 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       contentChapters,
       chapterLabel,
       toChapter,
-      singleChapterOnly,
+      chapterFocus,
+      setChapterFocus,
+      scopeLabel,
+      focusLedger,
+      focusLedgerLoading,
       minAppearance,
       typeFilter,
       categoryFilter,
       relationTypes,
       graph,
       graphLoading,
-      handleLoadGraph,
       layoutMode,
       selectedFactions,
-      factionLoading,
       selectedEdge,
       selectedNode,
       egoPersonId,
       focusRequest,
-      sideCollapsed,
       sideTab,
       refitToken,
-      toggleSide,
-      openSideWithLedgerDefault,
+      requestRefit,
+      openSide,
       error,
       msg,
+      clearBanner,
       analysis,
       effectiveRunning,
       onUpload,
       onAnalyze,
       onStop,
-      onRetryChapter,
       onRetryFailed,
-      onSkipFailed,
-      onExtractFactions,
+      dismissAnalysis,
       onPickPerson,
       onExport,
       exporting,
       cast,
       castLoading,
-      castSaving,
-      castError,
-      saveCastPersonAndRefresh,
-      mergeCastAndRefresh,
       onFocusCastPerson,
-      ledgerChapterId,
-      ledger,
-      ledgerLoading,
-      ledgerMissing,
-      ledgerError,
-      rerunning,
+      chapterLedgers,
+      requestChapterLedger,
+      rerunningChapterId,
       onRerunChapter,
       personName,
     ],

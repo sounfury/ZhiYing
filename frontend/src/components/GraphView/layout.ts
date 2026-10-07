@@ -1,247 +1,113 @@
-import type { GraphData, GraphEdge, GraphFaction, GraphNode } from '../../api'
-import { packWedges, type Bucket, type Wedge } from '../../graphLayout'
-import { edgeCluster, RANK, type ClusterId } from '../../relationClusters'
-import { factionColor } from '../../factions'
-import type { GraphSlice, LegendItem, SectorId } from './types'
+/**
+ * 关系图的场景编排：决定画哪些人、各自放在哪、属于哪个势力区块、连线文字放哪。
+ *
+ * - 视图切片：中心视图取一度邻域，势力筛选裁块
+ * - 势力分区（默认）：每块内核心人物居中、其余按与核心的亲疏分环，环上座位朝向连得多的邻块；
+ *   各块当矩形贪心装箱，连边多的块挨着放（PRD §5.7.5）
+ * - 亲疏扇区：以中心人物为圆心，按与他关系的硬 / 中 / 软 / 间接 / 无连线分档成扇区
+ * - 连线文字避让：沿线试几个位置，与人物、名字、已放文字都不重叠才算「放得下」
+ *
+ * 只做纯计算，不碰 G6；颜色与交互态见 style.ts。
+ */
+import type { GraphData, GraphEdge, GraphFaction, GraphNode, GraphTag } from '../../api'
+import { factionSlot, UNASSIGNED_FACTION_ID } from '../../factions'
+import {
+  assignSlots,
+  packRects,
+  packWedges,
+  ringSlots,
+  type Point,
+  type RectBox,
+} from '../../graphLayout'
+import type { GraphSlice, Hardness, Scene, SceneCombo, SceneEdge, SceneNode } from './types'
 
-/** 几何参数：宁可图大留白，也不让节点贴在一起 */
-export const GEO = {
-  /** 相邻节点最小弦长：节点直径 56 + 中文名宽度 + 余量 */
-  minChord: 148,
-  /** 环间距：节点直径 + 名字行高 + 余量 */
-  ringGap: 132,
-  /** 楔形之间的角度缝 */
-  wedgeGap: 0.17,
-  /** 势力模式：所有块共用起始半径（中心留给主角与桥接人物） */
-  factionInnerRadius: 340,
-  /** 势力名标签离最外环的距离 */
-  labelOffset: 104,
-  minWedgeSpan: 0.26,
+// ── 关系强度 ──────────────────────────────────────────────
+
+const HARDNESS_BY_CATEGORY: Record<string, Hardness> = {
+  硬关系: 'hard',
+  中关系: 'medium',
+  软关系: 'soft',
 }
 
-export const SECTOR_ORDER: SectorId[] = ['kin', 'social', 'weak', 'indirect', 'isolate']
+export const HARDNESS_RANK: Record<Hardness, number> = { hard: 3, medium: 2, soft: 1 }
 
-export const SECTOR_META: Record<SectorId, { label: string; color: string; radius: number }> = {
-  kin: { label: '亲人', color: '#c0392b', radius: 300 },
-  social: { label: '同学朋友', color: '#2980b9', radius: 520 },
-  weak: { label: '相识同场', color: '#7f8c8d', radius: 760 },
-  indirect: { label: '间接相关', color: '#a67c52', radius: 1000 },
-  isolate: { label: '暂无连线', color: '#b0a89c', radius: 1240 },
+/** 标签硬度：后端给 hardness（hard/medium/soft），旧数据按分类名兜底 */
+export function tagHardness(tag: GraphTag): Hardness {
+  const h = (tag as GraphTag & { hardness?: string }).hardness
+  if (h === 'hard' || h === 'medium' || h === 'soft') return h
+  return HARDNESS_BY_CATEGORY[tag.category] ?? 'medium'
 }
 
-export type Placement = {
-  pos: Map<string, { x: number; y: number }>
-  wedges: Map<string, Wedge>
-  /** 仅亲疏模式有：节点 → 关系档，用于描边取色 */
-  sectorOf?: Map<string, SectorId>
+/** 一条边多个标签取最强的决定线型 */
+export function edgeHardness(edge: GraphEdge): Hardness {
+  let best: Hardness = 'soft'
+  for (const t of edge.tags) {
+    const h = tagHardness(t)
+    if (HARDNESS_RANK[h] > HARDNESS_RANK[best]) best = h
+  }
+  return best
 }
 
+// ── 尺寸 ──────────────────────────────────────────────
+
+const IMPORTANCE_RANK: Record<string, number> = { main: 3, supporting: 2, minor: 1 }
+
+/** 节点半径 = 重要度；中心视图的中心人物再放大一档 */
+export function nodeRadius(importance: string, center = false): number {
+  if (center) return 32
+  return importance === 'main' ? 27 : importance === 'supporting' ? 20 : 14
+}
+
+/** 名字字号：主角大、龙套小 */
+export function nameFontSize(importance: string): number {
+  return importance === 'main' ? 15 : importance === 'supporting' ? 13 : 11.5
+}
+
+/** 估算中文为主的文字宽度（不量真实字体：只用于避让，宁宽勿窄） */
+export function textWidth(text: string, fontSize: number): number {
+  let w = 0
+  for (const ch of text) {
+    if (ch === '·' || ch === ' ') w += 0.5
+    else if (ch.charCodeAt(0) < 128) w += 0.58
+    else w += 1
+  }
+  return w * fontSize
+}
+
+// ── 视图切片 ──────────────────────────────────────────────
+
+/** 默认中心：主角里连边最多的人（亲疏扇区的圆心） */
 export function pickCenter(nodes: GraphNode[], edges: GraphEdge[]): string | null {
   if (!nodes.length) return null
   const degree = new Map<string, number>()
-  for (const n of nodes) degree.set(n.person_id, 0)
   for (const e of edges) {
     degree.set(e.person_a, (degree.get(e.person_a) ?? 0) + 1)
     degree.set(e.person_b, (degree.get(e.person_b) ?? 0) + 1)
   }
   const mains = nodes.filter((n) => n.importance === 'main')
-  const pool = mains.length ? mains : [...nodes]
-  pool.sort((a, b) => {
-    const da = degree.get(a.person_id) ?? 0
-    const db = degree.get(b.person_id) ?? 0
-    if (db !== da) return db - da
-    return (b.appearance_count ?? 0) - (a.appearance_count ?? 0)
-  })
+  const pool = [...(mains.length ? mains : nodes)]
+  pool.sort(
+    (a, b) =>
+      (degree.get(b.person_id) ?? 0) - (degree.get(a.person_id) ?? 0) ||
+      (b.appearance_count ?? 0) - (a.appearance_count ?? 0),
+  )
   return pool[0].person_id
 }
 
-function linkToCenterCluster(
-  nodeId: string,
-  centerId: string,
-  edges: GraphEdge[],
-): ClusterId | null {
-  let best: ClusterId | null = null
-  for (const e of edges) {
-    const ends = [e.person_a, e.person_b]
-    if (!ends.includes(nodeId) || !ends.includes(centerId)) continue
-    const c = edgeCluster(e)
-    if (!best || RANK[c] > RANK[best]) best = c
-  }
-  return best
-}
-
-export function sectorOfNode(
-  nodeId: string,
-  centerId: string,
-  edges: GraphEdge[],
-  neighborOf: Map<string, Set<string>>,
-): SectorId {
-  if (nodeId === centerId) return 'kin'
-  const direct = linkToCenterCluster(nodeId, centerId, edges)
-  if (direct === 'kin') return 'kin'
-  if (direct === 'social') return 'social'
-  if (direct === 'weak') return 'weak'
-  const deg = neighborOf.get(nodeId)?.size ?? 0
-  return deg > 0 ? 'indirect' : 'isolate'
-}
-
-/** 块内排序键：与中心越亲 → 越靠内环；同档按出场章数、再按名字稳定 */
-function affinityOrderKey(
-  n: GraphNode,
-  centerId: string,
-  edges: GraphEdge[],
-  neighborOf: Map<string, Set<string>>,
-): [number, number, string] {
-  const cluster = linkToCenterCluster(n.person_id, centerId, edges)
-  const rank = cluster
-    ? RANK[cluster]
-    : (neighborOf.get(n.person_id)?.size ?? 0) > 0
-      ? -1
-      : -2
-  return [-rank, -(n.appearance_count ?? 0), n.name]
-}
-
-export function buildNeighborMap(
-  nodes: GraphNode[],
-  edges: GraphEdge[],
-): Map<string, Set<string>> {
-  const m = new Map<string, Set<string>>()
-  for (const n of nodes) m.set(n.person_id, new Set())
-  for (const e of edges) {
-    m.get(e.person_a)?.add(e.person_b)
-    m.get(e.person_b)?.add(e.person_a)
-  }
-  return m
-}
-
-/** 势力模式：一块一楔形，块内按亲疏由内向外装填 */
-export function placeByFaction(
-  nodes: GraphNode[],
-  edges: GraphEdge[],
-  factions: GraphFaction[],
-  centerId: string,
-  cx: number,
-  cy: number,
-): Placement {
-  const neighborOf = buildNeighborMap(nodes, edges)
-  const nodeById = new Map(nodes.map((n) => [n.person_id, n]))
-  const visible = new Set(nodes.map((n) => n.person_id))
-
-  const buckets: Bucket[] = factions
-    .slice()
-    .sort((a, b) => a.order - b.order)
-    .map((f) => {
-      const ids = f.member_ids.filter((id) => id !== centerId && visible.has(id))
-      ids.sort((a, b) => {
-        const na = nodeById.get(a)
-        const nb = nodeById.get(b)
-        if (!na || !nb) return a.localeCompare(b)
-        const ka = affinityOrderKey(na, centerId, edges, neighborOf)
-        const kb = affinityOrderKey(nb, centerId, edges, neighborOf)
-        return ka[0] - kb[0] || ka[1] - kb[1] || ka[2].localeCompare(kb[2], 'zh')
-      })
-      return { id: f.faction_id, ids }
-    })
-
-  const packed = packWedges(buckets, {
-    cx,
-    cy,
-    minChord: GEO.minChord,
-    ringGap: GEO.ringGap,
-    wedgeGap: GEO.wedgeGap,
-    innerRadius: GEO.factionInnerRadius,
-    minWedgeSpan: GEO.minWedgeSpan,
-  })
-
-  const pos = new Map<string, { x: number; y: number }>(packed.pos)
-  pos.set(centerId, { x: cx, y: cy })
-
-  // 后端没覆盖到的人（理论上都会进 __unassigned，这里兜底不丢点）
-  const orphans = nodes
-    .map((n) => n.person_id)
-    .filter((id) => !pos.has(id))
-    .sort()
-  if (orphans.length) {
-    const r = packed.outerRadius + GEO.ringGap * 2
-    orphans.forEach((id, i) => {
-      const angle = (Math.PI * 2 * i) / orphans.length - Math.PI / 2
-      pos.set(id, { x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) })
-    })
-  }
-
-  return { pos, wedges: packed.wedges }
-}
-
-/** 亲疏模式：一档一楔形，档有各自基准半径（原扇区太阳系，间距已按弦长撑开） */
-export function placeByAffinity(
-  nodes: GraphNode[],
-  edges: GraphEdge[],
-  centerId: string,
-  cx: number,
-  cy: number,
-): Placement {
-  const neighborOf = buildNeighborMap(nodes, edges)
-  const bySector = new Map<SectorId, string[]>()
-  for (const id of SECTOR_ORDER) bySector.set(id, [])
-  for (const n of nodes) {
-    if (n.person_id === centerId) continue
-    bySector.get(sectorOfNode(n.person_id, centerId, edges, neighborOf))!.push(n.person_id)
-  }
-
-  const nameOf = (id: string) => nodes.find((n) => n.person_id === id)?.name ?? id
-  const buckets: Bucket[] = SECTOR_ORDER.map((id) => {
-    const ids = bySector.get(id)!
-    ids.sort((a, b) => nameOf(a).localeCompare(nameOf(b), 'zh'))
-    return { id, ids }
-  })
-
-  const packed = packWedges(buckets, {
-    cx,
-    cy,
-    minChord: GEO.minChord,
-    ringGap: GEO.ringGap,
-    wedgeGap: GEO.wedgeGap,
-    innerRadius: SECTOR_META.kin.radius,
-    minWedgeSpan: GEO.minWedgeSpan,
-    baseRadiusOf: (id) => SECTOR_META[id as SectorId].radius,
-  })
-
-  const pos = new Map<string, { x: number; y: number }>(packed.pos)
-  pos.set(centerId, { x: cx, y: cy })
-  const sectorOf = new Map<string, SectorId>()
-  for (const id of SECTOR_ORDER) {
-    for (const pid of bySector.get(id)!) sectorOf.set(pid, id)
-  }
-  return { pos, sectorOf, wedges: packed.wedges }
-}
-
-/**
- * 以某人 ego：只保留与其有边的节点 + 这些边。
- * 默认主角全图时不调用。
- */
+/** 中心视图：只保留与 egoId 有边的人 + 这些边 */
 export function egoSubgraph(full: GraphData, egoId: string): GraphSlice {
   const keep = new Set<string>([egoId])
   const edges = full.edges.filter((e) => {
-    if (e.person_a === egoId) {
-      keep.add(e.person_b)
-      return true
-    }
-    if (e.person_b === egoId) {
-      keep.add(e.person_a)
-      return true
-    }
-    return false
+    if (e.person_a === egoId) keep.add(e.person_b)
+    else if (e.person_b === egoId) keep.add(e.person_a)
+    else return false
+    return true
   })
-  const nodes = full.nodes.filter((n) => keep.has(n.person_id))
-  return { nodes, edges }
+  return { nodes: full.nodes.filter((n) => keep.has(n.person_id)), edges }
 }
 
-/** 按当前可见节点裁势力块成员 */
-export function factionsInView(
-  factions: GraphFaction[],
-  nodes: GraphNode[],
-): GraphFaction[] {
-  if (!factions.length) return []
+/** 按当前可见节点裁势力块成员，去掉空块 */
+export function factionsInView(factions: GraphFaction[], nodes: GraphNode[]): GraphFaction[] {
   const visible = new Set(nodes.map((n) => n.person_id))
   return factions
     .map((f) => ({
@@ -252,33 +118,340 @@ export function factionsInView(
     .filter((f) => f.member_ids.length > 0)
 }
 
-export function computeLegend(opts: {
-  useFactionLayout: boolean
-  viewFactions: GraphFaction[]
-  view: GraphSlice
-  centerId: string | null
-}): LegendItem[] {
-  const { useFactionLayout, viewFactions, view, centerId } = opts
-  if (useFactionLayout) {
-    return viewFactions.map((f) => ({
-      key: f.faction_id,
-      label: f.name,
-      color: factionColor(f),
-      count: f.member_ids.length,
-    }))
+export function buildNeighborMap(nodes: GraphNode[], edges: GraphEdge[]): Map<string, Set<string>> {
+  const m = new Map<string, Set<string>>()
+  for (const n of nodes) m.set(n.person_id, new Set())
+  for (const e of edges) {
+    m.get(e.person_a)?.add(e.person_b)
+    m.get(e.person_b)?.add(e.person_a)
   }
-  if (!centerId) return []
-  const neighborOf = buildNeighborMap(view.nodes, view.edges)
-  const counts = new Map<SectorId, number>()
-  for (const n of view.nodes) {
-    if (n.person_id === centerId) continue
-    const s = sectorOfNode(n.person_id, centerId, view.edges, neighborOf)
-    counts.set(s, (counts.get(s) ?? 0) + 1)
+  return m
+}
+
+// ── 布局 ──────────────────────────────────────────────
+
+type Placed = {
+  pos: Map<string, Point>
+  /** 人 → 势力区块（仅势力分区） */
+  comboOf: Map<string, string>
+  combos: SceneCombo[]
+}
+
+/** 块内参数：环间距要容下「节点 + 名字 + 余量」，弦长要容下一个中等长度的名字 */
+const BLOCK = { minChord: 96, ringGap: 84, hubGap: 74, margin: 30, padX: 64, padTop: 46, padBottom: 34 }
+
+/** 两人之间最强关系的硬度等级（无边 = 0） */
+function tieRank(edgesByPair: Map<string, Hardness>, a: string, b: string): number {
+  const h = edgesByPair.get(a < b ? `${a}|${b}` : `${b}|${a}`)
+  return h ? HARDNESS_RANK[h] : 0
+}
+
+/** 势力分区：块内同心环 + 块间矩形装箱 */
+export function placeByFaction(
+  slice: GraphSlice,
+  factions: GraphFaction[],
+  centerId: string | null,
+): Placed {
+  const nodeById = new Map(slice.nodes.map((n) => [n.person_id, n]))
+  const edgesByPair = new Map<string, Hardness>()
+  const degree = new Map<string, number>()
+  for (const e of slice.edges) {
+    const [a, b] = e.person_a < e.person_b ? [e.person_a, e.person_b] : [e.person_b, e.person_a]
+    edgesByPair.set(`${a}|${b}`, edgeHardness(e))
+    degree.set(a, (degree.get(a) ?? 0) + 1)
+    degree.set(b, (degree.get(b) ?? 0) + 1)
   }
-  return SECTOR_ORDER.filter((id) => (counts.get(id) ?? 0) > 0).map((id) => ({
-    key: id,
-    label: SECTOR_META[id].label,
-    color: SECTOR_META[id].color,
-    count: counts.get(id)!,
+
+  // 1. 分块：后端主势力；没落到任何块的人归「未归属」
+  const blockOf = new Map<string, string>()
+  const blocks: { id: string; name: string; slot: number; ids: string[] }[] = []
+  for (const f of [...factions].sort((a, b) => a.order - b.order)) {
+    const ids = f.member_ids.filter((id) => nodeById.has(id) && !blockOf.has(id))
+    if (!ids.length) continue
+    ids.forEach((id) => blockOf.set(id, f.faction_id))
+    blocks.push({ id: f.faction_id, name: f.name, slot: factionSlot(f), ids })
+  }
+  const orphans = slice.nodes.map((n) => n.person_id).filter((id) => !blockOf.has(id))
+  if (orphans.length) {
+    let un = blocks.find((b) => b.id === UNASSIGNED_FACTION_ID)
+    if (!un) {
+      un = { id: UNASSIGNED_FACTION_ID, name: '未归属', slot: 0, ids: [] }
+      blocks.push(un)
+    }
+    for (const id of orphans) {
+      un.ids.push(id)
+      blockOf.set(id, UNASSIGNED_FACTION_ID)
+    }
+  }
+
+  // 2. 块内排座：核心人物（中心人物 / 最重要且连边最多）居中，其余按与核心的亲疏、重要度排环
+  const weight = (id: string) => {
+    const n = nodeById.get(id)!
+    return (IMPORTANCE_RANK[n.importance] ?? 1) * 100 + (degree.get(id) ?? 0) * 3 + (n.appearance_count ?? 0)
+  }
+  const layoutOf = new Map<string, { hub: string; rings: { radius: number; angles: number[]; ids: string[] }[]; half: number }>()
+  for (const b of blocks) {
+    const hub =
+      centerId && b.ids.includes(centerId)
+        ? centerId
+        : [...b.ids].sort((x, y) => weight(y) - weight(x) || x.localeCompare(y))[0]
+    const rest = b.ids
+      .filter((id) => id !== hub)
+      .sort(
+        (x, y) =>
+          tieRank(edgesByPair, hub, y) - tieRank(edgesByPair, hub, x) ||
+          weight(y) - weight(x) ||
+          x.localeCompare(y),
+      )
+    const hubR = nodeRadius(nodeById.get(hub)!.importance)
+    const rings = ringSlots(rest.length, {
+      firstRadius: hubR + BLOCK.hubGap,
+      ringGap: BLOCK.ringGap,
+      minChord: BLOCK.minChord,
+    })
+    let cursor = 0
+    const filled = rings.map((r) => {
+      const ids = rest.slice(cursor, cursor + r.angles.length)
+      cursor += r.angles.length
+      return { ...r, ids }
+    })
+    const outer = filled.length ? filled[filled.length - 1].radius : 0
+    layoutOf.set(b.id, { hub, rings: filled, half: outer + 28 })
+  }
+
+  // 3. 块间装箱：中心人物所在块先放，其余按人数从大到小，连边多的块挨着
+  const links = new Map<string, Map<string, number>>()
+  for (const e of slice.edges) {
+    const ba = blockOf.get(e.person_a)
+    const bb = blockOf.get(e.person_b)
+    if (!ba || !bb || ba === bb) continue
+    const w = HARDNESS_RANK[edgeHardness(e)]
+    for (const [x, y] of [
+      [ba, bb],
+      [bb, ba],
+    ]) {
+      if (!links.has(x)) links.set(x, new Map())
+      links.get(x)!.set(y, (links.get(x)!.get(y) ?? 0) + w)
+    }
+  }
+  const centerBlock = centerId ? blockOf.get(centerId) : undefined
+  const ordered = [...blocks].sort(
+    (a, b) =>
+      Number(b.id === centerBlock) - Number(a.id === centerBlock) ||
+      Number(a.id === UNASSIGNED_FACTION_ID) - Number(b.id === UNASSIGNED_FACTION_ID) ||
+      b.ids.length - a.ids.length,
+  )
+  const boxes: RectBox[] = ordered.map((b) => {
+    const half = layoutOf.get(b.id)!.half
+    return {
+      id: b.id,
+      w: half * 2 + BLOCK.padX * 2,
+      h: half * 2 + BLOCK.padTop + BLOCK.padBottom,
+      links: links.get(b.id) ?? new Map(),
+    }
+  })
+  const centers = packRects(boxes, { margin: BLOCK.margin, aspect: 1.35 })
+
+  // 4. 环上座位朝向：连向别块的人坐到朝那块的一侧，减少长线穿块
+  const pos = new Map<string, Point>()
+  for (const b of blocks) {
+    const c = centers.get(b.id)!
+    // 盒子中心 ≠ 环心：块名占了顶部，环心下移半个差
+    const cy = c.y + (BLOCK.padTop - BLOCK.padBottom) / 2
+    const { hub, rings } = layoutOf.get(b.id)!
+    pos.set(hub, { x: c.x, y: cy })
+    for (const ring of rings) {
+      const prefs = ring.ids.map((id) => {
+        let vx = 0
+        let vy = 0
+        for (const e of slice.edges) {
+          const other = e.person_a === id ? e.person_b : e.person_b === id ? e.person_a : null
+          if (!other) continue
+          const ob = blockOf.get(other)
+          if (!ob || ob === b.id) continue
+          const oc = centers.get(ob)!
+          const w = HARDNESS_RANK[edgeHardness(e)]
+          const d = Math.hypot(oc.x - c.x, oc.y - c.y) || 1
+          vx += ((oc.x - c.x) / d) * w
+          vy += ((oc.y - c.y) / d) * w
+        }
+        const m = Math.hypot(vx, vy)
+        return m > 0.01 ? { angle: Math.atan2(vy, vx), weight: m } : null
+      })
+      const angles = assignSlots(ring.angles, prefs)
+      ring.ids.forEach((id, i) => {
+        pos.set(id, { x: c.x + ring.radius * Math.cos(angles[i]), y: cy + ring.radius * Math.sin(angles[i]) })
+      })
+    }
+  }
+
+  return {
+    pos,
+    comboOf: blockOf,
+    combos: blocks.map((b) => ({ id: b.id, name: b.name, slot: b.slot })),
+  }
+}
+
+type Tier = 'hard' | 'medium' | 'soft' | 'indirect' | 'isolate'
+const TIERS: Tier[] = ['hard', 'medium', 'soft', 'indirect', 'isolate']
+const TIER_RADIUS: Record<Tier, number> = { hard: 190, medium: 340, soft: 490, indirect: 640, isolate: 790 }
+
+/** 亲疏扇区：圆心是中心人物，一档一楔形，档内按势力再按名字排，同势力的人挨着 */
+export function placeByAffinity(
+  slice: GraphSlice,
+  factions: GraphFaction[],
+  centerId: string,
+): Placed {
+  const neighbors = buildNeighborMap(slice.nodes, slice.edges)
+  const tierOf = new Map<string, Tier>()
+  for (const e of slice.edges) {
+    const other = e.person_a === centerId ? e.person_b : e.person_b === centerId ? e.person_a : null
+    if (!other) continue
+    const h = edgeHardness(e)
+    const prev = tierOf.get(other)
+    if (!prev || HARDNESS_RANK[h] > HARDNESS_RANK[prev as Hardness]) tierOf.set(other, h)
+  }
+  const orderOf = new Map(factions.map((f) => [f.faction_id, f.order]))
+  const buckets = TIERS.map((tier) => ({
+    id: tier,
+    ids: slice.nodes
+      .filter((n) => n.person_id !== centerId)
+      .filter((n) => {
+        const t = tierOf.get(n.person_id) ?? ((neighbors.get(n.person_id)?.size ?? 0) > 0 ? 'indirect' : 'isolate')
+        return t === tier
+      })
+      .sort(
+        (a, b) =>
+          (orderOf.get(a.primary_faction_id ?? '') ?? 99) - (orderOf.get(b.primary_faction_id ?? '') ?? 99) ||
+          a.name.localeCompare(b.name, 'zh'),
+      )
+      .map((n) => n.person_id),
   }))
+  const packed = packWedges(buckets, {
+    cx: 0,
+    cy: 0,
+    minChord: 100,
+    ringGap: 86,
+    wedgeGap: 0.14,
+    innerRadius: TIER_RADIUS.hard,
+    minWedgeSpan: 0.3,
+    baseRadiusOf: (id) => TIER_RADIUS[id as Tier],
+  })
+  const pos = new Map(packed.pos)
+  pos.set(centerId, { x: 0, y: 0 })
+  return { pos, comboOf: new Map(), combos: [] }
+}
+
+// ── 连线文字避让 ──────────────────────────────────────────────
+
+type Box = [number, number, number, number]
+const hit = (a: Box, b: Box) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
+const LABEL_TRIES = [0.5, 0.38, 0.62, 0.28, 0.72, 0.2, 0.8]
+export const EDGE_LABEL_FONT = 11.5
+
+/** 给每条线找一个不压人、不压名字、不压别的线文字的位置；找不到就标记放不下 */
+function placeEdgeLabels(nodes: SceneNode[], edges: SceneEdge[], focusSingle: boolean) {
+  const byId = new Map(nodes.map((n) => [n.id, n]))
+  const boxes: Box[] = []
+  for (const n of nodes) {
+    boxes.push([n.x - n.r - 2, n.y - n.r - 2, n.x + n.r + 2, n.y + n.r + 2])
+    const fs = nameFontSize(n.node.importance)
+    const w = textWidth(n.node.name, fs) / 2 + 3
+    boxes.push([n.x - w, n.y + n.r + 3, n.x + w, n.y + n.r + 6 + fs])
+  }
+  const prio = (e: SceneEdge) =>
+    (focusSingle && e.inFocus ? 100 : 0) +
+    HARDNESS_RANK[e.hardness] * 10 +
+    (byId.get(e.source)!.r + byId.get(e.target)!.r) / 10
+  for (const e of [...edges].sort((a, b) => prio(b) - prio(a))) {
+    const s = byId.get(e.source)!
+    const t = byId.get(e.target)!
+    const len = Math.hypot(t.x - s.x, t.y - s.y) || 1
+    const ux = (t.x - s.x) / len
+    const uy = (t.y - s.y) / len
+    const ax = s.x + ux * s.r
+    const ay = s.y + uy * s.r
+    const bx = t.x - ux * t.r
+    const by = t.y - uy * t.r
+    const w = textWidth(e.labelText, EDGE_LABEL_FONT) + 8
+    const h = EDGE_LABEL_FONT + 6
+    e.labelFits = false
+    e.labelRatio = 0.5
+    if (!e.labelText || len - s.r - t.r < Math.min(w, 60)) continue
+    for (const r of LABEL_TRIES) {
+      const x = ax + (bx - ax) * r
+      const y = ay + (by - ay) * r
+      const box: Box = [x - w / 2, y - h / 2, x + w / 2, y + h / 2]
+      if (boxes.some((b) => hit(b, box))) continue
+      boxes.push(box)
+      e.labelFits = true
+      e.labelRatio = r
+      break
+    }
+  }
+}
+
+/** 连线文字：单章优先列本章依据的标签；最多两个，多的记 +N */
+function edgeLabelText(edge: GraphEdge, focusSingle: boolean): string {
+  let tags = [...edge.tags]
+  if (focusSingle && tags.some((t) => t.in_focus_chapter)) tags = tags.filter((t) => t.in_focus_chapter)
+  tags.sort((a, b) => b.display_score - a.display_score)
+  const labels = [...new Set(tags.map((t) => t.label))]
+  const head = labels.slice(0, 2).join(' · ')
+  return labels.length > 2 ? `${head} +${labels.length - 2}` : head
+}
+
+/** 把视图切片编排成场景：位置、区块、线型、连线文字位置 */
+export function buildScene(opts: {
+  slice: GraphSlice
+  factions: GraphFaction[]
+  centerId: string | null
+  egoId: string | null
+  useFactionLayout: boolean
+  focusSingle: boolean
+}): Scene {
+  const { slice, factions, centerId, egoId, useFactionLayout, focusSingle } = opts
+  const factionById = new Map(factions.map((f) => [f.faction_id, f]))
+  const placed =
+    useFactionLayout || !centerId
+      ? placeByFaction(slice, factions, centerId)
+      : placeByAffinity(slice, factions, centerId)
+
+  const nodes: SceneNode[] = slice.nodes.map((n) => {
+    const p = placed.pos.get(n.person_id) ?? { x: 0, y: 0 }
+    const center = n.person_id === egoId
+    const faction = n.primary_faction_id ? factionById.get(n.primary_faction_id) : undefined
+    return {
+      id: n.person_id,
+      node: n,
+      x: p.x,
+      y: p.y,
+      slot: factionSlot(faction),
+      r: nodeRadius(n.importance, center),
+      center,
+      combo: placed.comboOf.get(n.person_id),
+    }
+  })
+
+  const edges: SceneEdge[] = slice.edges.map((e) => ({
+    id: `e:${e.person_a}|${e.person_b}`,
+    edge: e,
+    source: e.person_a,
+    target: e.person_b,
+    hardness: edgeHardness(e),
+    inFocus: e.tags.some((t) => t.in_focus_chapter),
+    labelText: edgeLabelText(e, focusSingle),
+    labelRatio: 0.5,
+    labelFits: false,
+  }))
+  placeEdgeLabels(nodes, edges, focusSingle)
+
+  return {
+    nodes,
+    edges,
+    combos: placed.combos,
+    focusSingle,
+    dense: nodes.length > 40 || edges.length > 70,
+    neighbors: buildNeighborMap(slice.nodes, slice.edges),
+  }
 }
