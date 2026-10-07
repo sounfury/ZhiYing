@@ -1,0 +1,168 @@
+spring:
+  application:
+    name: zhiying
+  servlet:
+    multipart:
+      # EPUB 上传大小上限（Spring 默认仅 1MB）
+      max-file-size: 200MB
+      max-request-size: 200MB
+  config:
+    # 本机密钥放在工程根目录 .env（不入库）；同名环境变量优先于 .env
+    import: optional:file:.env[.properties]
+  ai:
+    model:
+      # 只启用对话模型；DeepSeek 不提供嵌入、图像、语音与审核接口
+      embedding: none
+      image: none
+      moderation: none
+      audio:
+        speech: none
+        transcription: none
+    openai:
+      # 连接参数统一来自 zhiying.llm，此处只做引用
+      base-url: ${zhiying.llm.base-url}
+      api-key: ${zhiying.llm.api-key}
+      # 失败重试由应用层按执行政策控制，避免 SDK 内部重试掩盖失败与真实耗时
+      max-retries: 0
+      chat:
+        model: ${zhiying.llm.model}
+        # 默认关闭 DeepSeek 思考模式（速度优先）；需要时按请求单独开启
+        extra-body:
+          thinking:
+            type: disabled
+
+  sql:
+    init:
+      # 不用迁移工具：每次启动执行各模块的建表脚本（须用 CREATE TABLE IF NOT EXISTS）
+      mode: always
+      schema-locations: classpath*:schema/*.sql
+      continue-on-error: false
+
+# 项目自有配置，类型化绑定见 infrastructure 的 ZhiYingProperties；新增可调参数统一加在这里
+zhiying:
+  llm:
+    base-url: ${LLM_BASE_URL:https://api.deepseek.com}
+    api-key: ${LLM_API_KEY:}
+    model: ${LLM_MODEL:deepseek-flash}
+  storage:
+    # 数据库与书籍文件所在目录；不兼容旧 Python 数据，结构变更时可直接删除重建
+    data-dir: ${ZHIYING_DATA_DIR:data}
+  import:
+    # 章节字数（中文按字、英文按词）低于该值时，章节保留但标记为「过短」不参与分析（旧后端同阈值 200，且直接丢弃）
+    min-chapter-words: 200
+    # 按「第X回 / Chapter N」正则切章时，章节标记所在行不超过该字符数就整行作为标题（如「第一回 甄士隐梦幻识通灵」），否则只取标记本身
+    max-title-line-length: 40
+  model-call:
+    # 模型调用执行政策（所有调用点共用）；SDK 内部重试已关闭，重试只在这里发生
+    timeout: 120s
+    # 限流、超时、网络、服务端错误可重试；鉴权、余额不足、参数被拒不重试
+    max-retries: 2
+    retry-base-delay: 500ms
+    retry-max-delay: 8s
+    # 全局同时在途的模型请求数上限（多章并行时共用）
+    max-concurrent-requests: 8
+    # 结构化回复解析 / 校验失败时，带错误信息要求模型重答的次数
+    parse-retries: 1
+    temperature: 0.0
+  reading:
+    # 章阅读专用模型名，留空则用 zhiying.llm.model
+    model: ""
+    # 思考模式默认关闭（速度优先）；开启后工具循环会回传思考内容
+    thinking: false
+    # 短章工具循环最大步数；长章按 15 + 2 × 窗数，不超过 max-steps
+    base-steps: 20
+    max-steps: 60
+    # 不超过该字符数的章节整章注入提示，更长的章节要求模型分窗读取
+    inject-max-chars: 10000
+    read-window-chars: 5000
+    # 单章模型请求数与 token 预算，耗尽记为执行失败而非语义结论
+    max-requests: 60
+    max-tokens: 400000
+    # 模型停止调用工具却没有提交结果时，提醒其调用 submit_result 的次数
+    submit-nudges: 1
+    # 阅读单元字数上限：超过的章按 ⌈字数 / 上限⌉ 均分成多段（场景分隔 → 段落 → 句末标点 → 硬切），短章不合并
+    segment-max-chars: 20000
+    # 段首附上一段末尾的提示字数（仅供衔接，不归本段抽取），0 表示不附
+    segment-hint-chars: 300
+
+  analysis:
+    # 同时在读的阅读单元数（无波次屏障，第一个单元先单独读完再放开并发）；全局请求并发另受 model-call.max-concurrent-requests 限制
+    concurrency: 4
+    # 整个任务的模型请求数与 token 预算，0 表示不限；耗尽记为执行失败而非语义结论
+    max-requests: 0
+    max-tokens: 0
+
+  post-process:
+    # 后处理（身份歧义 / 类型归一 / 定向补查 / 软兜底）专用模型名，留空则用 zhiying.llm.model；思考模式默认关闭
+    model: ""
+    thinking: false
+    # 各调用点单次请求的条数与近似输入字符数上限
+    identity-max-items: 8
+    identity-max-chars: 12000
+    type-max-items: 10
+    type-max-chars: 8000
+    recheck-max-items: 5
+    recheck-max-chars: 12000
+    # 整个分析最多发出的补查请求数，超出的记录保持未决（不当作否定）
+    recheck-max-requests: 20
+    fallback-max-items: 6
+    fallback-max-chars: 12000
+    # 身份判断中每个候选人物最多附带的提及条数
+    mentions-per-person: 6
+    # 软兜底每个人物对最多附带的交流观察数
+    fallback-interactions-per-pair: 12
+    # 类型归一每个问题最多列出的候选类型数；类型库不超过它时全列
+    type-candidate-limit: 40
+    # 新类型名称最大字数，更长的视为情节句子而丢弃
+    max-new-type-name-chars: 12
+    # 重要人物的最少出场章数（与出图默认过滤一致）；两端都不到的路人对，软兜底不调模型，直接贴「相识」
+    core-min-appearance: 2
+    # 是否为重要人物（出场章数达标或有已成立的硬 / 中关系）生成全书简介；关闭则沿用首次出场章的简介
+    profile-enabled: true
+    # 全书简介单次请求的人数上限
+    profile-max-items: 8
+    # 全书简介单次请求的近似输入字符数上限
+    profile-max-chars: 12000
+    # 全书简介中每人每章最多附带的提及依据条数
+    profile-mentions-per-chapter: 3
+    # 全书简介中每人最多使用的章数，超过时均匀抽样并保留首末章
+    profile-max-chapters-per-person: 12
+    # 身份对齐：稳定称呼被不超过此人数的人物共用时才参与候选桥接，更多人共用的称呼（如「老爷」）不连接
+    appellation-bridge-limit: 4
+    recheck-context:
+      # 补查原文片段的扩展上限：单片段字符数、每条记录片段数、前后追加段数、对话向前后追溯段数
+      max-excerpt-chars: 2000
+      max-excerpts: 3
+      neighbor-paragraphs: 2
+      dialogue-max-paragraphs: 6
+
+  graph:
+    # 出图展示分：基础分(硬>中>软) + 出现章数 × per-chapter + 带原文片段证据加分；只用于排序与默认过滤，不决定关系成立
+    hard-base: 30
+    medium-base: 20
+    soft-base: 10
+    per-chapter: 0.5
+    quoted-evidence-bonus: 1
+    # 路人过滤默认阈值：最少出场章数（按章计数）
+    default-min-appearance: 2
+
+  affiliations:
+    # 团体归纳（全书级一次结构化调用）；model 留空则用 zhiying.llm.model
+    model: ""
+    thinking: false
+    # 提示中建议的团体数范围
+    min-groups: 5
+    max-groups: 12
+    # 输入有界裁剪：人名册按重要度、出场章数取前 max-persons 人；章摘要超过 max-chapters 时均匀抽样
+    max-persons: 300
+    max-profile-chars: 60
+    max-chapters: 200
+    max-summary-chars: 200
+    max-observations-per-chapter: 3
+    max-observation-chars: 80
+    max-relations: 220
+
+server:
+  # 本地私有部署：默认只监听本机；需要时用 SERVER_ADDRESS / SERVER_PORT 覆盖
+  address: 127.0.0.1
+  port: 8080

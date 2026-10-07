@@ -1,0 +1,7 @@
+.gradle/
+.kotlin/
+build/
+.env
+
+# 本地数据：SQLite 数据库与书籍文件
+/data/

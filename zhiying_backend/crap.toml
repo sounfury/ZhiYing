@@ -1,0 +1,9 @@
+[project]
+language = "kotlin"
+# 临时排除：crap 0.1.0 分析该文件时段错误（工具缺陷，与代码写法无关），修复后移除
+exclude = ["infrastructure/src/main/kotlin/com/zhiying/infrastructure/llm/reading/ChapterSession.kt"]
+timeout = 300
+
+[gate]
+mode = "complexity"
+max_complexity = 12
