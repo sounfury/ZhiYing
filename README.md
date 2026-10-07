@@ -15,16 +15,20 @@
 
 ## 状态
 
-后端 P0 主路径已可用（上传 → 章分析 → Reconcile → Aggregator 出图）。  
-前端为**最小预览**（选书 / 调参 / G6 力导向图）。
+| 目录 | 内容 |
+|------|------|
+| `zhiying_backend/` | Kotlin 后端（Spring Boot，SQLite）：导入 EPUB → 整书分析 / 单章重跑 → 发布 → 出图与查询 |
+| `frontend/` | React + AntV G6 前端：书架、关系图、章节聚焦、人物 / 章节侧栏、分析进度 |
+| `eval/` | 《悉达多》标准标注与评测查看器（评测脚本仍读旧版输出格式，待适配） |
+
+全链路已用真实模型跑通；验收场景尚未落为自动化测试。待办见 [docs/todo.md](./docs/todo.md)。
 
 ## 本地跑起来
 
 ```bash
-# 后端
-cd backend
-source .venv/bin/activate   # 或 python -m venv .venv && pip install -r requirements.txt
-PYTHONPATH=. uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+# 后端：先把 .env.example 复制为 .env，填写模型服务地址、密钥与模型名
+cd zhiying_backend
+./gradlew :web:bootRun        # 监听 8080，数据在 zhiying_backend/data/
 
 # 前端（另开终端）
 cd frontend
@@ -32,10 +36,9 @@ npm install
 npm run dev
 ```
 
-浏览器打开 **http://127.0.0.1:5173/**  
+浏览器打开 **http://127.0.0.1:5173/**，在书架拖入 EPUB 上传后开始分析。Vite 已把 `/api` 代理到 `http://127.0.0.1:8080`。
 
-仓库带一本演示书 `悉达多`（`workspace/demo-siddhartha`，已分析，可直接出图）。  
-Vite 已把 `/api` 代理到 `http://127.0.0.1:8000`。
+开发时打开一本书后，可在地址后加 `&mockProgress=reading|post|failed|done|cancelled|rerun|many`，用假数据查看各种分析状态，不调用模型。
 
 ## 名称含义
 

@@ -66,31 +66,13 @@ python .\eval\siddhartha\evaluate.py --workspace D:\path\to\book-workspace --rep
 python .\eval\siddhartha\test_evaluate.py
 ```
 
-## P0 fixed-raw baseline
+## 历史基线
 
-关系后处理 V2 的 A/B 不再每次重跑 Chapter Agent，而是固定使用：
+`reports/` 下的 legacy / phase1 报告来自已删除的旧 Python 后端，只作历史参照；重新采集与重放它们的脚本已随旧后端删除。
 
-`eval/siddhartha/fixtures/raw_legacy_v1/`
+## 待适配 Kotlin 后端
 
-当前 fixture SHA-256：
-
-`a396117ec1971838a5d00e5c9ff7f6b708b6b12cc7975e42da46531836ba80d4`
-
-重新采集 raw fixture（会真实调用模型）：
-
-```powershell
-cd .\backend
-uv run --with-requirements requirements.txt python ..\eval\siddhartha\capture_raw_fixture.py --reset --overwrite-fixture --analysis-max-llm-tokens 0
-```
-
-从固定 fixture 重放 legacy postprocess：
-
-```powershell
-cd .\backend
-uv run --with-requirements requirements.txt python ..\eval\siddhartha\run_postprocess_baseline.py --reset
-```
-
-Phase 0 的完整结果见 `reports/p0_baseline_summary.md`。后续 V2 性能/质量比较必须复用同一 raw fixture，不得把重新抽取造成的随机差异混入 postprocess A/B。
+`evaluate.py` 与 `eval/viewer` 读取的是旧后端的 workspace 文件（`cast.json`、`ledger/chapter_*.json`），Kotlin 后端改存 SQLite，不再产出这些文件。接回评测需要先让 evaluator 改读新后端的导出或接口。
 
 ## 人工复核建议
 
