@@ -55,6 +55,11 @@ export function GraphView({
   const useFactionLayout =
     !isEgoMode && layoutMode === 'faction' && viewFactions.some((f) => f.faction_id !== UNASSIGNED_FACTION_ID)
 
+  const factionFallback =
+    !isEgoMode && layoutMode === 'faction' && !useFactionLayout
+      ? `没有可分的势力（${data.partition_degraded_reason ?? '本书没有归纳出团体'}），已改用亲疏扇区`
+      : null
+
   const scene = useMemo(
     () =>
       view.nodes.length
@@ -111,6 +116,7 @@ export function GraphView({
         showFactions
         focusSingle={focusSingle}
         affinity={!useFactionLayout}
+        factionFallback={factionFallback}
       />
       {isEgoMode && egoPersonId && (
         <EgoCrumb scope={scopeLabel} name={nameOf(egoPersonId)} onExit={onExitEgo} />

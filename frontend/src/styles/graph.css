@@ -548,6 +548,10 @@
   color: var(--muted);
 }
 
+.fx-legend .lg-hint.warn {
+  color: var(--warn);
+}
+
 /* ── 顶部：中心视图路径条 ── */
 /*
  * 居中在「章节卡右边缘」与「工具条左边缘」之间的空档里（两侧 inset + 自动外边距），

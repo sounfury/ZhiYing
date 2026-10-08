@@ -117,6 +117,10 @@ export type GraphData = {
   nodes: GraphNode[]
   edges: GraphEdge[]
   factions: GraphFaction[]
+  /** 分区方式；degraded 表示既没有归纳出的团体、也无法按阶段推断，势力分区不可用 */
+  partition_mode: string
+  /** 分区降级原因（degraded 时给出） */
+  partition_degraded_reason: string | null
   filtered_count: number
   filtered_persons: { person_id: string; name: string }[]
 }

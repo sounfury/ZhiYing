@@ -19,11 +19,14 @@ export function GraphLegend({
   showFactions,
   focusSingle,
   affinity,
+  factionFallback,
 }: {
   factions: GraphFaction[]
   showFactions: boolean
   focusSingle: boolean
   affinity: boolean
+  /** 选了势力分区却没有势力可分时的说明（此时已改用亲疏扇区） */
+  factionFallback?: string | null
 }) {
   return (
     <details className="float fx-legend" open>
@@ -65,6 +68,7 @@ export function GraphLegend({
           ))}
         </div>
       )}
+      {factionFallback && <div className="lg-hint warn">{factionFallback}</div>}
       {affinity && <div className="lg-hint">离中心越近，与中心人物的关系越硬</div>}
     </details>
   )

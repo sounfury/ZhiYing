@@ -6,6 +6,7 @@
 import { useEffect, useRef, useState } from 'react'
 import type { ChapterBrief, GraphFaction, RelationTypeMeta } from '../api'
 import type { ChapterFocusState } from '../types'
+import { UNASSIGNED_FACTION_ID } from '../factions'
 import type { LayoutMode } from './GraphView'
 import { ChapterFocusBar } from './ChapterFocusBar'
 import { MoreFiltersMenu } from './MoreFiltersMenu'
@@ -136,8 +137,13 @@ export function GraphToolbar({
   const filtering =
     categoryFilter.length > 0 || typeFilter.length > 0 || selectedFactions.length > 0 || minAppearance !== 2
   const nextLayout: LayoutMode = layoutMode === 'faction' ? 'affinity' : 'faction'
+  const noFactions = !factions.some((f) => f.faction_id !== UNASSIGNED_FACTION_ID)
   const layoutTitle =
-    layoutMode === 'faction' ? '布局：势力分区（点击切到亲疏扇区）' : '布局：亲疏扇区（点击切回势力分区）'
+    layoutMode === 'faction'
+      ? noFactions
+        ? '布局：势力分区（本书没有可分的势力，实际按亲疏扇区显示；点击切到亲疏扇区）'
+        : '布局：势力分区（点击切到亲疏扇区）'
+      : '布局：亲疏扇区（点击切回势力分区）'
 
   return (
     <>

@@ -135,23 +135,28 @@ export function MoreFiltersMenu({
       )}
 
       <section className="fp-sec">
-        <h5>
-          路人过滤 · 至少出场 <b>{minAppearance}</b> 章
-        </h5>
-        <input
-          type="range"
-          min={1}
-          max={Math.max(maxAppearance, minAppearance, 2)}
-          value={minAppearance}
-          disabled={disabled || singleChapter}
-          aria-label="至少出场章数"
-          onChange={(e) => onMinAppearanceChange(Number(e.target.value))}
-        />
-        <div className="fp-note">
-          {singleChapter
-            ? '单章视图显示本章所有出场人物，不按出场章数过滤'
-            : `已隐藏 ${filteredCount} 位路人 · 有硬关系的人不受影响`}
-        </div>
+        {singleChapter ? (
+          <>
+            <h5>路人过滤</h5>
+            <div className="fp-note">单章视图显示本章所有出场人物，不按出场章数过滤；切回「全书」或「前 N 章」可调</div>
+          </>
+        ) : (
+          <>
+            <h5>
+              路人过滤 · 至少出场 <b>{minAppearance}</b> 章
+            </h5>
+            <input
+              type="range"
+              min={1}
+              max={Math.max(maxAppearance, minAppearance, 2)}
+              value={minAppearance}
+              disabled={disabled}
+              aria-label="至少出场章数"
+              onChange={(e) => onMinAppearanceChange(Number(e.target.value))}
+            />
+            <div className="fp-note">已隐藏 {filteredCount} 位路人 · 有硬关系的人不受影响</div>
+          </>
+        )}
       </section>
 
       {factions && factions.length > 0 && (
