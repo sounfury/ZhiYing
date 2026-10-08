@@ -1,9 +1,7 @@
 {
-  "schema_version": "1.0",
-  "book": "悉达多",
-  "chapter_id": 2,
+  "schema_version": "2.0",
+  "chapter": 2,
   "title": "沙门",
-  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_002.json",
   "characters": [
     {
       "name": "悉达多",
@@ -23,11 +21,15 @@
       "person_a": "悉达多",
       "person_b": "乔文达",
       "label": "同修挚友",
-      "category": "友谊",
-      "directed": false,
-      "subject_role": "",
-      "object_role": "",
-      "confidence": "high",
+      "types": [
+        "friend_of",
+        "close_friend_of",
+        "companion_of",
+        "fellow_disciple_of"
+      ],
+      "keywords": [
+        "同修"
+      ],
       "evidence": [
         {
           "quote": "乔文达，他的影子，和他生活在一起，也走了同样的路，付出同样的艰辛。"
@@ -41,12 +43,11 @@
     {
       "person_a": "悉达多",
       "person_b": "乔达摩",
-      "forbidden_labels": [
-        "师徒",
-        "弟子",
-        "皈依"
+      "types": [
+        "mentor_of",
+        "teacher_student_of"
       ],
-      "confidence": "high",
+      "keywords": [],
       "reason": "本章乔达摩仅以传闻出现，悉达多尚未与其见面。",
       "evidence": []
     }

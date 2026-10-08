@@ -1,0 +1,72 @@
+{
+  "schema_version": "2.0",
+  "book": "悉达多",
+  "author": "赫尔曼·黑塞",
+  "source_epub": "../../test-book/悉达多 (赫尔曼·黑塞) (z-library.sk, 1lib.sk, z-lib.sk).epub",
+  "chapters": 12,
+  "cast": [
+    {
+      "name": "悉达多",
+      "aliases": [
+        "Siddhartha"
+      ],
+      "importance": "main"
+    },
+    {
+      "name": "乔文达",
+      "aliases": [
+        "Govinda"
+      ],
+      "importance": "main"
+    },
+    {
+      "name": "乔达摩",
+      "aliases": [
+        "佛陀",
+        "世尊",
+        "世尊佛陀",
+        "释迦摩尼",
+        "佛陀释迦摩尼",
+        "Gotama"
+      ],
+      "importance": "main"
+    },
+    {
+      "name": "给孤独",
+      "aliases": [
+        "给孤独长者",
+        "Anathapindika"
+      ],
+      "importance": "minor"
+    },
+    {
+      "name": "迦摩罗",
+      "aliases": [
+        "Kamala"
+      ],
+      "importance": "main"
+    },
+    {
+      "name": "迦摩施瓦弥",
+      "aliases": [
+        "Kamaswami"
+      ],
+      "importance": "supporting"
+    },
+    {
+      "name": "瓦稣迪瓦",
+      "aliases": [
+        "Vasudeva"
+      ],
+      "importance": "main"
+    },
+    {
+      "name": "小悉达多",
+      "aliases": [
+        "悉达多之子",
+        "Siddhartha's son"
+      ],
+      "importance": "supporting"
+    }
+  ]
+}

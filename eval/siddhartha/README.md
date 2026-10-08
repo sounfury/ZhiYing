@@ -1,79 +1,67 @@
-# 《悉达多》Gold 评测集
+# 《悉达多》评测集
 
-范围：正文第 1–12 章。第 13 章《译后记》在源数据中 `include_in_analysis=false`，不参与评测。
+评分口径、流程与运行记录见 [DESIGN §7](../../docs/DESIGN.md)。评测在前端评测页（`/eval`）发起，本目录只放标准标注。
+
+范围：正文第 1–12 章，对应导入后参与分析的 12 章（目录、扉页、分部页、译后记都不参与分析）。
 
 ## 文件
 
-- `manifest.json`：全局人物、别名合并规则、计分口径。
-- `chapter_001.json` ~ `chapter_012.json`：逐章 Gold。
-- `build_gold.py`：从人工整理的数据定义重新生成 12 个 JSON。
-- `validate_gold.py`：校验 JSON、人物端点、章节标题，并确保每条 Gold evidence quote 能在原章节正文中精确匹配。
+- `suite.json`：书名、源 EPUB 路径（相对本目录，EPUB 不入库）、正文章数、标准人物与别名
+- `chapter_001.json` ~ `chapter_012.json`：逐章标准
+- `legacy_reports/`：旧 Python 后端的历史报告，口径不同，只作参照
 
-## 三层关系
+改标注后不用重启后端，下次评分即生效。
 
-- `required_relations`：高置信、应计入召回的核心关系。
-- `optional_relations`：合理但偏事件性、回忆性或边界较软；预测出来不应算幻觉，漏掉也不扣核心召回。
-- `forbidden_relations`：高价值负例。模型若生成这些关系，应单独计入语义错误/幻觉率。
+## 逐章标准（schema 2.0）
 
-## 人物同一性
-
-最重要的硬规则之一：`乔达摩 = 佛陀 = 世尊 = 释迦摩尼`，必须合并为同一人物节点。
-
-## 当前规模
-
-当前版本：
-
-- 12 个章节文件
-- 24 条 required relations
-- 15 条 optional relations
-- 8 条 forbidden relations
-- 51 条可精确定位的 evidence quotes
-
-运行：
-
-```powershell
-python .\eval\siddhartha\validate_gold.py
+```jsonc
+{
+  "chapter": 3,
+  "title": "乔达摩",                       // 评分时与导入后的章名核对
+  "required_relations": [{                 // 必有：计入召回
+    "person_a": "乔达摩", "person_b": "乔文达",
+    "label": "师徒",                        // 只给人看
+    "types": ["mentor_of"],                 // 可接受的内置类型 ID
+    "keywords": [],                         // 本书新类型名称含任一关键词也算
+    "source": "乔达摩",                     // 有向时的源端；无向不写
+    "tier": "hard",                         // 可选：hard / medium / soft，不写时按可接受类型推断
+    "evidence": [{ "quote": "…" }],          // 标准引文，评分时自检能否在正文找到
+    "note": "…"
+  }],
+  "optional_relations": [ /* 同上；命中不算错，漏掉不扣分 */ ],
+  "forbidden_relations": [{                // 禁止：同章出现已准入的这些类型即违反，不分方向
+    "person_a": "悉达多", "person_b": "乔达摩",
+    "types": ["mentor_of"], "keywords": [], "reason": "…", "evidence": []
+  }]
+}
 ```
 
-验证成功应输出 `VALIDATION OK`。
+`characters`（出场方式）与 `identity_assertions`（同人断言）只给人看，评分不读；人物别名以 `suite.json` 为准。
 
-## Evaluator
+内置类型 ID 见 `zhiying_backend/domain/.../relations/BuiltInRelationTypes.kt`。
 
-对当前 workspace 实际输出跑分：
+## 类型映射（2026-10-09 由旧自由标签改写，待人工复核）
 
-```powershell
-python .\eval\siddhartha\evaluate.py
-```
+师徒 `mentor_of` 与师生 `teacher_student_of` 视为同一类：凡接受或禁止其一，另一个同样接受或禁止。
 
-默认会读取 `manifest.json` 中的 `book_id`，评测对应 `workspace/<book_id>/cast.json` 与 `ledger/chapter_001.json` ~ `chapter_012.json`，并生成：
+必有关系分强 / 中 / 弱三档计分（权重 1 / 0.6 / 0.3，DESIGN §7.3）。档位可用 `"tier": "hard" | "medium" | "soft"` 指定；不写时按可接受类型推断：含软关系（如 `friend_of`）为弱，含硬关系（如 `mentor_of`、`lover_of`）为强，其余为中。弱关系在两人本章已有强 / 中关系时漏掉不扣分。
 
-- `reports/latest.json`：机器可读完整明细
-- `reports/latest.md`：人类可读报告
+| 旧标签 | 可接受类型 |
+|---|---|
+| 朋友、青年好友等 | 朋友 `friend_of`、挚友 `close_friend_of` |
+| 同修挚友（第 2 章） | 朋友、挚友、同行 `companion_of`、同门 `fellow_disciple_of` |
+| 师徒（乔达摩 → 乔文达） | 师徒、师生 |
+| 布施供养（给孤独 → 乔达摩） | 恩人 `benefactor_of`；新类型含「供养 / 布施 / 施主 / 追随 / 信徒」 |
+| 精神启发者（第 4 章）、精神引导（第 11 章） | 师徒、师生；新类型含「启发 / 引导 / 导师」等（这两章不再设禁止项） |
+| 欢爱之术老师（迦摩罗 → 悉达多） | 师生、师徒 |
+| 情人、昔日恋人 | 恋人 `lover_of` |
+| 商业共事 | 商业伙伴 `business_partner_of`、同事 `colleague_of`、雇佣 `employer_of` |
+| 母子、父子 | 母亲 `mother_of` / 父亲 `father_of`、亲子 `parent_of` |
+| 皈依信徒（迦摩罗 → 乔达摩） | 无合适内置类型，只认新类型「信徒 / 皈依 / 追随 / 供养 / 布施」 |
+| 禁止的「正式师徒 / 皈依」 | 师徒、师生（第 2、3、8、12 章悉达多与乔达摩，第 9 章瓦稣迪瓦与悉达多）；第 5 章禁止悉达多与迦摩施瓦弥的商业伙伴、雇佣、师徒、师生（两人尚未见面） |
 
-也可以显式指定另一次运行产物：
+最需要复核的边界：
 
-```powershell
-python .\eval\siddhartha\evaluate.py --workspace D:\path\to\book-workspace --report-dir D:\path\to\report
-```
-
-当前总分权重：人物 Entity F1 15%、同人合并 10%、required 关系召回 35%、forbidden 避免 15%、证据精确命中 10%、关系去重 10%、章节输出覆盖 5%。`optional_relations` 只做诊断，不进入总分。
-
-由于开放关系 Gold 有意不穷举所有一次性互动，Evaluator **不会**把所有未标注预测直接当 false positive；只对 Gold 已裁决的 required / optional / forbidden 关系计算 `adjudicated_precision`，其余放入 `unscored_predictions` 等待人工扩充 Gold。
-
-回归测试：
-
-```powershell
-python .\eval\siddhartha\test_evaluate.py
-```
-
-## 历史基线
-
-`reports/` 下的 legacy / phase1 报告来自已删除的旧 Python 后端，只作历史参照；重新采集与重放它们的脚本已随旧后端删除。
-
-## 待适配 Kotlin 后端
-
-`evaluate.py` 与 `eval/viewer` 读取的是旧后端的 workspace 文件（`cast.json`、`ledger/chapter_*.json`），Kotlin 后端改存 SQLite，不再产出这些文件。接回评测需要先让 evaluator 改读新后端的导出或接口。
-
-## 人工复核建议
-
-优先复核 `optional_relations` 和“精神启发者/前辈与师长/经商指导”等语义边界项。`required_relations` 已尽量限定为原文直接支持、适合做强制机器评分的关系。
+- 第 9 章瓦稣迪瓦与悉达多：瓦稣迪瓦自称不是导师，但悉达多确实拜他学摆渡；目前禁止师徒 / 师生，「摆渡学艺」只接受同事、同行与新类型
+- 皈依信徒没有内置类型，模型不登记新类型就一定漏检
+- 可有关系里的一次性行为（守候、施救、担忧、反抗）用「保护 / 互动 / 敌对」等兜底是否合适

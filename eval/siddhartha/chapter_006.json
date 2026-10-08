@@ -1,9 +1,7 @@
 {
-  "schema_version": "1.0",
-  "book": "悉达多",
-  "chapter_id": 6,
+  "schema_version": "2.0",
+  "chapter": 6,
   "title": "尘世间",
-  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_006.json",
   "characters": [
     {
       "name": "悉达多",
@@ -31,11 +29,16 @@
       "person_a": "迦摩罗",
       "person_b": "悉达多",
       "label": "老师",
-      "category": "师承",
-      "directed": true,
-      "subject_role": "老师",
-      "object_role": "学生",
-      "confidence": "high",
+      "types": [
+        "teacher_student_of",
+        "mentor_of"
+      ],
+      "keywords": [
+        "老师",
+        "教导",
+        "传授"
+      ],
+      "source": "迦摩罗",
       "evidence": [
         {
           "quote": "他成为她的学生、情人、朋友。"
@@ -47,11 +50,12 @@
       "person_a": "悉达多",
       "person_b": "迦摩罗",
       "label": "情人",
-      "category": "情感",
-      "directed": false,
-      "subject_role": "",
-      "object_role": "",
-      "confidence": "high",
+      "types": [
+        "lover_of"
+      ],
+      "keywords": [
+        "情人"
+      ],
       "evidence": [
         {
           "quote": "他成为她的学生、情人、朋友。"
@@ -63,27 +67,31 @@
       "person_a": "悉达多",
       "person_b": "迦摩罗",
       "label": "朋友",
-      "category": "友谊",
-      "directed": false,
-      "subject_role": "",
-      "object_role": "",
-      "confidence": "high",
+      "types": [
+        "friend_of",
+        "close_friend_of"
+      ],
+      "keywords": [],
       "evidence": [
         {
           "quote": "他成为她的学生、情人、朋友。"
         }
-      ],
-      "note": ""
+      ]
     },
     {
       "person_a": "悉达多",
       "person_b": "迦摩施瓦弥",
       "label": "商业共事",
-      "category": "合作",
-      "directed": false,
-      "subject_role": "",
-      "object_role": "",
-      "confidence": "high",
+      "types": [
+        "business_partner_of",
+        "colleague_of",
+        "employer_of"
+      ],
+      "keywords": [
+        "商业",
+        "生意",
+        "经商"
+      ],
       "evidence": [
         {
           "quote": "在宅邸中住了不久，悉达多便开始分担迦摩施瓦弥的生意。"
@@ -97,17 +105,20 @@
       "person_a": "迦摩施瓦弥",
       "person_b": "悉达多",
       "label": "经商指导",
-      "category": "指导",
-      "directed": true,
-      "subject_role": "指导者",
-      "object_role": "学习者",
-      "confidence": "medium",
+      "types": [
+        "teacher_student_of",
+        "mentor_of"
+      ],
+      "keywords": [
+        "指导",
+        "经商"
+      ],
+      "source": "迦摩施瓦弥",
       "evidence": [
         {
           "quote": "迦摩施瓦弥常谈论他的生意，向悉达多介绍他的货品、货栈，指导悉达多清算账目。"
         }
-      ],
-      "note": ""
+      ]
     }
   ],
   "forbidden_relations": [],

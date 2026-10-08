@@ -1,9 +1,7 @@
 {
-  "schema_version": "1.0",
-  "book": "悉达多",
-  "chapter_id": 7,
+  "schema_version": "2.0",
+  "chapter": 7,
   "title": "轮回",
-  "source_chapter_file": "workspace/bcb2958e-6863-4fcb-8ae2-17a3dab5fd8e/chapters/chapter_007.json",
   "characters": [
     {
       "name": "悉达多",
@@ -31,11 +29,12 @@
       "person_a": "悉达多",
       "person_b": "迦摩罗",
       "label": "情人",
-      "category": "情感",
-      "directed": false,
-      "subject_role": "",
-      "object_role": "",
-      "confidence": "high",
+      "types": [
+        "lover_of"
+      ],
+      "keywords": [
+        "情人"
+      ],
       "evidence": [
         {
           "quote": "不久后，她发现同悉达多最后的交欢令她怀了身孕。"
@@ -49,27 +48,33 @@
       "person_a": "悉达多",
       "person_b": "迦摩罗",
       "label": "使其怀孕",
-      "category": "亲密关系事件",
-      "directed": true,
-      "subject_role": "孩子生父",
-      "object_role": "怀孕者",
-      "confidence": "medium",
+      "types": [
+        "lover_of"
+      ],
+      "keywords": [
+        "怀孕"
+      ],
+      "source": "悉达多",
       "evidence": [
         {
           "quote": "不久后，她发现同悉达多最后的交欢令她怀了身孕。"
         }
-      ],
-      "note": ""
+      ]
     },
     {
       "person_a": "悉达多",
       "person_b": "迦摩施瓦弥",
       "label": "商业关系",
-      "category": "合作",
-      "directed": false,
-      "subject_role": "",
-      "object_role": "",
-      "confidence": "medium",
+      "types": [
+        "business_partner_of",
+        "colleague_of",
+        "employer_of"
+      ],
+      "keywords": [
+        "商业",
+        "生意",
+        "经商"
+      ],
       "evidence": [
         {
           "quote": "迦摩施瓦弥唤人四处寻找，以为他落入盗匪之手。"
