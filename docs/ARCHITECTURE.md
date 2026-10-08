@@ -194,6 +194,15 @@ flowchart TD
 
 [探索这个子系统](#module=com/zhiying/application/bookquery)
 
+### evaluation · 评测
+
+- **实现状态**：已完成首版（DESIGN §7）。
+- **覆盖范围**：`com/zhiying/domain/evaluation`、`com/zhiying/application/evaluation`、`com/zhiying/infrastructure/evaluation`、`com/zhiying/web/evaluation`。
+- **职责**：读仓库 `eval/` 下的评测集；准备评测书（导入或清空）并发起整书分析；把已发布版本与标准逐章对齐评分（domain 纯计算）；运行记录写到 `eval/runs/`（不入库）。
+- **对应位置**：评测目录由 `zhiying.eval.dir` 配置；接口前缀 `/api/eval/suites`。
+
+[探索这个子系统](#module=com/zhiying/domain/evaluation)
+
 ## 数据模型
 
 一本书有多个章节；每章每次分析产生一份章抽取记录。抽取中的人物提及经身份映射归到书内人物，关系候选经类型归一与语义判断形成章账本记录，通过准入的记录按「人物 A、人物 B、关系类型」聚合成关系事实。人物可属于多个团体。一次分析构建一个结果版本，发布后成为出图的唯一来源。字段与不变量见 [DESIGN §2](./DESIGN.md)。
@@ -234,6 +243,7 @@ flowchart TD
 | `src/components/GraphView/`、`src/graphLayout.ts`、`src/factions.ts` | 关系图：场景编排、布局几何、势力配色、相机、样式与图例，基于 G6 渲染 |
 | `src/components/` 其余 | 顶栏、书架与上传、章节聚焦条、图工具栏与筛选、侧栏（人物、章节、详情）、分析进度 |
 | `src/styles/`、`src/theme.ts` | 设计变量与样式；主题在跟随系统 / 浅 / 深之间切换 |
+| `src/Root.tsx`、`src/eval/` | 页面路由；`/eval` 为评测页（开发者工具，按需加载），自带评测接口客户端 `evalApi.ts` |
 
 | 场景 | 命令（在 `frontend/` 执行） |
 | :--- | :--- |

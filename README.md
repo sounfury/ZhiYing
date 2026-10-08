@@ -19,7 +19,7 @@
 |------|------|
 | `zhiying_backend/` | Kotlin 后端（Spring Boot，SQLite）：导入 EPUB → 整书分析 / 单章重跑 → 发布 → 出图与查询 |
 | `frontend/` | React + AntV G6 前端：书架、关系图、章节聚焦、人物 / 章节侧栏、分析进度 |
-| `eval/` | 《悉达多》标准标注与评测查看器（评测脚本仍读旧版输出格式，待适配） |
+| `eval/` | 评测集（《悉达多》标准标注）；评测在前端 `/eval` 页发起，运行记录写到 `eval/runs/`（不入库） |
 
 全链路已用真实模型跑通；验收场景尚未落为自动化测试。待办见 [docs/todo.md](./docs/todo.md)。
 
