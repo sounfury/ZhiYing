@@ -350,6 +350,17 @@
   padding: calc(env(safe-area-inset-top, 0px) + 18px) 18px 18px;
 }
 
+/* 书架底部的评测页入口（开发者工具，低调展示） */
+.shelf-eval {
+  margin-top: 12px;
+  align-self: flex-end;
+  text-decoration: none;
+}
+
+.shelf-eval:hover {
+  color: var(--accent);
+}
+
 .drawer h2 {
   margin: 0 0 14px;
   font-size: 18px;

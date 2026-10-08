@@ -64,6 +64,9 @@ export function BookShelf({ open, books, bookId, onClose, onSelect, onUpload, on
             onClose()
           }}
         />
+        <a className="shelf-eval hint" href="/eval">
+          评测（开发者工具）→
+        </a>
       </aside>
     </div>
   )
