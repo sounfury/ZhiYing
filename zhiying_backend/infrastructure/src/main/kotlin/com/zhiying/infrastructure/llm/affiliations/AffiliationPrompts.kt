@@ -4,9 +4,12 @@ package com.zhiying.infrastructure.llm.affiliations
 import com.zhiying.application.analyze.affiliations.AffiliationRequest
 import com.zhiying.application.analyze.affiliations.InductionPerson
 import com.zhiying.domain.identity.Importance
+import com.zhiying.domain.identity.PersonId
+import com.zhiying.infrastructure.llm.analysis.AnalysisPromptText
 
 /** 团体归纳提示词版本；提示词或输出格式变化时递增。 */
-internal const val AFFILIATION_PROMPT_VERSION = "affiliation-v1"
+// v2：人物改用短代号（P1、P2……），长 ID 常被模型抄错导致整份回复被拒
+internal const val AFFILIATION_PROMPT_VERSION = "affiliation-v2"
 
 /** 团体类别取值；仅用于约束模型命名，不影响结果存储。 */
 internal val AFFILIATION_KINDS = setOf("school", "religious", "family", "organization", "movement", "stage", "other")
@@ -51,7 +54,7 @@ internal object AffiliationPrompts {
 2. 团体名用书里的专有名词（学校名、教会名、家族名、圈子名），不要用「一群人」「配角们」。
 3. 一人可属多个团体（主角常跨多个阶段）；不要为了唯一归属而漏掉真实归属，也不要强行只归一个。
 4. chapters 填该人在此团体活跃的章号（阅读序号）。阶段性团体（某学校）只在对应章活跃，这样按前 N 章看图时后期团体不会提前泄露。
-5. personId 只能用人名册里给定的 id，不要编造。
+5. personId 填人名册里每人行首的代号（如 P3），不要编造，也不要改写成名字。
 6. 每个成员尽量给出 note（归属依据，一句话），有原文短句时填 quote。
 
 ## 输出
@@ -59,15 +62,20 @@ internal object AffiliationPrompts {
 只输出一个 JSON 对象，团体放在 groups 数组里：name（必填）、kind（必填）、note（可选，一句话说明团体）、members（必填，非空，每项含 personId、role 可选、chapters、note、quote）。
 """.trimIndent()
 
-    /** 用户提示：人名册、章摘要与观察、关系骨架。 */
+    /** 人名册里每人的短代号，按名册顺序编号；提示与回复解析共用。 */
+    fun refs(request: AffiliationRequest): Map<PersonId, String> =
+        request.persons.withIndex().associate { (i, p) -> p.person.id to AnalysisPromptText.personRef(i) }
+
+    /** 用户提示：人名册、章摘要与观察、关系骨架；人物一律用短代号指称。 */
     fun user(request: AffiliationRequest): String {
         val names = request.persons.associate { it.person.id to it.person.displayName }
+        val refs = refs(request)
         val chapterRange = request.chapters.takeIf { it.isNotEmpty() }
             ?.let { "第 ${it.first().number}-${it.last().number} 章（共 ${it.size} 章）" } ?: "无"
         return buildString {
             appendLine("## 已分析章范围\n- $chapterRange\n")
             appendLine("## 人名册（共 ${request.persons.size} 人，后面括号内为出场章号）")
-            request.persons.forEach { appendLine(rosterLine(it)) }
+            request.persons.forEach { appendLine(rosterLine(it, refs.getValue(it.person.id))) }
             appendLine("\n## 各章摘要与章内观察")
             if (request.chapters.isEmpty()) appendLine("（无章摘要）")
             request.chapters.forEach { c ->
@@ -79,7 +87,9 @@ internal object AffiliationPrompts {
             request.relations.forEach { r ->
                 val a = names[r.first] ?: r.first.value
                 val b = names[r.second] ?: r.second.value
-                appendLine("  - ${r.first.value} $a — ${r.second.value} $b: ${r.typeName} (ch ${r.chapters.joinToString(",")})")
+                val ra = refs[r.first] ?: r.first.value
+                val rb = refs[r.second] ?: r.second.value
+                appendLine("  - $ra $a — $rb $b: ${r.typeName} (ch ${r.chapters.joinToString(",")})")
             }
             appendLine("\n## 任务")
             appendLine("1. 通读人名册与章摘要，识别书中真实存在的机构 / 教会 / 家族 / 学校 / 圈子。")
@@ -88,8 +98,8 @@ internal object AffiliationPrompts {
         }
     }
 
-    /** 一行人名册：id、名、别名、重要度、资料与出场章。 */
-    private fun rosterLine(p: InductionPerson): String {
+    /** 一行人名册：短代号、名、别名、重要度、资料与出场章。 */
+    private fun rosterLine(p: InductionPerson, ref: String): String {
         val person = p.person
         val aliases = person.aliases.takeIf { it.isNotEmpty() }?.joinToString("/", prefix = " 别名[", postfix = "]").orEmpty()
         val importance = when (person.importance) {
@@ -98,7 +108,7 @@ internal object AffiliationPrompts {
             else -> "次要"
         }
         val profile = person.profile?.takeIf { it.isNotBlank() }?.let { " — $it" }.orEmpty()
-        return "  - ${person.id.value}: ${person.displayName}$aliases [$importance]$profile (${ranges(p.appearances)})"
+        return "  - $ref: ${person.displayName}$aliases [$importance]$profile (${ranges(p.appearances)})"
     }
 
     /** 章号压缩成区间写法：1-5,8,10-12。 */

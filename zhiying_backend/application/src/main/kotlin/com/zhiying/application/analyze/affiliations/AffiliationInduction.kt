@@ -14,6 +14,7 @@ import com.zhiying.domain.library.ChapterId
 import com.zhiying.domain.library.EvidenceId
 import com.zhiying.domain.library.EvidenceRef
 import com.zhiying.domain.revision.AnalysisRevision
+import org.apache.commons.logging.LogFactory
 import org.springframework.stereotype.Service
 
 /**
@@ -31,6 +32,12 @@ data class AffiliationSettings(
 )
 
 /**
+ * 团体归纳的结果：新版本，以及没有产出团体时的原因（[problem] 为 null 表示已写入团体）。
+ * 原因会写进任务终态说明，避免「势力分区」静默退化却无人知道。
+ */
+data class InductionOutcome(val revision: AnalysisRevision, val problem: String?)
+
+/**
  * 团体归纳用例（DESIGN §3.6：全书级独立步骤，逐章猜会造出不一致的块名）。
  *
  * 副作用顺序：纯计算组装输入 → 一次模型调用（经 [AffiliationInducer]）→ 纯计算校验并转成领域团体。
@@ -39,21 +46,27 @@ data class AffiliationSettings(
 @Service
 class AffiliationInduction(private val inducer: AffiliationInducer, private val settings: AffiliationSettings) {
 
+    private val log = LogFactory.getLog(AffiliationInduction::class.java)
+
     /**
      * 为 [revision] 归纳团体。
      *
      * 入参：[revision] 已定稿人物与关系的版本；[extractions] 各章抽取（提供摘要与观察）；[control] 任务级预算与取消。
-     * 出参：带新团体的新版本（其余字段原样复制）；失败或无结果时返回原版本。
+     * 出参：带新团体的新版本（其余字段原样复制）；失败或无结果时返回原版本，并附原因。
      */
-    fun run(revision: AnalysisRevision, extractions: List<ChapterExtraction>, control: ModelCallControl): AnalysisRevision {
-        if (revision.persons.isEmpty() || revision.analyzedChapters.isEmpty()) return revision
+    fun run(revision: AnalysisRevision, extractions: List<ChapterExtraction>, control: ModelCallControl): InductionOutcome {
+        if (revision.persons.isEmpty() || revision.analyzedChapters.isEmpty()) return InductionOutcome(revision, "没有人物，跳过团体归纳")
         // 1. 组装有界输入
         val request = buildRequest(revision, extractions)
         // 2. 调模型（失败以结果表达）
-        val induced = (inducer.induce(request, control) as? InductionResult.Induced)?.groups ?: return revision
+        val induced = when (val result = inducer.induce(request, control)) {
+            is InductionResult.Failed -> return skipped(revision, result.message)
+            is InductionResult.Induced -> result.groups
+        }
         // 3. 校验并转成领域团体
-        val affiliations = toAffiliations(revision, induced) ?: return revision
-        return AnalysisRevision(
+        val affiliations = toAffiliations(revision, induced)
+            ?: return skipped(revision, "团体归纳没有可用团体（模型返回 ${induced.size} 个，校验后为 0）")
+        return InductionOutcome(AnalysisRevision(
             id = revision.id,
             bookId = revision.bookId,
             analyzedChapters = revision.analyzedChapters,
@@ -63,7 +76,13 @@ class AffiliationInduction(private val inducer: AffiliationInducer, private val 
             affiliations = affiliations,
             appearances = revision.appearances,
             chapterOrder = revision.chapterOrder,
-        )
+        ), null)
+    }
+
+    /** 没有产出团体：记日志并原样返回版本。 */
+    private fun skipped(revision: AnalysisRevision, problem: String): InductionOutcome {
+        log.warn("书 ${revision.bookId.value} 未写入团体：$problem")
+        return InductionOutcome(revision, problem)
     }
 
     /** 组装请求：名册、章摘要与观察、关系骨架都有界裁剪。 */

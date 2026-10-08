@@ -237,7 +237,8 @@ class AnalysisRunner(
         val processed = postProcessors.create(run.control).process(input)
         if (cancelled(run)) return
         run.setPhase(TaskPhase.INDUCING_AFFILIATIONS)
-        val revision = affiliations.run(processed.revision, input.extractions, run.control)
+        val induction = affiliations.run(processed.revision, input.extractions, run.control)
+        val revision = induction.revision
         if (cancelled(run)) return
         run.setPhase(TaskPhase.PUBLISHING)
         revisions.save(revision)
@@ -245,7 +246,8 @@ class AnalysisRunner(
             run.finish(TaskStatus.FAILED, "发布前已有其他结果版本被发布，本次结果未发布")
             return
         }
-        run.finish(TaskStatus.COMPLETED, "已发布：人物 ${revision.persons.size}，关系记录 ${revision.occurrences.size}", revision.id)
+        val note = induction.problem?.let { "；未生成势力分区：$it" }.orEmpty()
+        run.finish(TaskStatus.COMPLETED, "已发布：人物 ${revision.persons.size}，关系记录 ${revision.occurrences.size}$note", revision.id)
     }
 
     /** 已请求取消则写入取消终态并返回 true。 */
