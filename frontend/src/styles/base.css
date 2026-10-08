@@ -162,11 +162,12 @@ kbd {
   flex: 1;
 }
 
-/* 图上的悬浮卡片（工具条、图例、提示等） */
+/* 图上的悬浮卡片（工具条、图例、提示等）。
+   用实色、不用 backdrop-filter：拖图时卡片背后的画布每帧都在变，背景模糊要在合成阶段逐帧重算，
+   会造成主线程日志里看不到的卡顿（2026-10-08 对照：去掉模糊后不卡，恢复模糊后再次明显卡顿） */
 .float {
   position: absolute;
-  background: color-mix(in srgb, var(--panel) 92%, transparent);
-  backdrop-filter: blur(6px);
+  background: var(--panel);
   border: 1px solid var(--line);
   border-radius: var(--r);
   box-shadow: var(--shadow);

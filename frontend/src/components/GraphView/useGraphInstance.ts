@@ -3,12 +3,16 @@
  *
  * 关键约束：只有场景（数据 / 视图范围 / 中心人物 / 布局）变了才重建图；选人、悬停、切主题、缩放、点按钮
  * 都只是重算样式后增量 updateData + draw，不重建、不重置视角。为此回调一律存 ref，建图 effect 只依赖 scene。
+ * 悬停高亮（淡化其他人）要停留一会儿才生效、离开后稍等再恢复，鼠标在图上掠过时画面不闪；浮卡仍即时跟随。
+ * 拖画布不用 G6 的 drag-canvas，由这里按「起点 + 鼠标总位移」每帧摆一次，拖动期间的鼠标移动不交给 G6；
+ * 其余图上的鼠标移动限流后再交给 G6。高回报率鼠标（1000Hz）下 G6 每个移动都做命中检测，不这样会卡。
  */
 import { useEffect, useRef, type RefObject } from 'react'
 import { Graph, type IPointerEvent } from '@antv/g6'
 import type { GraphEdge, GraphNode } from '../../api'
 import type { FocusRequest, Scene, ZoomRequest } from './types'
 import { FOCUS, dollyTo, fitPadding } from './camera'
+import { beginPerfPan, endPerfPan, installPerfWatch, perfLog, perfOn, perfTime, recordPerfMove, recordPerfPaint } from './perfLog'
 import {
   comboStyle,
   computeFocus,
@@ -18,6 +22,12 @@ import {
   type Palette,
   type StyleCtx,
 } from './style'
+
+/** 悬停高亮的时机：停留多久才淡化其他人；离开后多久恢复（期间移到别人身上直接切换，不先闪回全图） */
+const HOVER = { engageMs: 320, releaseMs: 180 }
+
+/** 悬停时交给 G6 的鼠标移动最小间隔（约 120 次 / 秒） */
+const MOVE_GAP_MS = 8
 
 /** 悬停浮卡的内容与位置（相对图容器） */
 export type HoverInfo =
@@ -81,6 +91,7 @@ export function useGraphInstance({
     const g = graphRef.current
     const sc = sceneRef.current
     if (!g || !sc || g.destroyed) return
+    const done = perfTime(force ? '样式重算（全量）' : '样式重算', force ? 0 : 8)
     if (!paletteRef.current) paletteRef.current = readPalette()
     const ctx: StyleCtx = {
       palette: paletteRef.current,
@@ -116,7 +127,12 @@ export function useGraphInstance({
     if (!nodes.length && !edges.length && !combos.length) return
     try {
       g.updateData({ nodes, edges, combos })
-      void g.draw().catch(() => {})
+      done({ 节点: nodes.length, 连线: edges.length, 区块: combos.length })
+      const drawn = perfTime('绘制', 8)
+      void g
+        .draw()
+        .then(() => drawn())
+        .catch(() => {})
     } catch {
       /* 图可能正在销毁 */
     }
@@ -179,6 +195,8 @@ export function useGraphInstance({
       container,
       width: container.clientWidth || 800,
       height: container.clientHeight || 560,
+      // 当前图谱不需要独立的背景、标签、临时画布；单层避免大屏平移时合成四张全尺寸位图。
+      canvas: { enableMultiLayer: false },
       animation: false,
       zoomRange: [0.08, 4],
       data: {
@@ -199,12 +217,7 @@ export function useGraphInstance({
       edge: { type: 'line' },
       combo: { type: 'rect' },
       behaviors: [
-        // 势力区块铺满大半画布，只允许在空白处拖动会很难用：区块上也能拖
-        {
-          type: 'drag-canvas',
-          key: 'drag-canvas',
-          enable: (e: IPointerEvent) => e.targetType === 'canvas' || e.targetType === 'combo',
-        },
+        // 拖画布不用 drag-canvas（它累加每个移动事件的位移，丢事件就少拖），见下方 pan
         { type: 'zoom-canvas', key: 'zoom-canvas' },
         // 人物可拖（PRD §5.7.2）；放下不改区块归属
         {
@@ -228,6 +241,91 @@ export function useGraphInstance({
       down = { x: e.clientX, y: e.clientY }
     }
     container.addEventListener('pointerdown', onDown, true)
+    // 开发性能日志：拖画布起止（perf=1 时才输出）
+    let panDone: ((d?: Record<string, unknown>) => number) | null = null
+    const position = () => graph.getPosition().map((v) => Math.round(v)).join(', ')
+    const perfPanStart = () => {
+      if (!perfOn()) return
+      beginPerfPan()
+      perfLog(`拖动画布开始，画布位移 ${position()}`)
+      panDone = perfTime('拖动画布结束，历时')
+    }
+    const perfPanEnd = () => {
+      if (!perfOn()) return
+      // 等落点那次 translateTo 生效再读位置
+      requestAnimationFrame(() => {
+        panDone?.({ 画布位移: position() })
+        panDone = null
+        endPerfPan(container)
+      })
+    }
+    // 鼠标移动的分流。高回报率鼠标（1000Hz）一秒几百个 pointermove，G6 每个都做命中检测、读布局，
+    // 再触发悬停浮卡的 React 更新，主线程被占满。G6 在 document 捕获阶段监听，所以这里挂在更早的 window 捕获阶段：
+    // - 拖画布（在空白处或势力区块上按下）：移动不交给 G6，记下最新鼠标位置，每帧把「总位移 − 已移动」补上；
+    // - 拖人物：全部交给 G6（drag-element 也按单个事件累加位移，不能丢）；
+    // - 其余图上的移动（悬停）：每 MOVE_GAP_MS 交一个，悬停只看当前指着谁，丢掉中间的无妨。
+    let lastMove = -Infinity
+    let press: 'pan' | 'node' | null = null
+    const pan = { x0: 0, y0: 0, x: 0, y: 0, ax: 0, ay: 0, frame: 0, moved: false }
+    /** 把还没移动的那部分位移补上（屏幕像素，与 drag-canvas 相同用 translateBy） */
+    const catchUp = () => {
+      const dx = pan.x - pan.x0 - pan.ax
+      const dy = pan.y - pan.y0 - pan.ay
+      if (!dx && !dy) return
+      pan.ax += dx
+      pan.ay += dy
+      void graph.translateBy([dx, dy], false)
+    }
+    const applyPan = () => {
+      pan.frame = 0
+      if (press === 'pan' && !graph.destroyed) catchUp()
+    }
+    const startPan = (evt: unknown) => {
+      const client = (evt as { client?: { x: number; y: number } }).client
+      if (!client) return
+      Object.assign(pan, { x0: client.x, y0: client.y, x: client.x, y: client.y, ax: 0, ay: 0, moved: false })
+      press = 'pan'
+    }
+    graph.on('canvas:pointerdown', startPan)
+    graph.on('combo:pointerdown', startPan)
+    graph.on('node:pointerdown', () => {
+      press = 'node'
+    })
+    const onMove = (e: PointerEvent) => {
+      if (press === 'pan') {
+        e.stopImmediatePropagation()
+        pan.x = e.clientX
+        pan.y = e.clientY
+        if (!pan.moved && Math.hypot(pan.x - pan.x0, pan.y - pan.y0) > 3) {
+          pan.moved = true
+          container.style.cursor = 'grabbing'
+          cb.current.onHover?.(null)
+          perfPanStart()
+        }
+        if (pan.moved && !pan.frame) pan.frame = requestAnimationFrame(applyPan)
+        recordPerfMove(e)
+        return
+      }
+      if (press === 'node' || !container.contains(e.target as Node)) return
+      if (e.timeStamp - lastMove < MOVE_GAP_MS) {
+        e.stopImmediatePropagation()
+        return
+      }
+      lastMove = e.timeStamp
+    }
+    const onRelease = () => {
+      if (press === 'pan' && pan.moved) {
+        if (pan.frame) cancelAnimationFrame(pan.frame)
+        pan.frame = 0
+        if (!graph.destroyed) catchUp()
+        container.style.cursor = ''
+        perfPanEnd()
+      }
+      press = null
+    }
+    window.addEventListener('pointermove', onMove, true)
+    window.addEventListener('pointerup', onRelease, true)
+    window.addEventListener('pointercancel', onRelease, true)
     const clear = (evt: unknown) => {
       const client = (evt as { client?: { x: number; y: number } }).client
       if (client && Math.hypot(client.x - down.x, client.y - down.y) > 4) return
@@ -254,55 +352,117 @@ export function useGraphInstance({
     graph.on('canvas:click', clear)
     graph.on('combo:click', clear)
 
+    // 浮卡跟随鼠标：以「当前指着谁」为准，不等高亮生效
+    let pointedNode: string | null = null
+    let pointedEdge: string | null = null
+    // 悬停高亮的停留判定：已在高亮中就直接切换；否则停留 engageMs 才生效。离开后 releaseMs 内没进入别的元素才恢复
+    let engageTimer = 0
+    let releaseTimer = 0
+    const highlight = (node: string | null, edge: string | null) => {
+      window.clearTimeout(engageTimer)
+      window.clearTimeout(releaseTimer)
+      const apply = () => {
+        hoverNodeRef.current = node
+        hoverEdgeRef.current = edge
+        schedule()
+      }
+      if (hoverNodeRef.current || hoverEdgeRef.current) apply()
+      else engageTimer = window.setTimeout(apply, HOVER.engageMs)
+    }
+    const release = () => {
+      window.clearTimeout(engageTimer)
+      window.clearTimeout(releaseTimer)
+      if (!hoverNodeRef.current && !hoverEdgeRef.current) return
+      releaseTimer = window.setTimeout(() => {
+        hoverNodeRef.current = null
+        hoverEdgeRef.current = null
+        schedule()
+      }, HOVER.releaseMs)
+    }
+
     graph.on('node:pointerenter', (evt: unknown) => {
       const n = nodeById.get(idOf(evt) ?? '')
       if (!n) return
-      hoverNodeRef.current = n.id
-      hoverEdgeRef.current = null
+      pointedNode = n.id
+      pointedEdge = null
       cb.current.onHover?.({ kind: 'node', node: n.node, ...local(evt) })
-      schedule()
+      highlight(n.id, null)
     })
     graph.on('node:pointermove', (evt: unknown) => {
       const n = nodeById.get(idOf(evt) ?? '')
-      if (n && hoverNodeRef.current === n.id) cb.current.onHover?.({ kind: 'node', node: n.node, ...local(evt) })
+      if (n && pointedNode === n.id) cb.current.onHover?.({ kind: 'node', node: n.node, ...local(evt) })
     })
     graph.on('node:pointerleave', () => {
-      hoverNodeRef.current = null
+      pointedNode = null
       cb.current.onHover?.(null)
-      schedule()
+      release()
     })
     graph.on('edge:pointerenter', (evt: unknown) => {
       const e = edgeById.get(idOf(evt) ?? '')
-      if (!e || hoverNodeRef.current) return
-      hoverEdgeRef.current = e.id
+      if (!e || pointedNode) return
+      pointedEdge = e.id
       cb.current.onHover?.({ kind: 'edge', edge: e.edge, ...local(evt) })
-      schedule()
+      highlight(null, e.id)
     })
     graph.on('edge:pointermove', (evt: unknown) => {
       const e = edgeById.get(idOf(evt) ?? '')
-      if (e && hoverEdgeRef.current === e.id) cb.current.onHover?.({ kind: 'edge', edge: e.edge, ...local(evt) })
+      if (e && pointedEdge === e.id) cb.current.onHover?.({ kind: 'edge', edge: e.edge, ...local(evt) })
     })
     graph.on('edge:pointerleave', () => {
-      hoverEdgeRef.current = null
+      pointedEdge = null
       cb.current.onHover?.(null)
-      schedule()
+      release()
     })
     // 缩放分级：名字 / 连线文字随缩放显隐
     graph.on('aftertransform', () => schedule())
+    const onPerfDown = () => perfLog('按下鼠标')
+    if (perfOn()) {
+      installPerfWatch()
+      container.addEventListener('pointerdown', onPerfDown, true)
+    }
 
     graphRef.current = graph
     readyRef.current = (async () => {
+      const built = perfTime('建图：render')
       await graph.render()
+      built({ 节点: scene.nodes.length, 连线: scene.edges.length, 区块: scene.combos.length })
+      if (perfOn()) {
+        // G6 实际画了几帧、帧间隔多大：JS 不卡但画面不动时，能分出是 G6 没画还是浏览器合成慢
+        let lastPaint = 0
+        let paintStart = 0
+        graph.getCanvas().getLayer('main').addEventListener('beforerender', () => {
+          paintStart = performance.now()
+        })
+        graph.getCanvas().getLayer('main').addEventListener('afterrender', () => {
+          const t = performance.now()
+          recordPerfPaint(t - paintStart)
+          if (lastPaint && t - lastPaint > 100 && t - lastPaint < 5000) {
+            perfLog(`G6 画面间隔 ${(t - lastPaint).toFixed(0)}ms，从 ${(lastPaint / 1000).toFixed(2)}s 起`)
+          }
+          lastPaint = t
+        })
+      }
       if (graphRef.current !== graph) return
+      const fitted = perfTime('建图：适应窗口')
       await fitRef.current(graph)
+      fitted()
       if (graphRef.current !== graph) return
       restyleRef.current(true)
+      perfLog('建图完成')
     })().catch(() => {
       /* 图可能已被重建 / 销毁 */
     })
 
     return () => {
+      window.clearTimeout(engageTimer)
+      window.clearTimeout(releaseTimer)
       container.removeEventListener('pointerdown', onDown, true)
+      container.removeEventListener('pointerdown', onPerfDown, true)
+      window.removeEventListener('pointermove', onMove, true)
+      window.removeEventListener('pointerup', onRelease, true)
+      window.removeEventListener('pointercancel', onRelease, true)
+      if (pan.frame) cancelAnimationFrame(pan.frame)
+      container.style.cursor = ''
       cb.current.onHover?.(null)
       graph.destroy()
       if (graphRef.current === graph) graphRef.current = null
@@ -430,9 +590,12 @@ export function useGraphInstance({
     }
   }, [refitToken])
 
+  // 卸载时取消待重算的帧，并把标记清零：开发模式 StrictMode 会模拟卸载再挂载、沿用同一个 ref，
+  // 不清零的话 schedule 会以为一直有帧在排队，之后的缩放 / 选中 / 悬停都不再重算样式
   useEffect(
     () => () => {
       if (rafRef.current) cancelAnimationFrame(rafRef.current)
+      rafRef.current = 0
     },
     [],
   )
