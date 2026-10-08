@@ -24,6 +24,7 @@ data class ZhiYingProperties(
     val postProcess: PostProcessProperties = PostProcessProperties(),
     val affiliations: AffiliationProperties = AffiliationProperties(),
     val analysis: AnalysisProperties = AnalysisProperties(),
+    val eval: EvalProperties = EvalProperties(),
 )
 
 /**
@@ -40,6 +41,15 @@ data class LlmProperties(val baseUrl: String, val apiKey: String, val model: Str
 
     /** 打印配置时隐藏密钥。 */
     override fun toString() = "LlmProperties(baseUrl=$baseUrl, model=$model)"
+}
+
+/**
+ * 评测（DESIGN §7）：[dir] 评测目录，下面每个含 `suite.json` 的子目录是一个评测集，运行记录写到 `runs/`；
+ * 相对路径按启动目录解析（bootRun 为 zhiying_backend/）。以字符串绑定：Spring 把 `../` 开头的值按资源路径转换 Path 会失败。
+ */
+data class EvalProperties(val dir: String = "../eval") {
+    /** 评测目录。 */
+    val path: Path get() = Path.of(dir)
 }
 
 /**

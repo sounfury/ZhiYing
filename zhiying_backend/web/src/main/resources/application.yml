@@ -161,6 +161,9 @@ zhiying:
     max-observations-per-chapter: 3
     max-observation-chars: 80
     max-relations: 220
+  eval:
+    # 评测目录（DESIGN §7）：每个含 suite.json 的子目录是一个评测集，运行记录写到 runs/；相对路径按启动目录（zhiying_backend/）解析
+    dir: ${ZHIYING_EVAL_DIR:../eval}
 
 server:
   # 本地私有部署：默认只监听本机；需要时用 SERVER_ADDRESS / SERVER_PORT 覆盖
