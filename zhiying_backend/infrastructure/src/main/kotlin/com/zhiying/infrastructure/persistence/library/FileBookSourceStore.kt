@@ -29,4 +29,9 @@ class FileBookSourceStore(properties: ZhiYingProperties) : BookSourceStore {
         }
         return SourceFileRef(digest)
     }
+
+    /** 删除 `<摘要>.epub`；文件不存在时什么也不做。 */
+    override fun delete(ref: SourceFileRef) {
+        Files.deleteIfExists(dir.resolve("${ref.value}.epub"))
+    }
 }

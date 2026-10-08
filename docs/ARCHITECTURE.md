@@ -70,7 +70,7 @@ flowchart TD
 
 - **实现状态**：已完成。
 - **覆盖范围**：`com/zhiying/web`、`com/zhiying/ZhiYingApplication`。
-- **职责**：Spring Boot 启动与依赖装配、路由、请求 / 响应 DTO、错误映射。书籍上传与查询、分析启动 / 取消 / 单章重跑、任务快照、进度推送（SSE）、章抽取结果、图与导出、人名册与人物详情、关系类型、团体、模型诊断接口。
+- **职责**：Spring Boot 启动与依赖装配、路由、请求 / 响应 DTO、错误映射。书籍上传、查询、删除与清空分析，分析启动 / 取消 / 单章重跑、任务快照、进度推送（SSE）、章抽取结果、图与导出、人名册与人物详情、关系类型、团体、模型诊断接口。
 - **对应位置**：`web/`（`com.zhiying.web.books`、`web.analysis`、`web.graph`、`web.cast`、`web.types`、`web.factions`、`web.diagnostics`、`web.error`）。
 
 [探索这个子系统](#module=com/zhiying/web)
@@ -78,9 +78,9 @@ flowchart TD
 ### importbook · 书籍导入与书库
 
 - **实现状态**：已完成。
-- **覆盖范围**：`com/zhiying/application/importbook`、`com/zhiying/application/library`、`com/zhiying/infrastructure/epub`。
-- **职责**：解析 EPUB（阅读顺序、目录标题、正文清洗、按标题或章节标记切章），判定每章是否参与分析并给出原因，保存书与正文；提供书籍、章节与章节正文的查询，供章阅读读取。
-- **对应位置**：`application/…/importbook`、`application/…/library`、`infrastructure/…/epub`。
+- **覆盖范围**：`com/zhiying/application/importbook`、`com/zhiying/application/library`、`com/zhiying/application/removal`、`com/zhiying/infrastructure/epub`。
+- **职责**：解析 EPUB（阅读顺序、目录标题、正文清洗、按标题或章节标记切章），判定每章是否参与分析并给出原因，保存书与正文；提供书籍、章节与章节正文的查询，供章阅读读取。删除书与清空分析（`removal`）：有运行中任务时拒绝，按书删除记录在一个事务内完成（`persistence.SqliteBookDataEraser`），源文件不再被引用时一并删除。
+- **对应位置**：`application/…/importbook`、`application/…/library`、`application/…/removal`、`infrastructure/…/epub`。
 
 [探索这个子系统](#module=com/zhiying/application/importbook)
 

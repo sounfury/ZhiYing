@@ -238,6 +238,8 @@ function AppLayout() {
         onClose={closeShelf}
         onSelect={s.handleBookChange}
         onUpload={s.onUpload}
+        onDelete={s.onDeleteBook}
+        onClearAnalysis={s.onClearAnalysis}
       />
 
       {(error || msg) && (

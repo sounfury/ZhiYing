@@ -8,7 +8,7 @@
 
 | 文件 | 覆盖规则 | PRD |
 |---|---|---|
-| [01-automatic-flow.feature](01-automatic-flow.feature) | EPUB、无扫描出图、摘要不当事实、单章重跑入口、无需人工纠错 | §4.3、§5.1–5.4、§5.8、§8 |
+| [01-automatic-flow.feature](01-automatic-flow.feature) | EPUB、无扫描出图、摘要不当事实、单章重跑入口、无需人工纠错、失败发布与用量、删除书与清空分析 | §4.3、§5.1–5.4、§5.8–5.10、§8 |
 | [02-person-identity.feature](02-person-identity.feature) | 别名归属、同名歧义、上下文指代、无姓名人物、稳定身份 | §5.3 |
 | [03-relations-and-fallback.feature](03-relations-and-fallback.feature) | 多标签、软兜底、强关系否定后的顺序、未决与失败、跨章汇总 | §5.5 |
 | [04-evidence-and-review.feature](04-evidence-and-review.feature) | 基础证据、摘录反馈、清晰关系直接准入、有限补查、逐项保存 | §5.6 |

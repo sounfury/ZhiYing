@@ -69,6 +69,10 @@ export type AppStateValue = {
   isRunning: boolean
 
   onUpload: (file: File | null) => Promise<void>
+  /** 删除书（调用方已确认）；删的是当前书则回到空态 */
+  onDeleteBook: (bookId: string) => Promise<void>
+  /** 清空书的分析结果（调用方已确认）；是当前书则图、人名册、章节结果一并刷新为空 */
+  onClearAnalysis: (bookId: string) => Promise<void>
   /** 启动整书分析；force=true 全部重读，否则复用仍有效的章节结果（即只补读失败 / 未读章） */
   onAnalyze: (opts?: { force?: boolean }) => Promise<void>
   onStop: () => Promise<void>

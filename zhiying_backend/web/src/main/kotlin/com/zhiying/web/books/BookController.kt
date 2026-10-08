@@ -1,4 +1,4 @@
-// 书籍接口：上传 EPUB、书目列表、书详情、章节列表；字段名沿用前端现有的 snake_case 约定。
+// 书籍接口：上传 EPUB、书目列表、书详情、章节列表、删除书、清空分析；字段名沿用前端现有的 snake_case 约定。
 package com.zhiying.web.books
 
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -8,16 +8,19 @@ import com.zhiying.application.analyze.run.TaskUsage
 import com.zhiying.application.importbook.ImportBook
 import com.zhiying.application.library.BookOverview
 import com.zhiying.application.library.LibraryQueries
+import com.zhiying.application.removal.BookRemoval
 import com.zhiying.domain.library.BookId
 import com.zhiying.domain.library.ChapterInclusion
 import com.zhiying.domain.library.ChapterOutline
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
+import org.springframework.web.bind.annotation.ResponseStatus
 import org.springframework.web.bind.annotation.RestController
 import org.springframework.web.multipart.MultipartFile
 
@@ -28,6 +31,7 @@ class BookController(
     private val importBook: ImportBook,
     private val library: LibraryQueries,
     private val analysis: AnalysisQueries,
+    private val removal: BookRemoval,
 ) {
 
     /** 上传 EPUB（表单字段 file）：解析并保存，返回 201 与新书摘要；无法解析返回 UNREADABLE_BOOK。 */
@@ -57,6 +61,16 @@ class BookController(
     @GetMapping("/{bookId}/chapters")
     fun chapters(@PathVariable bookId: String) =
         ChapterListResponse(library.listChapters(BookId(bookId)).map(ChapterResponse::from))
+
+    /** 删除书及其全部数据，返回 204；书不存在返回 NOT_FOUND，正在分析返回 ANALYSIS_ALREADY_RUNNING。 */
+    @DeleteMapping("/{bookId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun delete(@PathVariable bookId: String) = removal.deleteBook(BookId(bookId))
+
+    /** 清空该书的分析数据（书与章节保留），返回 204；错误同删除书。 */
+    @DeleteMapping("/{bookId}/analysis")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    fun clearAnalysis(@PathVariable bookId: String) = removal.clearAnalysis(BookId(bookId))
 }
 
 /** 上传结果。[analysisChapterCount] 为默认参与分析的章数。 */

@@ -92,6 +92,18 @@ class AnalysisRunner(
         return true
     }
 
+    /**
+     * 在该书没有运行中任务时执行 [block]（删除书、清空分析），执行期间该书不能启动新任务；
+     * 完成后丢弃该书内存中已结束的任务，进度订阅不再回放旧事件。有运行中任务抛 ANALYSIS_ALREADY_RUNNING。
+     * [block] 只应做短小的存储操作：执行期间所有书的任务启动都要等它。
+     */
+    fun <T> whileIdle(bookId: BookId, block: () -> T): T = synchronized(runs) {
+        if (runs[bookId]?.snapshot?.active == true) {
+            throw AppException(ErrorCode.ANALYSIS_ALREADY_RUNNING, "该书正在分析，请先停止分析")
+        }
+        block().also { runs.remove(bookId) }
+    }
+
     /** 该书运行中任务的快照；没有运行中的任务为 null。 */
     fun activeTask(bookId: BookId): AnalysisTask? = runs[bookId]?.snapshot?.takeIf { it.active }
 

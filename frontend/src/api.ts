@@ -312,6 +312,22 @@ export async function uploadBook(file: File): Promise<{ book_id: string; title: 
   return request('/api/books/upload', { method: 'POST', body: form })
 }
 
+/** 无响应体的请求（204）：只检查状态，失败抛出后端说明。 */
+async function send(path: string, init: RequestInit): Promise<void> {
+  const res = await fetch(path, init)
+  if (!res.ok) throw new Error(await readError(res))
+}
+
+/** 删除书及其全部数据（PRD §5.10）；分析中会被拒绝（409）。 */
+export function deleteBook(bookId: string): Promise<void> {
+  return send(`/api/books/${bookId}`, { method: 'DELETE' })
+}
+
+/** 清空书的分析结果，书与章节保留、回到未分析（PRD §5.10）；分析中会被拒绝（409）。 */
+export function clearAnalysis(bookId: string): Promise<void> {
+  return send(`/api/books/${bookId}/analysis`, { method: 'DELETE' })
+}
+
 /**
  * 订阅分析进度 SSE，返回关闭函数。服务端先回放本任务的历史事件再转实时；
  * 断线时 EventSource 自动重连并带 Last-Event-ID，只补发更新的事件；收到 done 后自动关闭。

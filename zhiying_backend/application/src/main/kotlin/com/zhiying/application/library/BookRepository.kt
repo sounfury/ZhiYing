@@ -50,4 +50,7 @@ interface BookRepository {
 interface BookSourceStore {
     /** 保存源文件并返回其不可变引用（内容摘要）；相同内容重复保存不会重复占用空间。 */
     fun save(content: ByteArray): SourceFileRef
+
+    /** 删除源文件；文件不存在时什么也不做。调用方须确认已没有书引用它。 */
+    fun delete(ref: SourceFileRef)
 }

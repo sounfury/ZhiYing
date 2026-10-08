@@ -5,6 +5,8 @@
 import { useCallback, useEffect, useMemo, useState, type ReactNode } from 'react'
 import {
   analysisChapters,
+  clearAnalysis,
+  deleteBook,
   downloadExport,
   getBook,
   uploadBook,
@@ -37,7 +39,7 @@ function initialBookId(): string {
 }
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
-  const { books, refreshBooks } = useBooks()
+  const { books, booksLoaded, refreshBooks } = useBooks()
   const [bookId, setBookId] = useState(initialBookId)
 
   // 记住当前书，刷新后直接回到它
@@ -52,8 +54,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   // 记住的书已被删除：书单加载后找不到就回到空态
   useEffect(() => {
-    if (bookId && books.length && !books.some((b) => b.book_id === bookId)) setBookId('')
-  }, [bookId, books])
+    if (bookId && booksLoaded && !books.some((b) => b.book_id === bookId)) setBookId('')
+  }, [bookId, books, booksLoaded])
   const [bookDetail, setBookDetail] = useState<BookMeta | undefined>(undefined)
 
   const { contentChapters, chapterLabel } = useChapters(bookId, (list) => {
@@ -304,6 +306,52 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setSideTab('detail')
   }, [disconnectAnalysis])
 
+  const onDeleteBook = useCallback(
+    async (id: string) => {
+      const title = books.find((b) => b.book_id === id)?.title ?? ''
+      setError('')
+      setMsg('')
+      try {
+        await deleteBook(id)
+        if (id === bookId) handleBookChange('')
+        await refreshBooks()
+        setMsg(`已删除「${title}」`)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      }
+    },
+    [books, bookId, handleBookChange, refreshBooks],
+  )
+
+  const onClearAnalysis = useCallback(
+    async (id: string) => {
+      const title = books.find((b) => b.book_id === id)?.title ?? ''
+      setError('')
+      setMsg('')
+      try {
+        await clearAnalysis(id)
+        if (id === bookId) {
+          // 进度卡、选中与人物聚焦都属于旧结果；图随书详情刷新后自动重载为空
+          disconnectAnalysis()
+          setEgoPersonId(null)
+          setSelectedNode(null)
+          setSelectedEdge(null)
+          setSelectedFactions([])
+          invalidateChapterLedgers()
+        }
+        await refreshBooks()
+        if (id === bookId) {
+          await refreshCast()
+          await refreshFocusLedger()
+        }
+        setMsg(`已清空「${title}」的分析结果，可以重新分析`)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      }
+    },
+    [books, bookId, disconnectAnalysis, invalidateChapterLedgers, refreshBooks, refreshCast, refreshFocusLedger],
+  )
+
   const onExport = useCallback(async () => {
     if (!bookId) return
     setExporting(true)
@@ -445,6 +493,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       analysis,
       isRunning: effectiveRunning,
       onUpload,
+      onDeleteBook,
+      onClearAnalysis,
       onAnalyze,
       onStop,
       onRetryFailed,
@@ -496,6 +546,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       analysis,
       effectiveRunning,
       onUpload,
+      onDeleteBook,
+      onClearAnalysis,
       onAnalyze,
       onStop,
       onRetryFailed,

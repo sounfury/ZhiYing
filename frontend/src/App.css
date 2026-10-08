@@ -367,17 +367,38 @@
 }
 
 .bk {
-  display: flex;
-  gap: 12px;
-  width: 100%;
   padding: 12px;
   border: 1px solid var(--line);
   border-radius: var(--r);
   margin-bottom: 10px;
-  cursor: pointer;
   background: var(--panel);
-  text-align: left;
   color: var(--ink);
+}
+
+/* 书卡主体（点了切换到这本书）与右下的管理操作 */
+.bk-main {
+  display: flex;
+  gap: 12px;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  color: inherit;
+  cursor: pointer;
+}
+
+.bk-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  margin-top: 8px;
+}
+
+.bk-actions .btn {
+  padding: 3px 8px;
+  font-size: 12px;
 }
 
 .bk:hover {
@@ -390,7 +411,7 @@
   box-shadow: 0 0 0 1px var(--accent);
 }
 
-.bk:focus-visible {
+.bk-main:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
