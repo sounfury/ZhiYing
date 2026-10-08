@@ -1,6 +1,8 @@
 .gradle/
 .kotlin/
 build/
+# IDE 的 Kotlin 插件编译输出
+bin/
 .env
 
 # 本地数据：SQLite 数据库与书籍文件
