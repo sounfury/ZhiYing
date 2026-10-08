@@ -1,12 +1,13 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { analysisChapters, listChapters, type ChapterBrief } from '../api'
+import { chapterShortName } from '../chapterNames'
 
 /**
  * 章节列表 + 章节标题查找。
  *
  * - bookId 变化时自动加载
  * - onLoaded 在加载完成后回调（用于 App.tsx 重置 filter 等）
- * - chapterLabel 稳定引用，供其他 hook / 组件使用
+ * - chapterLabel 稳定引用，供其他 hook / 组件使用；正文章用与章节条相同的短名，其余章用原标题
  */
 export function useChapters(
   bookId: string,
@@ -22,6 +23,7 @@ export function useChapters(
   const chapterLabel = useCallback((chapterId: number | undefined) => {
     if (chapterId == null) return '?'
     const hit = chaptersRef.current.find((c) => c.chapter_id === chapterId)
+    if (hit?.include_in_analysis) return chapterShortName(analysisChapters(chaptersRef.current), chapterId)
     if (hit?.title) return hit.title
     return `第 ${chapterId} 段`
   }, [])

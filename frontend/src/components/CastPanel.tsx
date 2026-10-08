@@ -16,7 +16,6 @@ interface CastPanelProps {
 
 export function CastPanel({ graph, chapters, loading, onFocusPerson }: CastPanelProps) {
   const people = useMemo(() => [...(graph?.nodes ?? [])].sort(byAppearance), [graph])
-  const single = graph?.chapter_focus?.mode === 'single'
 
   if (!graph) {
     return <p className="side-empty">{loading ? '正在翻开人名册…' : '分析完成后，书里的人物会列在这里。'}</p>
@@ -35,7 +34,6 @@ export function CastPanel({ graph, chapters, loading, onFocusPerson }: CastPanel
             node={n}
             graph={graph}
             chapters={chapters}
-            hideBio={single}
             onPick={onFocusPerson}
           />
         ))}

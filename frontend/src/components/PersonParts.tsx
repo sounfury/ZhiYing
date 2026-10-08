@@ -45,23 +45,21 @@ export function MiniStrip({ chapters, appeared }: { chapters: ChapterBrief[]; ap
   )
 }
 
-/** 人物列表行：头像、名字、一行简介（单章模式不显示全书简介，避免剧透）、出场缩略条 */
+/** 人物列表行：头像、名字、一行全书简介（无简介时显示重要度与出场章数）、出场缩略条 */
 export function PersonRow({
   node,
   graph,
   chapters,
-  hideBio,
   onPick,
 }: {
   node: GraphNode
   graph: GraphData | null
   chapters: ChapterBrief[]
-  hideBio: boolean
   onPick: (personId: string) => void
 }) {
   const appeared = node.chapter_ids ?? []
   const importance = IMPORTANCE_LABEL[node.importance] ?? ''
-  const sub = hideBio || !node.bio ? [importance, `出场 ${appeared.length || node.appearance_count} 章`].filter(Boolean).join(' · ') : node.bio
+  const sub = !node.bio ? [importance, `出场 ${appeared.length || node.appearance_count} 章`].filter(Boolean).join(' · ') : node.bio
   return (
     <button type="button" className="person-row" onClick={() => onPick(node.person_id)}>
       <Avatar name={node.name} color={nodeColor(graph, node)} size="sm" />

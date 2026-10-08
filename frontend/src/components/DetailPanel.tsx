@@ -3,7 +3,7 @@
  * - 未选中：本书概览（书名、作者、人物 / 关系 / 势力数，耗时与用量）+ 出场最多的人物；
  * - 选中人物：人物卡（标签、全书简介或单章里的事件、出场章节条、以此人为中心、按硬 / 中 / 软分组的关系与依据）；
  * - 选中连线：两人之间每条关系的类型、硬度、章节与引文。
- * 单章模式不显示全书简介（PRD §5.7.1），证据展示遵循 PRD §5.6。
+ * 聚焦视图照常显示全书简介，单章另列本章记录（PRD §5.7.1），证据展示遵循 PRD §5.6。
  */
 import { useEffect, useMemo, useState } from 'react'
 import {
@@ -151,7 +151,6 @@ function BookOverview({ graph, book, castCount, chapters, onFocusPerson }: Detai
   if (usage?.llm_requests) costs.push([String(usage.llm_requests), '模型请求'])
   if (usage?.total_tokens) costs.push([formatTokens(usage.total_tokens).replace(' ', ''), 'token'])
 
-  const single = graph?.chapter_focus?.mode === 'single'
 
   return (
     <div className="detail-panel">
@@ -175,7 +174,7 @@ function BookOverview({ graph, book, castCount, chapters, onFocusPerson }: Detai
           <h3>出场最多</h3>
           <div className="person-list">
             {top.map((n) => (
-              <PersonRow key={n.person_id} node={n} graph={graph} chapters={chapters} hideBio={single} onPick={onFocusPerson} />
+              <PersonRow key={n.person_id} node={n} graph={graph} chapters={chapters} onPick={onFocusPerson} />
             ))}
           </div>
         </section>
@@ -269,18 +268,18 @@ function PersonCard({
           </div>
         </div>
 
-        {singleChapter != null ? (
+        <section className="sec">
+          <h3>全书简介</h3>
+          <p className={`bio${node.bio ? '' : ' muted'}`}>{node.bio || '（路人，暂无简介）'}</p>
+        </section>
+
+        {singleChapter != null && (
           <ChapterNotes
             node={node}
             chapterTitle={chapterLabel(singleChapter)}
             ledger={focusLedger?.chapter_id === singleChapter ? focusLedger : null}
             loading={focusLedgerLoading}
           />
-        ) : (
-          <section className="sec">
-            <h3>全书简介</h3>
-            <p className={`bio${node.bio ? '' : ' muted'}`}>{node.bio || '（路人，暂无简介）'}</p>
-          </section>
         )}
 
         <AppearanceStrip
@@ -335,7 +334,7 @@ function PersonCard({
   )
 }
 
-/** 单章模式下替代全书简介：本章里与此人相关的关系依据与事件 */
+/** 单章模式下附在全书简介后：本章里与此人相关的关系依据与事件 */
 const NOTES_PREVIEW = 5
 
 function ChapterNotes({
@@ -352,15 +351,20 @@ function ChapterNotes({
   const [showAll, setShowAll] = useState(false)
   const notes = useMemo(() => {
     if (!ledger) return []
-    const id = node.person_id
+    // 本章才登场的人在章结果里只有章内编号，没有全书 ID，所以再按称呼认一遍
+    const names = new Set([node.name, ...node.aliases])
+    const ids = new Set([node.person_id])
+    for (const p of ledger.persons) {
+      if ([p.name ?? '', ...p.aliases_in_chapter].some((n) => names.has(n))) ids.add(p.person_id)
+    }
     const texts = [
       ...ledger.relations
-        .filter((r) => r.status !== 'rejected' && (r.person_a === id || r.person_b === id))
+        .filter((r) => r.status !== 'rejected' && (ids.has(r.person_a) || ids.has(r.person_b)))
         .map((r) => r.evidence.note || r.raw_relation),
-      ...ledger.events.filter((ev) => ev.persons.includes(id)).map((ev) => ev.description),
+      ...ledger.events.filter((ev) => ev.persons.some((p) => ids.has(p))).map((ev) => ev.description),
     ]
     return [...new Set(texts.map((t) => t.trim()).filter(Boolean))]
-  }, [ledger, node.person_id])
+  }, [ledger, node.person_id, node.name, node.aliases])
   const shown = showAll ? notes : notes.slice(0, NOTES_PREVIEW)
 
   return (
@@ -377,14 +381,13 @@ function ChapterNotes({
           ))}
         </ul>
       ) : (
-        <p className="bio muted">本章有出场，没有记录到与他人的关系或事件。</p>
+        <p className="bio muted">本章没有记录到与此人相关的关系或事件。</p>
       )}
       {notes.length > NOTES_PREVIEW && (
         <button type="button" className="text-link" onClick={() => setShowAll((v) => !v)}>
           {showAll ? '收起' : `还有 ${notes.length - NOTES_PREVIEW} 条`}
         </button>
       )}
-      <p className="bio-foot">单章模式不显示全书简介，避免提前看到后文</p>
     </section>
   )
 }
@@ -431,15 +434,15 @@ function AppearanceStrip({
               onClick={() => onJump(c.chapter_id)}
             >
               <i />
-              {!compact && chapterShort(c, i)}
+              {!compact && chapterShort(chapters, i)}
             </button>
           )
         })}
       </div>
       {compact && (
         <div className="strip-axis">
-          <span>{chapterShort(chapters[0], 0)}</span>
-          <span>{chapterShort(chapters[chapters.length - 1], chapters.length - 1)}</span>
+          <span>{chapterShort(chapters, 0)}</span>
+          <span>{chapterShort(chapters, chapters.length - 1)}</span>
         </div>
       )}
     </section>

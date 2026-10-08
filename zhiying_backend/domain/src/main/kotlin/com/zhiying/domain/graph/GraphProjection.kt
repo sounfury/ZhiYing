@@ -176,7 +176,7 @@ object GraphProjection {
             aliases = person.aliases,
             gender = person.gender,
             importance = person.importance,
-            bio = if (chapterFocus?.mode == ChapterMode.SINGLE) "" else person.profile.orEmpty(),
+            bio = person.profile.orEmpty(),
             appearanceCount = chapters.size,
             chapters = chapters,
             groups = revision.affiliations.groupsOf(person.id).map { it.id }.filter { it.value in blockIds },

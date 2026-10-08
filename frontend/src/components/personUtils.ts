@@ -1,6 +1,7 @@
 /** 侧栏人物相关的纯函数：关系硬度、章节短名、人名简称、势力色、按出场排序。 */
 import type { ChapterBrief, GraphData, GraphNode, GraphTag, Hardness } from '../api'
 import { factionColor } from '../factions'
+import { chapterShortNames } from '../chapterNames'
 
 export const HARDNESS_ORDER: Hardness[] = ['hard', 'medium', 'soft']
 export const HARDNESS_LABEL: Record<Hardness, string> = { hard: '硬', medium: '中', soft: '软' }
@@ -13,9 +14,9 @@ export function hardnessOf(tag: GraphTag): Hardness {
   return 'medium'
 }
 
-/** 章节格子里的短名：「第二章」→「二」，其余用阅读序号 */
-export function chapterShort(chapter: ChapterBrief | undefined, index: number): string {
-  const m = chapter?.title.match(/^第\s*(\S{1,4}?)\s*[章回节卷部]$/)
+/** 章节格子里的短名：与章节条同一套章名，「第二章」→「二」，其余用阅读序号 */
+export function chapterShort(chapters: ChapterBrief[], index: number): string {
+  const m = chapterShortNames(chapters)[index]?.match(/^第\s*(\S{1,4}?)\s*[章回节卷部]$/)
   return m ? m[1] : String(index + 1)
 }
 
