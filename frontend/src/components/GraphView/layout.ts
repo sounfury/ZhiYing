@@ -137,8 +137,11 @@ type Placed = {
   combos: SceneCombo[]
 }
 
-/** 块内参数：环间距要容下「节点 + 名字 + 余量」，弦长要容下一个中等长度的名字 */
-const BLOCK = { minChord: 96, ringGap: 84, hubGap: 74, margin: 30, padX: 64, padTop: 46, padBottom: 34 }
+/**
+ * 块内参数：环间距要容下「节点 + 名字 + 余量」，弦长要容下一个中等长度的名字；
+ * labelSlot 是核心人物每条连线在线中段要留的弧长（一个短关系名的宽度 + 余量）。
+ */
+const BLOCK = { minChord: 96, ringGap: 96, hubGap: 90, labelSlot: 46, margin: 48, padX: 64, padTop: 46, padBottom: 34 }
 
 /** 两人之间最强关系的硬度等级（无边 = 0） */
 function tieRank(edgesByPair: Map<string, Hardness>, a: string, b: string): number {
@@ -203,20 +206,33 @@ export function placeByFaction(
           weight(y) - weight(x) ||
           x.localeCompare(y),
       )
+    // 与核心直接相连的人全部坐第一环，其余从外一环起排，避免外圈的线穿过内圈
+    const linked = rest.filter((id) => tieRank(edgesByPair, hub, id) > 0)
+    const unlinked = rest.filter((id) => tieRank(edgesByPair, hub, id) === 0)
     const hubR = nodeRadius(nodeById.get(hub)!.importance)
-    const rings = ringSlots(rest.length, {
-      firstRadius: hubR + BLOCK.hubGap,
+    // 第一环半径取三者最大：让开核心；站得下所有相连的人；每条连线中段（半径一半处）留得下一个关系名
+    const firstRadius = Math.max(
+      hubR + BLOCK.hubGap,
+      ((linked.length + 0.5) * BLOCK.minChord) / (Math.PI * 2),
+      (linked.length * BLOCK.labelSlot) / Math.PI,
+    )
+    const inner = ringSlots(linked.length, { firstRadius, ringGap: BLOCK.ringGap, minChord: BLOCK.minChord })
+    const innerOuter = inner.length ? inner[inner.length - 1].radius : firstRadius - BLOCK.ringGap
+    const outer = ringSlots(unlinked.length, {
+      firstRadius: Math.max(innerOuter + BLOCK.ringGap, hubR + BLOCK.hubGap),
       ringGap: BLOCK.ringGap,
       minChord: BLOCK.minChord,
     })
+    const rings = [...inner, ...outer]
+    rest.splice(0, rest.length, ...linked, ...unlinked)
     let cursor = 0
     const filled = rings.map((r) => {
       const ids = rest.slice(cursor, cursor + r.angles.length)
       cursor += r.angles.length
       return { ...r, ids }
     })
-    const outer = filled.length ? filled[filled.length - 1].radius : 0
-    layoutOf.set(b.id, { hub, rings: filled, half: outer + 28 })
+    const outermost = filled.length ? filled[filled.length - 1].radius : 0
+    layoutOf.set(b.id, { hub, rings: filled, half: outermost + 28 })
   }
 
   // 3. 块间装箱：中心人物所在块先放，其余按人数从大到小，连边多的块挨着

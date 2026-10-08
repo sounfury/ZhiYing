@@ -72,13 +72,17 @@ export type Focus = {
   nodes: Set<string>
   edges: Set<string>
   /** 显示连线文字的线（悬停或选中相关） */
+  /** 悬停相关的线：文字总显示，放不下也放在线中点 */
   labelEdges: Set<string>
+  /** 选中相关的线：文字只在放得下时显示，避免主角选中时一圈字叠在一起 */
+  selectedLabelEdges: Set<string>
 }
 
 export function computeFocus(scene: Scene, ctx: StyleCtx): Focus {
   const nodes = new Set<string>()
   const edges = new Set<string>()
   const labelEdges = new Set<string>()
+  const selectedLabelEdges = new Set<string>()
   if (ctx.hoverNode) {
     nodes.add(ctx.hoverNode)
     scene.neighbors.get(ctx.hoverNode)?.forEach((id) => nodes.add(id))
@@ -100,15 +104,13 @@ export function computeFocus(scene: Scene, ctx: StyleCtx): Focus {
   const dimming = nodes.size > 0
   if (!dimming) {
     for (const e of scene.edges) {
-      if (
-        e.id === ctx.selectedEdge ||
-        (ctx.selectedNode && (e.source === ctx.selectedNode || e.target === ctx.selectedNode))
-      ) {
-        labelEdges.add(e.id)
+      if (e.id === ctx.selectedEdge) labelEdges.add(e.id)
+      else if (ctx.selectedNode && (e.source === ctx.selectedNode || e.target === ctx.selectedNode)) {
+        selectedLabelEdges.add(e.id)
       }
     }
   }
-  return { dimming, nodes, edges, labelEdges }
+  return { dimming, nodes, edges, labelEdges, selectedLabelEdges }
 }
 
 const DIM = 0.13
@@ -190,13 +192,16 @@ export function edgeStyle(
   let opacity = past ? 0.3 : 1
   if (focus.dimming) opacity = lit ? 1 : DIM * 0.8
 
-  // 连线文字：相关的总显示；其余放得下、字不太小、且不是人多的缩小全貌时才显示
+  // 连线文字：悬停相关的总显示；选中相关的放得下才显示；其余只给硬 / 中关系，且放得下、字不太小、不是人多的缩小全貌时
+  // 软关系（相识、互动等）默认不标字：点线已表明是软关系，满图「相识」只是噪音
   const related = focus.labelEdges.has(e.id)
   const screenFont = EDGE_LABEL_FONT * ctx.zoom
+  const readable = e.labelFits && screenFont >= 7.5
   const showLabel =
     !!e.labelText &&
     (related ||
-      (!focus.dimming && e.labelFits && screenFont >= 7.5 && (!scene.dense || ctx.zoom >= 0.95)))
+      (focus.selectedLabelEdges.has(e.id) && readable) ||
+      (!focus.dimming && readable && e.hardness !== 'soft' && (!scene.dense || ctx.zoom >= 0.95)))
   // 缩小时相关文字反向放大（悬停看人际时不必先放大）
   const grow = related ? Math.min(2.2, Math.max(1, 0.8 / ctx.zoom)) : 1
 
