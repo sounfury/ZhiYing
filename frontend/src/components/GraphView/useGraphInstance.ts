@@ -209,12 +209,12 @@ export function useGraphInstance({
           id: e.id,
           source: e.source,
           target: e.target,
+          type: e.curveOffset ? 'quadratic' : 'line',
           style: edgeStyle(e, scene, ctx, focus),
         })),
         combos: scene.combos.map((c) => ({ id: c.id, style: comboStyle(c, ctx, focus) })),
       },
       node: { type: 'circle' },
-      edge: { type: 'line' },
       combo: { type: 'rect' },
       behaviors: [
         // 拖画布不用 drag-canvas（它累加每个移动事件的位移，丢事件就少拖），见下方 pan

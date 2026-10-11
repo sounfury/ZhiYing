@@ -78,9 +78,7 @@ export function GraphView({
   const selectedEdgeId = useMemo(() => {
     if (!selectedEdge || !scene) return null
     const hit = scene.edges.find(
-      (e) =>
-        (e.source === selectedEdge.person_a && e.target === selectedEdge.person_b) ||
-        (e.source === selectedEdge.person_b && e.target === selectedEdge.person_a),
+      (e) => e.source === selectedEdge.person_a && e.target === selectedEdge.person_b,
     )
     return hit?.id ?? null
   }, [selectedEdge, scene])

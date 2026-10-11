@@ -71,6 +71,8 @@ export type SceneEdge = {
   edge: GraphEdge
   source: string
   target: string
+  /** 相反端点顺序的边分居连线两侧，避免方向与点击区域重叠；其余为直线。 */
+  curveOffset: number
   /** 最强标签的硬度，决定线型 */
   hardness: Hardness
   /** 单章模式下有本章依据（加粗突出）；false 且单章 = 背景淡化 */

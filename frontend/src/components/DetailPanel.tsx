@@ -18,6 +18,7 @@ import {
   type GraphTag,
 } from '../api'
 import { UNASSIGNED_FACTION_ID } from '../factions'
+import { edgeDirection } from '../relationDirection'
 import { GENDER_LABEL, IMPORTANCE_LABEL, formatTokens, shortTitle } from '../labels'
 import { Avatar, HardnessSymbol, PersonRow } from './PersonParts'
 import {
@@ -532,7 +533,7 @@ function EdgeCard({ edge, graph, chapterLabel, onFocusPerson }: DetailPanelProps
         <div className="who">
           {a && <Avatar name={a.name} color={nodeColor(graph, a)} />}
           <span className="pair-arrow" aria-hidden="true">
-            ⇄
+            {edgeDirection(edge).symbol}
           </span>
           {b && <Avatar name={b.name} color={nodeColor(graph, b)} />}
         </div>

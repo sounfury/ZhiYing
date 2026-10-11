@@ -2,6 +2,7 @@
  * 关系图的视觉编码：从 CSS 变量读调色板，按「场景 + 交互态 + 缩放」算出每个人物、连线、势力区块的 G6 样式。
  *
  * - 连线按强度：硬 = 实线深色，中 = 虚线，软 = 点线浅色（PRD §5.7.2）；单章模式本章依据加粗、其余淡化
+ * - 连线按方向：有向标签按源人物指向目标人物；无向标签不加箭头
  * - 人物：底色 = 势力浅色，描边 = 势力色，大小 = 重要度；节点内首字，名字在下方（衬线 + 画布色描边）
  * - 悬停：高亮该人与一度邻居及连边，其余淡出；悬停连线高亮两端
  * - 缩放分级：缩小时先藏龙套名字、再藏配角名字；主角名字与区块名反向放大保持可读
@@ -10,6 +11,7 @@
  * 这里只算样式对象，不碰 G6 实例；主题切换时重新 readPalette 再整体重算即可，无需重建图。
  */
 import { EDGE_LABEL_FONT, nameFontSize } from './layout'
+import { edgeDirection } from '../../relationDirection'
 import { FACTION_SLOTS } from '../../factions'
 import type { Hardness, Scene, SceneCombo, SceneEdge, SceneNode } from './types'
 
@@ -185,6 +187,7 @@ export function edgeStyle(
   const p = ctx.palette
   const line = LINE[e.hardness]
   const selected = ctx.selectedEdge === e.id
+  const { startArrow, endArrow } = edgeDirection(e.edge)
   const lit = focus.edges.has(e.id)
   const past = scene.focusSingle && !e.inFocus
   const now = scene.focusSingle && e.inFocus
@@ -210,6 +213,11 @@ export function edgeStyle(
     lineWidth: line.width + (now ? 1.6 : 0) + (selected ? 1.4 : lit ? 0.6 : 0),
     lineDash: line.dash,
     lineCap: 'round',
+    startArrow,
+    endArrow,
+    startArrowSize: 8,
+    endArrowSize: 8,
+    curveOffset: e.curveOffset,
     opacity,
     cursor: 'pointer',
     increasedLineWidthForHitTesting: 12,

@@ -395,8 +395,10 @@ function placeEdgeLabels(nodes: SceneNode[], edges: SceneEdge[], focusSingle: bo
     e.labelRatio = 0.5
     if (!e.labelText || len - s.r - t.r < Math.min(w, 60)) continue
     for (const r of LABEL_TRIES) {
-      const x = ax + (bx - ax) * r
-      const y = ay + (by - ay) * r
+      // 与 G6 二次曲线一致：控制点沿连线法向偏移，标签随曲线避让。
+      const bend = 2 * r * (1 - r) * e.curveOffset
+      const x = ax + (bx - ax) * r + uy * bend
+      const y = ay + (by - ay) * r - ux * bend
       const box: Box = [x - w / 2, y - h / 2, x + w / 2, y + h / 2]
       if (boxes.some((b) => hit(b, box))) continue
       boxes.push(box)
@@ -449,11 +451,13 @@ export function buildScene(opts: {
     }
   })
 
+  const edgePairs = new Set(slice.edges.map((e) => `e:${e.person_a}|${e.person_b}`))
   const edges: SceneEdge[] = slice.edges.map((e) => ({
     id: `e:${e.person_a}|${e.person_b}`,
     edge: e,
     source: e.person_a,
     target: e.person_b,
+    curveOffset: edgePairs.has(`e:${e.person_b}|${e.person_a}`) ? 24 : 0,
     hardness: edgeHardness(e),
     inFocus: e.tags.some((t) => t.in_focus_chapter),
     labelText: edgeLabelText(e, focusSingle),

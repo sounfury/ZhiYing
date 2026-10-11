@@ -5,6 +5,7 @@
  */
 import type { GraphFaction, GraphNode } from '../../api'
 import { factionColor } from '../../factions'
+import { edgeDirection } from '../../relationDirection'
 import { edgeHardness, tagHardness } from './layout'
 import type { HoverInfo } from './useGraphInstance'
 
@@ -49,6 +50,18 @@ export function GraphLegend({
             {l.label}
           </div>
         ))}
+        <div>
+          <svg viewBox="0 0 30 8" aria-hidden>
+            <path d="M1 4H27M22 1L27 4L22 7" fill="none" stroke="var(--hard)" strokeWidth="1.5" />
+          </svg>
+          有向
+        </div>
+        <div>
+          <svg viewBox="0 0 30 8" aria-hidden>
+            <line x1="1" y1="4" x2="29" y2="4" stroke="var(--hard)" strokeWidth="1.5" />
+          </svg>
+          无向
+        </div>
         {focusSingle && (
           <div>
             <svg viewBox="0 0 30 8" aria-hidden>
@@ -114,7 +127,7 @@ export function HoverCard({
       {info.kind === 'node' ? <NodeTip node={info.node} singleChapter={singleChapter} /> : (
         <>
           <b>
-            {nameOf(info.edge.person_a)} — {nameOf(info.edge.person_b)}
+            {nameOf(info.edge.person_a)} {edgeDirection(info.edge).symbol} {nameOf(info.edge.person_b)}
           </b>
           <span className="meta"> · {HARDNESS_LABEL[edgeHardness(info.edge)]}关系</span>
           <ul>
