@@ -8,6 +8,10 @@
   "reporters": ["json", "console", "threshold"],
   "absolute": true,
   "failOnEmpty": true,
+  "ignorePattern": [
+    "(?m)^import\\s+.+$",
+    "(?m)^package\\s+.+$"
+  ],
   "ignore": [
     "**/.git/**",
     "**/node_modules/**",
