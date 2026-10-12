@@ -10,6 +10,7 @@ Kotlin 检查用 **detekt `2.0.0-alpha.6`**。最新稳定 1.x 是 `1.23.8`，�
 | --- | --- | --- | --- |
 | 文件/类行数 | `.woodpecker/文件行数.yaml` | `quality/detekt-file-length.yml` | `LargeClass.allowedLines=600`（detekt 没有整文件行数规则，这是类主体默认值） |
 | 认知复杂度 | `.woodpecker/认知复杂度.yaml` | `quality/detekt-complexity.yml` | `CognitiveComplexMethod.allowedComplexity=15`（默认未启用，本门禁打开） |
+| 圈复杂度 | `.woodpecker/圈复杂度.yaml` | `quality/detekt-cyclomatic.yml` | `CyclomaticComplexMethod.allowedComplexity=12`（McCabe；detekt 默认 14） |
 | 嵌套深度 | `.woodpecker/嵌套深度.yaml` | `quality/detekt-nesting.yml` | `NestedBlockDepth.allowedDepth=4` |
 | 参数个数 | `.woodpecker/参数个数.yaml` | `quality/detekt-params.yml` | 函数 5 / 构造 6 |
 | 死代码 | `.woodpecker/死代码.yaml` | `quality/detekt-dead-code.yml` | UnusedImport/Parameter/Private*/Variable |
@@ -18,7 +19,7 @@ Kotlin 检查用 **detekt `2.0.0-alpha.6`**。最新稳定 1.x 是 `1.23.8`，�
 
 Kotlin 门禁只在 `zhiying_backend/**/*.kt`（以及本目录配置）变更时跑。重复代码和密钥扫描对每次 push / PR / 手动触发都跑。
 
-GitHub PR 上的检查名是中文（文件行数、认知复杂度、嵌套深度、参数个数、死代码、重复代码、密钥扫描）。Woodpecker 网页本身在 **Settings → General → Language** 选简体中文。detekt / jscpd / gitleaks 的日志仍是工具原英文。
+GitHub PR 上的检查名是中文（文件行数、认知复杂度、圈复杂度、嵌套深度、参数个数、死代码、重复代码、密钥扫描）。Woodpecker 网页本身在 **Settings → General → Language** 选简体中文。detekt / jscpd / gitleaks 的日志仍是工具原英文。
 
 本机 detekt 镜像：`local/detekt-cli:2.0.0-alpha.6`（agent 与宿主机共用 Docker，`pull: false`）。重建：
 
@@ -37,7 +38,7 @@ jscpd v4 要在每个文件写 `jscpd:ignore-start` 才能跳过 import。v5 用
 
 ## 怎么跳过某一项（密钥扫描除外）
 
-1. **失败不阻断**：手动跑流水线时设 `FILE_LENGTH_NONBLOCK=true`（或 `COMPLEXITY_` / `NESTING_` / `PARAMS_` / `DEAD_CODE_` / `DUPLICATION_`）。检查仍跑，红了不挡合并。
+1. **失败不阻断**：手动跑流水线时设 `FILE_LENGTH_NONBLOCK=true`（或 `COMPLEXITY_` / `CYCLOMATIC_` / `NESTING_` / `PARAMS_` / `DEAD_CODE_` / `DUPLICATION_`）。检查仍跑，红了不挡合并。
 2. **临时关掉**：设 `SKIP_FILE_LENGTH=true`（同样前缀）。该工作流不跑检查步骤。
 
 ## 接到下一个仓库
