@@ -27,6 +27,7 @@
     "**/package-lock.json",
     "**/.backup/**",
     "**/eval/**/legacy_reports/**",
+    "**/.woodpecker/**",
     "**/quality/detekt-*.yml"
   ]
 }
