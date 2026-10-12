@@ -13,7 +13,7 @@ Kotlin 检查用 **detekt `2.0.0-alpha.6`**。最新稳定 1.x 是 `1.23.8`，�
 | 嵌套深度 | `.woodpecker/嵌套深度.yaml` | `quality/detekt-nesting.yml` | `NestedBlockDepth.allowedDepth=4` |
 | 参数个数 | `.woodpecker/参数个数.yaml` | `quality/detekt-params.yml` | 函数 5 / 构造 6 |
 | 死代码 | `.woodpecker/死代码.yaml` | `quality/detekt-dead-code.yml` | UnusedImport/Parameter/Private*/Variable |
-| 重复代码 | `.woodpecker/重复代码.yaml` | `quality/jscpd.json` | ≥5 行且 ≥50 token，阈值 0% |
+| 重复代码 | `.woodpecker/重复代码.yaml` | `quality/jscpd.json` | ≥5 行且 ≥50 token，阈值 0%；忽略评测历史报告、`.backup`、detekt 默认配置互拷 |
 | 密钥扫描 | `.woodpecker/密钥扫描.yaml` | `quality/gitleaks.toml` | gitleaks 默认规则，不可跳过 |
 
 Kotlin 门禁只在 `zhiying_backend/**/*.kt`（以及本目录配置）变更时跑。重复代码和密钥扫描对每次 push / PR / 手动触发都跑。
@@ -30,6 +30,8 @@ docker build -t local/detekt-cli:2.0.0-alpha.6 \
 ## 怎么调阈值
 
 改对应 `quality/` 文件里的注释旁数字，不要靠全局 ignore 或删规则把流水线变绿。
+
+jscpd 的 `ignore` 只排除非源码噪声（`eval/**/legacy_reports/**` 评测历史、`.backup/**` 演示账本、`quality/detekt-*.yml` 默认配置互拷），不放宽 `threshold`。
 
 ## 怎么跳过某一项（密钥扫描除外）
 

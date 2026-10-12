@@ -20,6 +20,9 @@
     "**/.vite/**",
     "**/*.pyc",
     "**/*.tsbuildinfo",
-    "**/package-lock.json"
+    "**/package-lock.json",
+    "**/.backup/**",
+    "**/eval/**/legacy_reports/**",
+    "**/quality/detekt-*.yml"
   ]
 }
