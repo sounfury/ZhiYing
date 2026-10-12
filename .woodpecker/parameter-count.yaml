@@ -1,11 +1,11 @@
 # yamllint disable-line rule:line-length
 # yaml-language-server: $schema=https://raw.githubusercontent.com/woodpecker-ci/woodpecker/v3.19.0/pipeline/frontend/yaml/linter/schema/schema.json
-# Independent GitHub check: parameter count.
-# Manual skip: SKIP_PARAMS=true
-# Manual non-blocking: PARAMS_NONBLOCK=true
-# Secret scan is not controlled by these variables.
+# GitHub 独立检查：函数/构造参数个数
+# 手动跳过：SKIP_PARAMS=true
+# 失败不阻断：PARAMS_NONBLOCK=true
+# 密钥扫描不受这两个变量控制。
 
-name: parameter-count
+name: 参数个数
 
 when:
   - event: [push, pull_request, manual]
@@ -17,7 +17,7 @@ when:
       on_empty: false
 
 steps:
-  - name: parameter-count
+  - name: 参数个数
     image: local/detekt-cli:2.0.0-alpha.6
     pull: false
     when:
@@ -30,7 +30,7 @@ steps:
         --fail-on-severity Info
         --excludes '**/build/**,**/.gradle/**'
         --base-path .
-  - name: parameter-count-nonblock
+  - name: 参数个数（不阻断）
     image: local/detekt-cli:2.0.0-alpha.6
     pull: false
     failure: ignore

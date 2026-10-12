@@ -1,24 +1,24 @@
 # yamllint disable-line rule:line-length
 # yaml-language-server: $schema=https://raw.githubusercontent.com/woodpecker-ci/woodpecker/v3.19.0/pipeline/frontend/yaml/linter/schema/schema.json
-# Independent GitHub check: copy-paste (jscpd).
-# Manual skip: SKIP_DUPLICATION=true
-# Manual non-blocking: DUPLICATION_NONBLOCK=true
-# Secret scan is not controlled by these variables.
+# GitHub 独立检查：重复代码（jscpd）
+# 手动跳过：SKIP_DUPLICATION=true
+# 失败不阻断：DUPLICATION_NONBLOCK=true
+# 密钥扫描不受这两个变量控制。
 
-name: duplication
+name: 重复代码
 
 when:
   - event: [push, pull_request, manual]
 
 steps:
-  - name: jscpd
+  - name: 重复代码
     image: node:22-bookworm-slim
     when:
       - evaluate: 'SKIP_DUPLICATION != "true" && DUPLICATION_NONBLOCK != "true"'
     commands:
       - npm install --global jscpd@5.4.1
       - jscpd . --config quality/jscpd.json --no-colors --no-tips
-  - name: jscpd-nonblock
+  - name: 重复代码（不阻断）
     image: node:22-bookworm-slim
     failure: ignore
     when:

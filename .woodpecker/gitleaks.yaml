@@ -1,9 +1,9 @@
 # yamllint disable-line rule:line-length
 # yaml-language-server: $schema=https://raw.githubusercontent.com/woodpecker-ci/woodpecker/v3.19.0/pipeline/frontend/yaml/linter/schema/schema.json
-# Independent GitHub check: secret scan (gitleaks).
-# This workflow cannot be skipped and cannot be set non-blocking.
+# GitHub 独立检查：密钥扫描（gitleaks）
+# 本项不可跳过、不可设为不阻断。
 
-name: gitleaks
+name: 密钥扫描
 
 when:
   - event: [push, pull_request, manual]
@@ -15,7 +15,7 @@ clone:
       partial: false
 
 steps:
-  - name: gitleaks
+  - name: 密钥扫描
     image: ghcr.io/gitleaks/gitleaks:v8.30.1
     commands:
       - >-

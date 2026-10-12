@@ -1,11 +1,11 @@
 # yamllint disable-line rule:line-length
 # yaml-language-server: $schema=https://raw.githubusercontent.com/woodpecker-ci/woodpecker/v3.19.0/pipeline/frontend/yaml/linter/schema/schema.json
-# Independent GitHub check: cognitive complexity.
-# Manual skip: SKIP_COMPLEXITY=true
-# Manual non-blocking: COMPLEXITY_NONBLOCK=true
-# Secret scan is not controlled by these variables.
+# GitHub 独立检查：认知复杂度
+# 手动跳过：SKIP_COMPLEXITY=true
+# 失败不阻断：COMPLEXITY_NONBLOCK=true
+# 密钥扫描不受这两个变量控制。
 
-name: cognitive-complexity
+name: 认知复杂度
 
 when:
   - event: [push, pull_request, manual]
@@ -17,7 +17,7 @@ when:
       on_empty: false
 
 steps:
-  - name: cognitive-complexity
+  - name: 认知复杂度
     image: local/detekt-cli:2.0.0-alpha.6
     pull: false
     when:
@@ -30,7 +30,7 @@ steps:
         --fail-on-severity Info
         --excludes '**/build/**,**/.gradle/**'
         --base-path .
-  - name: cognitive-complexity-nonblock
+  - name: 认知复杂度（不阻断）
     image: local/detekt-cli:2.0.0-alpha.6
     pull: false
     failure: ignore

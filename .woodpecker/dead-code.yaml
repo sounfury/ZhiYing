@@ -1,11 +1,11 @@
 # yamllint disable-line rule:line-length
 # yaml-language-server: $schema=https://raw.githubusercontent.com/woodpecker-ci/woodpecker/v3.19.0/pipeline/frontend/yaml/linter/schema/schema.json
-# Independent GitHub check: unused code.
-# Manual skip: SKIP_DEAD_CODE=true
-# Manual non-blocking: DEAD_CODE_NONBLOCK=true
-# Secret scan is not controlled by these variables.
+# GitHub 独立检查：死代码与残留
+# 手动跳过：SKIP_DEAD_CODE=true
+# 失败不阻断：DEAD_CODE_NONBLOCK=true
+# 密钥扫描不受这两个变量控制。
 
-name: dead-code
+name: 死代码
 
 when:
   - event: [push, pull_request, manual]
@@ -17,7 +17,7 @@ when:
       on_empty: false
 
 steps:
-  - name: dead-code
+  - name: 死代码
     image: local/detekt-cli:2.0.0-alpha.6
     pull: false
     when:
@@ -30,7 +30,7 @@ steps:
         --fail-on-severity Info
         --excludes '**/build/**,**/.gradle/**'
         --base-path .
-  - name: dead-code-nonblock
+  - name: 死代码（不阻断）
     image: local/detekt-cli:2.0.0-alpha.6
     pull: false
     failure: ignore
