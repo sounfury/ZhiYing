@@ -1,0 +1,25 @@
+{
+  "minLines": 5,
+  "minTokens": 50,
+  "threshold": 0,
+  "mode": "mild",
+  "noGitignore": true,
+  "maxSize": "1gb",
+  "reporters": ["json", "console", "threshold"],
+  "absolute": true,
+  "failOnEmpty": true,
+  "ignore": [
+    "**/.git/**",
+    "**/node_modules/**",
+    "**/__pycache__/**",
+    "**/.venv/**",
+    "**/venv/**",
+    "**/build/**",
+    "**/.gradle/**",
+    "**/dist/**",
+    "**/.vite/**",
+    "**/*.pyc",
+    "**/*.tsbuildinfo",
+    "**/package-lock.json"
+  ]
+}

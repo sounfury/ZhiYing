@@ -1,0 +1,46 @@
+# yamllint disable-line rule:line-length
+# yaml-language-server: $schema=https://raw.githubusercontent.com/woodpecker-ci/woodpecker/v3.19.0/pipeline/frontend/yaml/linter/schema/schema.json
+# Independent GitHub check: parameter count.
+# Manual skip: SKIP_PARAMS=true
+# Manual non-blocking: PARAMS_NONBLOCK=true
+# Secret scan is not controlled by these variables.
+
+name: parameter-count
+
+when:
+  - event: [push, pull_request, manual]
+    path:
+      include:
+        - "zhiying_backend/**/*.kt"
+        - "quality/**"
+        - ".woodpecker/parameter-count.yaml"
+      on_empty: false
+
+steps:
+  - name: parameter-count
+    image: local/detekt-cli:2.0.0-alpha.6
+    pull: false
+    when:
+      - evaluate: 'SKIP_PARAMS != "true" && PARAMS_NONBLOCK != "true"'
+    commands:
+      - >-
+        java -jar /opt/detekt-cli.jar
+        --input zhiying_backend
+        --config quality/detekt-params.yml
+        --fail-on-severity Info
+        --excludes '**/build/**,**/.gradle/**'
+        --base-path .
+  - name: parameter-count-nonblock
+    image: local/detekt-cli:2.0.0-alpha.6
+    pull: false
+    failure: ignore
+    when:
+      - evaluate: 'SKIP_PARAMS != "true" && PARAMS_NONBLOCK == "true"'
+    commands:
+      - >-
+        java -jar /opt/detekt-cli.jar
+        --input zhiying_backend
+        --config quality/detekt-params.yml
+        --fail-on-severity Info
+        --excludes '**/build/**,**/.gradle/**'
+        --base-path .

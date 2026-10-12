@@ -1,0 +1,46 @@
+# yamllint disable-line rule:line-length
+# yaml-language-server: $schema=https://raw.githubusercontent.com/woodpecker-ci/woodpecker/v3.19.0/pipeline/frontend/yaml/linter/schema/schema.json
+# Independent GitHub check: unused code.
+# Manual skip: SKIP_DEAD_CODE=true
+# Manual non-blocking: DEAD_CODE_NONBLOCK=true
+# Secret scan is not controlled by these variables.
+
+name: dead-code
+
+when:
+  - event: [push, pull_request, manual]
+    path:
+      include:
+        - "zhiying_backend/**/*.kt"
+        - "quality/**"
+        - ".woodpecker/dead-code.yaml"
+      on_empty: false
+
+steps:
+  - name: dead-code
+    image: local/detekt-cli:2.0.0-alpha.6
+    pull: false
+    when:
+      - evaluate: 'SKIP_DEAD_CODE != "true" && DEAD_CODE_NONBLOCK != "true"'
+    commands:
+      - >-
+        java -jar /opt/detekt-cli.jar
+        --input zhiying_backend
+        --config quality/detekt-dead-code.yml
+        --fail-on-severity Info
+        --excludes '**/build/**,**/.gradle/**'
+        --base-path .
+  - name: dead-code-nonblock
+    image: local/detekt-cli:2.0.0-alpha.6
+    pull: false
+    failure: ignore
+    when:
+      - evaluate: 'SKIP_DEAD_CODE != "true" && DEAD_CODE_NONBLOCK == "true"'
+    commands:
+      - >-
+        java -jar /opt/detekt-cli.jar
+        --input zhiying_backend
+        --config quality/detekt-dead-code.yml
+        --fail-on-severity Info
+        --excludes '**/build/**,**/.gradle/**'
+        --base-path .

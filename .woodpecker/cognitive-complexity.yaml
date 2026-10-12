@@ -1,0 +1,46 @@
+# yamllint disable-line rule:line-length
+# yaml-language-server: $schema=https://raw.githubusercontent.com/woodpecker-ci/woodpecker/v3.19.0/pipeline/frontend/yaml/linter/schema/schema.json
+# Independent GitHub check: cognitive complexity.
+# Manual skip: SKIP_COMPLEXITY=true
+# Manual non-blocking: COMPLEXITY_NONBLOCK=true
+# Secret scan is not controlled by these variables.
+
+name: cognitive-complexity
+
+when:
+  - event: [push, pull_request, manual]
+    path:
+      include:
+        - "zhiying_backend/**/*.kt"
+        - "quality/**"
+        - ".woodpecker/cognitive-complexity.yaml"
+      on_empty: false
+
+steps:
+  - name: cognitive-complexity
+    image: local/detekt-cli:2.0.0-alpha.6
+    pull: false
+    when:
+      - evaluate: 'SKIP_COMPLEXITY != "true" && COMPLEXITY_NONBLOCK != "true"'
+    commands:
+      - >-
+        java -jar /opt/detekt-cli.jar
+        --input zhiying_backend
+        --config quality/detekt-complexity.yml
+        --fail-on-severity Info
+        --excludes '**/build/**,**/.gradle/**'
+        --base-path .
+  - name: cognitive-complexity-nonblock
+    image: local/detekt-cli:2.0.0-alpha.6
+    pull: false
+    failure: ignore
+    when:
+      - evaluate: 'SKIP_COMPLEXITY != "true" && COMPLEXITY_NONBLOCK == "true"'
+    commands:
+      - >-
+        java -jar /opt/detekt-cli.jar
+        --input zhiying_backend
+        --config quality/detekt-complexity.yml
+        --fail-on-severity Info
+        --excludes '**/build/**,**/.gradle/**'
+        --base-path .

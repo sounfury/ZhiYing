@@ -1,0 +1,46 @@
+# yamllint disable-line rule:line-length
+# yaml-language-server: $schema=https://raw.githubusercontent.com/woodpecker-ci/woodpecker/v3.19.0/pipeline/frontend/yaml/linter/schema/schema.json
+# Independent GitHub check: class size (detekt LargeClass).
+# Manual skip: SKIP_FILE_LENGTH=true
+# Manual non-blocking: FILE_LENGTH_NONBLOCK=true
+# Secret scan is not controlled by these variables.
+
+name: file-length
+
+when:
+  - event: [push, pull_request, manual]
+    path:
+      include:
+        - "zhiying_backend/**/*.kt"
+        - "quality/**"
+        - ".woodpecker/file-length.yaml"
+      on_empty: false
+
+steps:
+  - name: file-length
+    image: local/detekt-cli:2.0.0-alpha.6
+    pull: false
+    when:
+      - evaluate: 'SKIP_FILE_LENGTH != "true" && FILE_LENGTH_NONBLOCK != "true"'
+    commands:
+      - >-
+        java -jar /opt/detekt-cli.jar
+        --input zhiying_backend
+        --config quality/detekt-file-length.yml
+        --fail-on-severity Info
+        --excludes '**/build/**,**/.gradle/**'
+        --base-path .
+  - name: file-length-nonblock
+    image: local/detekt-cli:2.0.0-alpha.6
+    pull: false
+    failure: ignore
+    when:
+      - evaluate: 'SKIP_FILE_LENGTH != "true" && FILE_LENGTH_NONBLOCK == "true"'
+    commands:
+      - >-
+        java -jar /opt/detekt-cli.jar
+        --input zhiying_backend
+        --config quality/detekt-file-length.yml
+        --fail-on-severity Info
+        --excludes '**/build/**,**/.gradle/**'
+        --base-path .
