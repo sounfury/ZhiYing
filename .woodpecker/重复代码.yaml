@@ -5,8 +5,6 @@
 # 失败不阻断：DUPLICATION_NONBLOCK=true
 # 密钥扫描不受这两个变量控制。
 
-name: 重复代码
-
 when:
   - event: [push, pull_request, manual]
 

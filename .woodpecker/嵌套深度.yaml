@@ -1,11 +1,9 @@
 # yamllint disable-line rule:line-length
 # yaml-language-server: $schema=https://raw.githubusercontent.com/woodpecker-ci/woodpecker/v3.19.0/pipeline/frontend/yaml/linter/schema/schema.json
-# GitHub 独立检查：文件/类行数（detekt LargeClass）
-# 手动跳过：SKIP_FILE_LENGTH=true
-# 失败不阻断：FILE_LENGTH_NONBLOCK=true
+# GitHub 独立检查：嵌套深度
+# 手动跳过：SKIP_NESTING=true
+# 失败不阻断：NESTING_NONBLOCK=true
 # 密钥扫描不受这两个变量控制。
-
-name: 文件行数
 
 when:
   - event: [push, pull_request, manual]
@@ -13,34 +11,34 @@ when:
       include:
         - "zhiying_backend/**/*.kt"
         - "quality/**"
-        - ".woodpecker/file-length.yaml"
+        - ".woodpecker/嵌套深度.yaml"
       on_empty: false
 
 steps:
-  - name: 文件行数
+  - name: 嵌套深度
     image: local/detekt-cli:2.0.0-alpha.6
     pull: false
     when:
-      - evaluate: 'SKIP_FILE_LENGTH != "true" && FILE_LENGTH_NONBLOCK != "true"'
+      - evaluate: 'SKIP_NESTING != "true" && NESTING_NONBLOCK != "true"'
     commands:
       - >-
         java -jar /opt/detekt-cli.jar
         --input zhiying_backend
-        --config quality/detekt-file-length.yml
+        --config quality/detekt-nesting.yml
         --fail-on-severity Info
         --excludes '**/build/**,**/.gradle/**'
         --base-path .
-  - name: 文件行数（不阻断）
+  - name: 嵌套深度（不阻断）
     image: local/detekt-cli:2.0.0-alpha.6
     pull: false
     failure: ignore
     when:
-      - evaluate: 'SKIP_FILE_LENGTH != "true" && FILE_LENGTH_NONBLOCK == "true"'
+      - evaluate: 'SKIP_NESTING != "true" && NESTING_NONBLOCK == "true"'
     commands:
       - >-
         java -jar /opt/detekt-cli.jar
         --input zhiying_backend
-        --config quality/detekt-file-length.yml
+        --config quality/detekt-nesting.yml
         --fail-on-severity Info
         --excludes '**/build/**,**/.gradle/**'
         --base-path .

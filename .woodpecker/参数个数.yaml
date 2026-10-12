@@ -1,11 +1,9 @@
 # yamllint disable-line rule:line-length
 # yaml-language-server: $schema=https://raw.githubusercontent.com/woodpecker-ci/woodpecker/v3.19.0/pipeline/frontend/yaml/linter/schema/schema.json
-# GitHub 独立检查：死代码与残留
-# 手动跳过：SKIP_DEAD_CODE=true
-# 失败不阻断：DEAD_CODE_NONBLOCK=true
+# GitHub 独立检查：函数/构造参数个数
+# 手动跳过：SKIP_PARAMS=true
+# 失败不阻断：PARAMS_NONBLOCK=true
 # 密钥扫描不受这两个变量控制。
-
-name: 死代码
 
 when:
   - event: [push, pull_request, manual]
@@ -13,34 +11,34 @@ when:
       include:
         - "zhiying_backend/**/*.kt"
         - "quality/**"
-        - ".woodpecker/dead-code.yaml"
+        - ".woodpecker/参数个数.yaml"
       on_empty: false
 
 steps:
-  - name: 死代码
+  - name: 参数个数
     image: local/detekt-cli:2.0.0-alpha.6
     pull: false
     when:
-      - evaluate: 'SKIP_DEAD_CODE != "true" && DEAD_CODE_NONBLOCK != "true"'
+      - evaluate: 'SKIP_PARAMS != "true" && PARAMS_NONBLOCK != "true"'
     commands:
       - >-
         java -jar /opt/detekt-cli.jar
         --input zhiying_backend
-        --config quality/detekt-dead-code.yml
+        --config quality/detekt-params.yml
         --fail-on-severity Info
         --excludes '**/build/**,**/.gradle/**'
         --base-path .
-  - name: 死代码（不阻断）
+  - name: 参数个数（不阻断）
     image: local/detekt-cli:2.0.0-alpha.6
     pull: false
     failure: ignore
     when:
-      - evaluate: 'SKIP_DEAD_CODE != "true" && DEAD_CODE_NONBLOCK == "true"'
+      - evaluate: 'SKIP_PARAMS != "true" && PARAMS_NONBLOCK == "true"'
     commands:
       - >-
         java -jar /opt/detekt-cli.jar
         --input zhiying_backend
-        --config quality/detekt-dead-code.yml
+        --config quality/detekt-params.yml
         --fail-on-severity Info
         --excludes '**/build/**,**/.gradle/**'
         --base-path .

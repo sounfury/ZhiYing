@@ -3,8 +3,6 @@
 # GitHub 独立检查：密钥扫描（gitleaks）
 # 本项不可跳过、不可设为不阻断。
 
-name: 密钥扫描
-
 when:
   - event: [push, pull_request, manual]
 

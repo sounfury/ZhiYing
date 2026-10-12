@@ -8,13 +8,13 @@ Kotlin 检查用 **detekt `2.0.0-alpha.6`**。最新稳定 1.x 是 `1.23.8`，�
 
 | 检查 | 工作流 | 配置 | 默认阈值 |
 | --- | --- | --- | --- |
-| 文件/类行数 | `.woodpecker/file-length.yaml` | `quality/detekt-file-length.yml` | `LargeClass.allowedLines=600`（detekt 没有整文件行数规则，这是类主体默认值） |
-| 认知复杂度 | `.woodpecker/cognitive-complexity.yaml` | `quality/detekt-complexity.yml` | `CognitiveComplexMethod.allowedComplexity=15`（默认未启用，本门禁打开） |
-| 嵌套深度 | `.woodpecker/nesting-depth.yaml` | `quality/detekt-nesting.yml` | `NestedBlockDepth.allowedDepth=4` |
-| 参数个数 | `.woodpecker/parameter-count.yaml` | `quality/detekt-params.yml` | 函数 5 / 构造 6 |
-| 死代码 | `.woodpecker/dead-code.yaml` | `quality/detekt-dead-code.yml` | UnusedImport/Parameter/Private*/Variable |
-| 重复代码 | `.woodpecker/duplication.yaml` | `quality/jscpd.json` | ≥5 行且 ≥50 token，阈值 0% |
-| 密钥扫描 | `.woodpecker/gitleaks.yaml` | `quality/gitleaks.toml` | gitleaks 默认规则，不可跳过 |
+| 文件/类行数 | `.woodpecker/文件行数.yaml` | `quality/detekt-file-length.yml` | `LargeClass.allowedLines=600`（detekt 没有整文件行数规则，这是类主体默认值） |
+| 认知复杂度 | `.woodpecker/认知复杂度.yaml` | `quality/detekt-complexity.yml` | `CognitiveComplexMethod.allowedComplexity=15`（默认未启用，本门禁打开） |
+| 嵌套深度 | `.woodpecker/嵌套深度.yaml` | `quality/detekt-nesting.yml` | `NestedBlockDepth.allowedDepth=4` |
+| 参数个数 | `.woodpecker/参数个数.yaml` | `quality/detekt-params.yml` | 函数 5 / 构造 6 |
+| 死代码 | `.woodpecker/死代码.yaml` | `quality/detekt-dead-code.yml` | UnusedImport/Parameter/Private*/Variable |
+| 重复代码 | `.woodpecker/重复代码.yaml` | `quality/jscpd.json` | ≥5 行且 ≥50 token，阈值 0% |
+| 密钥扫描 | `.woodpecker/密钥扫描.yaml` | `quality/gitleaks.toml` | gitleaks 默认规则，不可跳过 |
 
 Kotlin 门禁只在 `zhiying_backend/**/*.kt`（以及本目录配置）变更时跑。重复代码和密钥扫描对每次 push / PR / 手动触发都跑。
 
