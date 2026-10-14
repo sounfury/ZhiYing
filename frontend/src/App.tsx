@@ -2,8 +2,8 @@
  * 应用外壳：顶栏 + 主体两栏（图谱区 + 侧栏，≤900px 侧栏落到图下方），外加书架抽屉与提示条。
  * 只负责把全局状态接到各区域组件上，并处理页面级快捷键（Esc 退出中心视图 / 取消选中）。
  */
-import { useCallback, useEffect, useState } from 'react'
-import { GraphView, type ZoomRequest } from './components/GraphView'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { GraphView, type GraphViewHandle, type ZoomRequest } from './components/GraphView'
 import { HeaderBar } from './components/HeaderBar'
 import { GraphToolbar } from './components/GraphToolbar'
 import { AnalysisProgress } from './components/AnalysisProgress'
@@ -16,6 +16,7 @@ import { BookShelf } from './components/BookShelf'
 import { AppStateProvider } from './state/AppStateProvider'
 import { ALL_BOOK_FOCUS } from './types'
 import { useAppState } from './state/useAppState'
+import { useAuth } from './useAuth'
 import './App.css'
 import './styles/graph.css'
 import './styles/progress.css'
@@ -34,12 +35,26 @@ const MSG_TTL_MS = 6000
 
 function AppLayout() {
   const s = useAppState()
+  const auth = useAuth()
+  const isAdmin = auth.user?.role === 'ADMIN'
+  const onLogin = () => auth.openAccount('login')
   const hasBook = Boolean(s.bookId)
   const [shelfOpen, setShelfOpen] = useState(false)
   const closeShelf = useCallback(() => setShelfOpen(false), [])
   // 图工具条的放大 / 缩小请求（GraphToolbar → GraphView）
   const [zoomRequest, setZoomRequest] = useState<ZoomRequest | null>(null)
   const requestZoom = useCallback((kind: ZoomRequest['kind']) => setZoomRequest({ kind, nonce: Date.now() }), [])
+  // 导出图片由图谱组件按当前场景重画（GraphToolbar → GraphView）
+  const graphRef = useRef<GraphViewHandle>(null)
+  const { onExportPng } = s
+  const exportPng = useCallback(
+    () =>
+      void onExportPng((opts) => {
+        const g = graphRef.current
+        return g ? g.exportPng(opts) : Promise.reject(new Error('关系图还没准备好，稍后再试'))
+      }),
+    [onExportPng],
+  )
 
   const { msg, error, clearBanner } = s
   useEffect(() => {
@@ -70,6 +85,8 @@ function AppLayout() {
     <div className="app">
       <HeaderBar
         selectedBook={s.selectedBook}
+        publicOnly={s.publicOnly}
+        onShare={s.onShare}
         contentChapters={s.contentChapters}
         isRunning={s.isRunning}
         graph={s.graph}
@@ -86,9 +103,10 @@ function AppLayout() {
       <main className={`main${hasBook ? '' : ' solo'}`}>
         <section className="stage" aria-label="人物关系图">
           {!hasBook ? (
-            <EmptyState books={s.books} onSelectBook={s.handleBookChange} onUpload={s.onUpload} />
+            <EmptyState books={s.books} publicOnly={s.publicOnly} onLogin={onLogin} onSelectBook={s.handleBookChange} onUpload={s.onUpload} />
           ) : s.graph && s.graph.nodes.length > 0 ? (
             <GraphView
+              ref={graphRef}
               data={s.graph}
               layoutMode={s.layoutMode}
               selectedFactions={s.selectedFactions}
@@ -130,7 +148,7 @@ function AppLayout() {
                 <>
                   尚未成图。
                   <br />
-                  <span className="hint">点右上角「开始分析」，把人物织进关系图。</span>
+                  <span className="hint">{s.publicOnly || (s.selectedBook?.example_slug && !isAdmin) ? '这本书尚未发布可浏览的关系图。' : '点右上角「开始分析」，把人物织进关系图。'}</span>
                 </>
               )}
             </div>
@@ -157,12 +175,14 @@ function AppLayout() {
               onRefit={s.requestRefit}
               isRunning={s.isRunning}
               onZoom={requestZoom}
+              onExportPng={exportPng}
+              exportingPng={s.exportingPng}
               hasGraph={!!s.graph?.nodes.length}
               chapterPeopleCount={s.graph?.chapter_focus?.mode === 'single' ? s.graph.nodes.length : undefined}
             />
           )}
 
-          {hasBook && (
+          {hasBook && !s.publicOnly && (!s.selectedBook?.example_slug || isAdmin) && (
             <AnalysisProgress
               analysis={s.analysis}
               bookTitle={s.selectedBook?.title ?? ''}
@@ -221,6 +241,7 @@ function AppLayout() {
                 onRequest={s.requestChapterLedger}
                 rerunningChapterId={s.rerunningChapterId}
                 disabled={s.isRunning}
+                readOnly={s.publicOnly || (Boolean(s.selectedBook?.example_slug) && !isAdmin)}
                 nameOf={s.personName}
                 onFocusChapter={(chapter) => s.setChapterFocus({ mode: 'single', chapter })}
                 onRerun={(chapterId) => void s.onRerunChapter(chapterId)}
@@ -234,6 +255,9 @@ function AppLayout() {
       <BookShelf
         open={shelfOpen}
         books={s.books}
+        publicOnly={s.publicOnly}
+        isAdmin={isAdmin}
+        onLogin={onLogin}
         bookId={s.bookId}
         onClose={closeShelf}
         onSelect={s.handleBookChange}

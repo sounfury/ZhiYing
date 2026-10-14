@@ -7,9 +7,13 @@ import type { BookMeta, ChapterBrief, GraphData } from '../api'
 import { formatTokens, formatWords, shortTitle, statusIsWarn, statusLabel } from '../labels'
 import { THEME_LABEL, useTheme } from '../theme'
 import { PersonSearch, type PersonHit } from './PersonSearch'
+import { AccountButton } from './AccountDialog'
+import { useAuth } from '../useAuth'
 
 interface HeaderBarProps {
   selectedBook?: BookMeta
+  publicOnly: boolean
+  onShare: () => Promise<void>
   contentChapters: ChapterBrief[]
   isRunning: boolean
   graph: GraphData | null
@@ -25,6 +29,8 @@ interface HeaderBarProps {
 
 export function HeaderBar({
   selectedBook,
+  publicOnly,
+  onShare,
   contentChapters,
   isRunning,
   graph,
@@ -37,6 +43,7 @@ export function HeaderBar({
   onStop,
   onExport,
 }: HeaderBarProps) {
+  const { user } = useAuth()
   const usage = selectedBook?.token_usage
   const words = contentChapters.reduce((n, c) => n + (c.word_count || 0), 0)
   const meta = selectedBook
@@ -71,7 +78,7 @@ export function HeaderBar({
             </span>
           </>
         ) : (
-          <span className="t">选择或上传一本书</span>
+          <span className="t">{publicOnly ? '选择一本示例书' : '选择或上传一本书'}</span>
         )}
         <span className="chev" aria-hidden>
           ▾
@@ -91,7 +98,14 @@ export function HeaderBar({
         </span>
       ) : null}
 
-      {selectedBook && (
+      {selectedBook?.example_slug && (
+        <>
+          <button type="button" className="btn ghost" onClick={() => void onShare()}>复制视图链接</button>
+          <button type="button" className="btn ghost" disabled={!graph || exporting} onClick={onExport}>导出 JSON</button>
+        </>
+      )}
+
+      {selectedBook && (!selectedBook.example_slug || user?.role === 'ADMIN') && !publicOnly && (
         <AnalyzeButton
           book={selectedBook}
           contentChapters={contentChapters}
@@ -106,6 +120,7 @@ export function HeaderBar({
         />
       )}
 
+      <AccountButton />
       <ThemeToggle />
     </header>
   )

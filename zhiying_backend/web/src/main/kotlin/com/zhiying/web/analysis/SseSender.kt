@@ -21,10 +21,13 @@ internal class SseSender(
     val emitter: SseEmitter,
     private val json: JsonMapper,
     keepalive: ScheduledExecutorService,
+    private val sessionValid: () -> Boolean,
 ) {
     private val queue: ExecutorService = Executors.newSingleThreadExecutor(Thread.ofVirtual().name("sse-sender-", 0).factory())
     private val ticker: ScheduledFuture<*> =
-        keepalive.scheduleWithFixedDelay({ enqueue { emitter.send(SseEmitter.event().comment("keepalive")) } }, KEEPALIVE_SECONDS, KEEPALIVE_SECONDS, TimeUnit.SECONDS)
+        keepalive.scheduleWithFixedDelay({
+            enqueue { emitter.send(SseEmitter.event().comment("keepalive")) }
+        }, KEEPALIVE_SECONDS, KEEPALIVE_SECONDS, TimeUnit.SECONDS)
 
     @Volatile
     private var subscription: AnalysisSubscription? = null
@@ -46,7 +49,13 @@ internal class SseSender(
         val kind = if (event.kind == AnalysisEventKind.DONE) "done" else "progress"
         val data = if (event.kind == AnalysisEventKind.DONE) AnalysisPayloads.done(event.task) else AnalysisPayloads.progress(event)
         enqueue {
-            emitter.send(SseEmitter.event().id(event.id.toString()).name(kind).data(json.writeValueAsString(data)))
+            emitter.send(
+                SseEmitter
+                    .event()
+                    .id(event.id.toString())
+                    .name(kind)
+                    .data(json.writeValueAsString(data)),
+            )
             if (event.kind == AnalysisEventKind.DONE) finish()
         }
     }
@@ -63,7 +72,7 @@ internal class SseSender(
     private fun enqueue(action: () -> Unit) {
         queue.execute {
             try {
-                action()
+                if (sessionValid()) action() else finish()
             } catch (e: Exception) {
                 close()
             }

@@ -10,13 +10,15 @@ import type {
   GraphNode,
   RelationTypeMeta,
 } from '../api'
-import type { FocusRequest, LayoutMode } from '../components/GraphView'
+import type { FocusRequest, LayoutMode, PngExportInfo } from '../components/GraphView'
 import type { LedgerEntry } from '../hooks/useLedger'
 import type { PersonHit } from '../components/PersonSearch'
 import type { AnalysisUi, ChapterFocusState, SideTab } from '../types'
 
 export type AppStateValue = {
   books: BookMeta[]
+  publicOnly: boolean
+  onShare: () => Promise<void>
   bookId: string
   selectedBook: BookMeta | undefined
   handleBookChange: (bookId: string) => void
@@ -83,6 +85,9 @@ export type AppStateValue = {
   onPickPerson: (hit: PersonHit) => void
   onExport: () => Promise<void>
   exporting: boolean
+  /** 导出当前视图的 PNG（PRD-beta §5）：render 由图谱组件提供（重画并下载），这里补书名与筛选说明、报告结果 */
+  onExportPng: (render: (opts: { bookTitle: string; notes: string[] }) => Promise<PngExportInfo>) => Promise<void>
+  exportingPng: boolean
 
   cast: Cast | null
   castLoading: boolean

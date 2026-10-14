@@ -25,14 +25,40 @@ data class ZhiYingProperties(
     val affiliations: AffiliationProperties = AffiliationProperties(),
     val analysis: AnalysisProperties = AnalysisProperties(),
     val eval: EvalProperties = EvalProperties(),
+    val examples: ExampleProperties = ExampleProperties(),
+    val accounts: AccountProperties = AccountProperties(),
 )
+
+/** 示例书固定链接目录；访问权限统一由账号与书籍归属决定。 */
+data class ExampleProperties(
+    val books: Map<String, String> = emptyMap(),
+)
+
+/** 首次启动的管理员凭据与持久登录配置，密码不进入配置日志。 */
+data class AccountProperties(
+    val adminUsername: String = "admin",
+    val adminPassword: String = "",
+    val sessionLifetime: Duration = Duration.ofDays(30),
+    val secureCookie: Boolean = false,
+) {
+    init {
+        require(!sessionLifetime.isNegative && !sessionLifetime.isZero) { "zhiying.accounts.session-lifetime 必须为正" }
+    }
+
+    override fun toString() =
+        "AccountProperties(adminUsername=$adminUsername, sessionLifetime=$sessionLifetime, secureCookie=$secureCookie)"
+}
 
 /**
  * 模型服务连接（OpenAI 兼容协议）。`spring.ai.openai.*` 从这里取值，保证只有一处来源。
  *
  * 入参：[baseUrl] 服务地址；[apiKey] 密钥；[model] 默认对话模型名。
  */
-data class LlmProperties(val baseUrl: String, val apiKey: String, val model: String) {
+data class LlmProperties(
+    val baseUrl: String,
+    val apiKey: String,
+    val model: String,
+) {
     init {
         require(baseUrl.isNotBlank()) { "zhiying.llm.base-url 不能为空" }
         require(apiKey.isNotBlank()) { "zhiying.llm.api-key 不能为空，请在 .env 中设置 LLM_API_KEY" }
@@ -47,7 +73,9 @@ data class LlmProperties(val baseUrl: String, val apiKey: String, val model: Str
  * 评测（DESIGN §7）：[dir] 评测目录，下面每个含 `suite.json` 的子目录是一个评测集，运行记录写到 `runs/`；
  * 相对路径按启动目录解析（bootRun 为 zhiying_backend/）。以字符串绑定：Spring 把 `../` 开头的值按资源路径转换 Path 会失败。
  */
-data class EvalProperties(val dir: String = "../eval") {
+data class EvalProperties(
+    val dir: String = "../eval",
+) {
     /** 评测目录。 */
     val path: Path get() = Path.of(dir)
 }
@@ -57,7 +85,9 @@ data class EvalProperties(val dir: String = "../eval") {
  *
  * 入参：[dataDir] 数据目录，相对路径按启动目录解析（bootRun 为 zhiying_backend/）。
  */
-data class StorageProperties(val dataDir: Path) {
+data class StorageProperties(
+    val dataDir: Path,
+) {
     /** SQLite 数据库文件。 */
     val databaseFile: Path get() = dataDir.resolve("zhiying.db")
 
@@ -71,7 +101,10 @@ data class StorageProperties(val dataDir: Path) {
  * 入参：[minChapterWords] 章节参与分析的最低字数，低于它的章节仍保留在书中但标记为不参与分析；
  * [maxTitleLineLength] 正则切章时，章节标记所在行不超过此长度就整行作为章节标题。
  */
-data class ImportProperties(val minChapterWords: Int, val maxTitleLineLength: Int) {
+data class ImportProperties(
+    val minChapterWords: Int,
+    val maxTitleLineLength: Int,
+) {
     init {
         require(minChapterWords >= 0) { "zhiying.import.min-chapter-words 不能为负" }
         require(maxTitleLineLength >= 0) { "zhiying.import.max-title-line-length 不能为负" }
@@ -244,15 +277,36 @@ data class PostProcessProperties(
     val recheckContext: RecheckContextProperties = RecheckContextProperties(),
 ) {
     init {
-        require(listOf(identityMaxItems, identityMaxChars, typeMaxItems, typeMaxChars, recheckMaxItems, recheckMaxChars, fallbackMaxItems, fallbackMaxChars).all { it >= 1 }) {
+        require(
+            listOf(
+                identityMaxItems,
+                identityMaxChars,
+                typeMaxItems,
+                typeMaxChars,
+                recheckMaxItems,
+                recheckMaxChars,
+                fallbackMaxItems,
+                fallbackMaxChars,
+            ).all {
+                it >=
+                    1
+            },
+        ) {
             "zhiying.post-process 批量上限必须为正"
         }
         require(coreMinAppearance >= 1) { "zhiying.post-process.core-min-appearance 至少为 1" }
-        require(listOf(profileMaxItems, profileMaxChars, profileMentionsPerChapter, profileMaxChaptersPerPerson, appellationBridgeLimit).all { it >= 1 }) {
+        require(
+            listOf(profileMaxItems, profileMaxChars, profileMentionsPerChapter, profileMaxChaptersPerPerson, appellationBridgeLimit).all {
+                it >=
+                    1
+            },
+        ) {
             "zhiying.post-process 全书简介与称呼桥接上限必须为正"
         }
         require(recheckMaxRequests >= 0) { "zhiying.post-process.recheck-max-requests 不能为负" }
-        require(mentionsPerPerson >= 1 && fallbackInteractionsPerPair >= 1 && typeCandidateLimit >= 1 && maxNewTypeNameChars >= 1) { "zhiying.post-process 数量上限必须为正" }
+        require(mentionsPerPerson >= 1 && fallbackInteractionsPerPair >= 1 && typeCandidateLimit >= 1 && maxNewTypeNameChars >= 1) {
+            "zhiying.post-process 数量上限必须为正"
+        }
     }
 }
 

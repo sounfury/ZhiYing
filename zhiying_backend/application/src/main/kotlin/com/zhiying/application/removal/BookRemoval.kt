@@ -3,6 +3,7 @@ package com.zhiying.application.removal
 
 import com.zhiying.application.analyze.run.AnalysisRunner
 import com.zhiying.application.library.BookSourceStore
+import com.zhiying.application.library.ExampleBooks
 import com.zhiying.application.library.LibraryQueries
 import com.zhiying.domain.library.BookId
 import com.zhiying.domain.library.SourceFileRef
@@ -27,15 +28,18 @@ class BookRemoval(
     private val runner: AnalysisRunner,
     private val eraser: BookDataEraser,
     private val sources: BookSourceStore,
+    private val examples: ExampleBooks,
 ) {
     /** 清空分析：书与章节保留，书回到未分析；下次分析不再有可沿用的章抽取。 */
     fun clearAnalysis(bookId: BookId) {
+        examples.requireRemovable(bookId)
         library.getBook(bookId)
         runner.whileIdle(bookId) { eraser.eraseAnalysis(bookId) }
     }
 
     /** 删除书：先在事务里删记录，提交后再删不再被引用的源文件（文件删除失败只留下孤立文件，不影响结果）。 */
     fun deleteBook(bookId: BookId) {
+        examples.requireRemovable(bookId)
         library.getBook(bookId)
         val orphan = runner.whileIdle(bookId) { eraser.eraseBook(bookId) }
         orphan?.let(sources::delete)

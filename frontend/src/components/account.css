@@ -1,0 +1,40 @@
+/* 账号与管理表单：沿用全局按钮、分段选择和设计令牌，原生 dialog 负责焦点与模态交互。 */
+.account-dialog {
+  width: min(560px, calc(100vw - 32px));
+  max-height: calc(100dvh - 40px);
+  overflow: auto;
+  padding: 24px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow-lg);
+}
+.account-dialog::backdrop { background: rgb(0 0 0 / 45%); }
+.account-heading, .account-actions { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.account-heading { justify-content: space-between; }
+.account-heading h2 { margin: 0; }
+.account-form { display: grid; gap: 14px; margin: 18px 0; }
+.account-form h3 { margin: 0; }
+.account-form label { display: grid; gap: 6px; }
+.account-form input, .account-form select {
+  width: 100%;
+  min-width: 0;
+  padding: 9px 10px;
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+  font-size: 16px;
+}
+.account-form input:focus-visible, .account-form select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.account-error { color: var(--err); }
+.account-identity, .account-admin p { overflow-wrap: anywhere; }
+.account-admin { margin-top: 24px; border-top: 1px solid var(--line); }
+.account-table-wrap { overflow-x: auto; }
+.account-table { width: 100%; border-collapse: collapse; text-align: left; }
+.account-table caption { text-align: left; color: var(--muted); margin-bottom: 8px; }
+.account-table th, .account-table td { padding: 8px; border-bottom: 1px solid var(--line); }
+.account-table code { overflow-wrap: anywhere; }
+.account-button { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
+.account-tabs { margin-top: 18px; }
+.account-route-status { padding: 24px; }

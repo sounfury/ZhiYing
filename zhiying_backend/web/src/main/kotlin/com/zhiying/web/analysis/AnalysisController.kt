@@ -3,6 +3,7 @@
 package com.zhiying.web.analysis
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.zhiying.application.account.Accounts
 import com.zhiying.application.analyze.run.AnalysisQueries
 import com.zhiying.application.analyze.run.AnalysisRunner
 import com.zhiying.application.analyze.run.AnalysisTask
@@ -10,6 +11,7 @@ import com.zhiying.application.library.LibraryQueries
 import com.zhiying.domain.library.BookId
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
@@ -29,9 +31,17 @@ class AnalysisController(
     private val queries: AnalysisQueries,
     private val library: LibraryQueries,
     private val json: JsonMapper,
+    private val accounts: Accounts,
 ) {
     /** 所有 SSE 连接共用的心跳定时器。 */
-    private val keepalive = Executors.newSingleThreadScheduledExecutor(Thread.ofPlatform().name("sse-keepalive").daemon(true).factory())
+    private val keepalive =
+        Executors.newSingleThreadScheduledExecutor(
+            Thread
+                .ofPlatform()
+                .name("sse-keepalive")
+                .daemon(true)
+                .factory(),
+        )
 
     /**
      * 启动整书分析（异步，返回 202 与任务 ID）。
@@ -49,7 +59,9 @@ class AnalysisController(
 
     /** 任务快照：运行中返回实时快照，否则返回最近一次任务；从未分析过返回 idle。用于页面刷新与断线恢复。 */
     @GetMapping("/analysis/task")
-    fun task(@PathVariable bookId: String): Map<String, Any?> = AnalysisPayloads.snapshot(queries.currentTask(BookId(bookId)))
+    fun task(
+        @PathVariable bookId: String,
+    ): Map<String, Any?> = AnalysisPayloads.snapshot(queries.currentTask(BookId(bookId)))
 
     /**
      * SSE 进度流。事件 progress（逐章 / 阶段变化）与 done（任务终结，之后连接关闭）；每条事件带单调递增的 id，
@@ -60,10 +72,11 @@ class AnalysisController(
     fun progress(
         @PathVariable bookId: String,
         @RequestHeader("Last-Event-ID", required = false) lastEventId: String?,
+        @CookieValue("zhiying_session") token: String,
     ): SseEmitter {
         val id = BookId(bookId)
         library.getBook(id) // 书不存在返回 404，而不是一个空的事件流
-        val sender = SseSender(SseEmitter(0L), json, keepalive)
+        val sender = SseSender(SseEmitter(0L), json, keepalive) { accounts.currentUser(token) != null }
         val emitter = sender.emitter
         val subscription = runner.subscribe(id, lastEventId?.toLongOrNull() ?: 0L, sender::onEvent)
         if (subscription != null) sender.attach(subscription) else sender.sendFinal(queries.currentTask(id))
@@ -72,7 +85,9 @@ class AnalysisController(
 
     /** 请求取消运行中的任务：不再启动新的阅读单元，进行中的模型调用在下次请求前停止，不发布结果。 */
     @PostMapping("/analyze/stop")
-    fun stop(@PathVariable bookId: String): Map<String, String> =
+    fun stop(
+        @PathVariable bookId: String,
+    ): Map<String, String> =
         if (runner.cancel(BookId(bookId))) {
             mapOf("status" to "stopping")
         } else {
@@ -84,12 +99,18 @@ class AnalysisController(
      * 注入已发布版本的人名册保持人物 ID 稳定，重新后处理并发布；失败时上一版结果保持不变。
      */
     @PostMapping("/chapters/{cid}/rerun")
-    fun rerun(@PathVariable bookId: String, @PathVariable cid: Int): ResponseEntity<StartResponse> =
+    fun rerun(
+        @PathVariable bookId: String,
+        @PathVariable cid: Int,
+    ): ResponseEntity<StartResponse> =
         ResponseEntity.accepted().body(StartResponse.from("started", runner.rerunChapter(BookId(bookId), cid)))
 
     /** 某章当前的抽取结果（人物、关系候选及首次判断、交流观察、摘要、读章警告）；该章尚未分析返回 404。 */
     @GetMapping("/chapters/{cid}/result")
-    fun result(@PathVariable bookId: String, @PathVariable cid: Int): Map<String, Any?> {
+    fun result(
+        @PathVariable bookId: String,
+        @PathVariable cid: Int,
+    ): Map<String, Any?> {
         val id = BookId(bookId)
         val stored = queries.chapterExtraction(id, cid)
         return AnalysisPayloads.extraction(cid, stored, library.readChapter(id, cid))
@@ -104,6 +125,9 @@ data class StartResponse(
 ) {
     companion object {
         /** 由刚创建的任务快照构造。 */
-        fun from(status: String, task: AnalysisTask) = StartResponse(status, task.chapters.size, task.id.value)
+        fun from(
+            status: String,
+            task: AnalysisTask,
+        ) = StartResponse(status, task.chapters.size, task.id.value)
     }
 }

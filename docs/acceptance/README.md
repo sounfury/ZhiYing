@@ -1,6 +1,6 @@
 # 验收场景（Gherkin）
 
-产品事实源为 [PRD](../PRD.md)。这些 Gherkin 文件把已确认规则展开为可执行规格的输入，不替代 PRD；新产品决定须先写入 PRD，再同步场景。实现方案见 [DESIGN](../DESIGN.md)。
+产品事实源为 [PRD](../PRD.md)（已实现能力）与 [PRD-beta](../PRD-beta.md)（内测要补的能力）。这些 Gherkin 文件把已确认规则展开为可执行规格的输入，不替代 PRD；新产品决定须先写入 PRD，再同步场景。实现方案见 [DESIGN](../DESIGN.md)。
 
 目前提供 `.feature` 文本，尚未绑定 Kotlin 步骤定义、测试适配器与运行器，因此不是已经通过的自动化验收。使用英文 Gherkin 关键字和中文业务描述；`@confirmed` 表示规则已确认，不表示已实现或已选为首批故事。每个场景有稳定编号，场景大纲的每一行 Examples 都是独立验收实例。
 
@@ -12,8 +12,9 @@
 | [02-person-identity.feature](02-person-identity.feature) | 别名归属、同名歧义、上下文指代、无姓名人物、稳定身份 | §5.3 |
 | [03-relations-and-fallback.feature](03-relations-and-fallback.feature) | 多标签、软兜底、强关系否定后的顺序、未决与失败、跨章汇总 | §5.5 |
 | [04-evidence-and-review.feature](04-evidence-and-review.feature) | 基础证据、摘录反馈、清晰关系直接准入、有限补查、逐项保存 | §5.6 |
-| [05-graph-and-export.feature](05-graph-and-export.feature) | 按章过滤、章节聚焦、例外保留、聚焦、证据详情、样式切换、PNG / JSON 导出 | §5.7 |
-| [06-groups.feature](06-groups.feature) | 团体与边正交、多归属、百人分区、降级提示 | §3.1、§4.4、§5.7.5 |
+| [05-graph-and-export.feature](05-graph-and-export.feature) | 按章过滤、章节聚焦、例外保留、聚焦、证据详情、JSON 导出；PNG 导出 | §5.7；PNG 见 PRD-beta §5 |
+| [06-groups.feature](06-groups.feature) | 团体与边正交、多归属、百人分区、降级提示 | §3.1、§4.4、§5.7.4 |
+| [07-instant-reuse.feature](07-instant-reuse.feature) | 秒传命中与不命中、额度、分叉后互不影响、重复上传、隐私 | PRD-beta §4.4 |
 
 这是一组核心行为规格，不声称穷尽 PRD。完整高频类型库、精细亲属类型、书内新增类型、JSON 重新导入、进度与取消等已确定能力，实施对应故事时还需补充场景。首批之外的已确认场景也应保留，避免把尚未排期误认为产品已取消。
 
@@ -27,4 +28,4 @@
 
 严格防剧透、加强证据模式、人工纠错、旧书迁移不属于本期验收。不以旧评测分数或此前评论中的 90 分作为门禁。运行、发布与恢复的工程性质可另设集成测试，但不能在产品发布策略未确认时把某种行为暗中固定下来。
 
-首批场景从 `FLOW_01–03` 入手，实施顺序见 [todo](../todo.md)；尚待确认的产品行为（失败发布、关系 / 事件边界）见 PRD §9，确认后先更新 PRD 再补场景。
+首批场景从 `FLOW_01–03` 入手，实施顺序见 [todo](../todo.md)；尚待确认的产品行为见 PRD §9 与 PRD-beta §9，确认后先更新 PRD 再补场景。

@@ -1,9 +1,10 @@
-/** 图谱组件的对外 props 与内部共享类型（布局模式、镜头请求、视图切片、场景模型）。 */
+/** 图谱组件的对外 props / ref 句柄与内部共享类型（布局模式、镜头请求、视图切片、场景模型）。 */
+import type { Ref } from 'react'
 import type { GraphData, GraphEdge, GraphNode } from '../../api'
 import type { Point } from './geometry'
 
 /**
- * 两种布局模式（PRD §5.7.5 B）：
+ * 两种布局模式（PRD §5.7.4 B）：
  * - faction（默认，大图主路径）：每个势力一块半透明圆角区块，块内核心人物居中、其余按亲疏分环
  * - affinity（辅模式）：以主角 / 中心人物为圆心，按与他关系的硬 / 中 / 软 / 间接分档成扇区
  */
@@ -16,6 +17,15 @@ export type FocusRequest = { personId: string; nonce: number }
 export type ZoomRequest = { kind: 'in' | 'out'; nonce: number }
 
 export type Hardness = 'hard' | 'medium' | 'soft'
+
+/** 导出 PNG 的结果：文件名与实际像素尺寸；scale < 2 表示图太大、已降低清晰度 */
+export type PngExportInfo = { filename: string; width: number; height: number; scale: number }
+
+/** GraphView 的 ref 句柄 */
+export type GraphViewHandle = {
+  /** 按当前视图导出 PNG 并触发下载；notes 追加在范围说明后（如「已按关系类型筛选」） */
+  exportPng: (opts: { bookTitle: string; notes?: string[] }) => Promise<PngExportInfo>
+}
 
 export type GraphViewProps = {
   data: GraphData
@@ -44,6 +54,7 @@ export type GraphViewProps = {
   /** 双击人物：进入以他为中心的视图 */
   onEnterEgo?: (personId: string) => void
   onExitEgo?: () => void
+  ref?: Ref<GraphViewHandle>
 }
 
 export type GraphSlice = {
@@ -57,7 +68,7 @@ export type SceneNode = {
   id: string
   /** 所代表的人物；选中、悬停、进入中心视图都按它算 */
   personId: string
-  /** 多势力人物在非主势力块里的分身（PRD §5.7.5） */
+  /** 多势力人物在非主势力块里的分身（PRD §5.7.4） */
   ghost: boolean
   node: GraphNode
   x: number

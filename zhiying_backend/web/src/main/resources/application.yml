@@ -1,3 +1,4 @@
+# Spring 与织影配置：存储、模型调用、示例书目录与账号认证。
 spring:
   application:
     name: zhiying
@@ -40,6 +41,17 @@ spring:
 
 # 项目自有配置，类型化绑定见 infrastructure 的 ZhiYingProperties；新增可调参数统一加在这里
 zhiying:
+  accounts:
+    admin-username: ${ZHIYING_ADMIN_USERNAME:admin}
+    # 仅首次建库使用；必须设置，不提供默认密码
+    admin-password: ${ZHIYING_ADMIN_PASSWORD:}
+    session-lifetime: 30d
+    # 本地 HTTP 为 false；公网 HTTPS 部署须设为 true
+    secure-cookie: ${ZHIYING_COOKIE_SECURE:false}
+  examples:
+    books:
+      portrait-of-the-artist: >-
+        ${ZHIYING_EXAMPLE_PORTRAIT_ID:332b960c-564b-4a7f-8195-245689c0a90c}
   llm:
     base-url: ${LLM_BASE_URL:https://api.deepseek.com}
     api-key: ${LLM_API_KEY:}
@@ -86,7 +98,8 @@ zhiying:
     segment-hint-chars: 300
 
   analysis:
-    # 同时在读的阅读单元数（无波次屏障，第一个单元先单独读完再放开并发）；全局请求并发另受 model-call.max-concurrent-requests 限制
+    # 阅读单元并发数；第一个单元先读完再放开并发，无波次屏障
+    # 全局请求并发另受 model-call.max-concurrent-requests 限制
     concurrency: 4
     # 整个任务的模型请求数与 token 预算，0 表示不限；耗尽记为执行失败而非语义结论
     max-requests: 0
@@ -162,7 +175,8 @@ zhiying:
     max-observation-chars: 80
     max-relations: 220
   eval:
-    # 评测目录（DESIGN §7）：每个含 suite.json 的子目录是一个评测集，运行记录写到 runs/；相对路径按启动目录（zhiying_backend/）解析
+    # 评测目录（DESIGN §7）：含 suite.json 的子目录是评测集，记录写到 runs/
+    # 相对路径按启动目录（zhiying_backend/）解析
     dir: ${ZHIYING_EVAL_DIR:../eval}
 
 logging:

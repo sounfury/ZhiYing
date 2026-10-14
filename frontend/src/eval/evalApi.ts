@@ -1,4 +1,5 @@
 /** 评测接口客户端（DESIGN §7）：评测集、准备并发起整书分析、评分与运行记录；字段与后端 snake_case 报告一致。 */
+import { request } from '../api'
 
 export type EvalRunSummary = {
   id: string
@@ -127,21 +128,6 @@ export type EvalRun = {
   usage: { requests: number; input_tokens: number; output_tokens: number; total_tokens: number } | null
   duration_seconds: number | null
   report: EvalReport
-}
-
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, init)
-  if (!res.ok) {
-    let detail = res.statusText
-    try {
-      const body = await res.json()
-      detail = body.message || body.detail || detail
-    } catch {
-      /* 非 JSON 错误体 */
-    }
-    throw new Error(detail)
-  }
-  return res.json() as Promise<T>
 }
 
 const base = (name: string) => `/api/eval/suites/${encodeURIComponent(name)}`

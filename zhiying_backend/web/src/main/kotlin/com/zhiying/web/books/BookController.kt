@@ -2,13 +2,18 @@
 package com.zhiying.web.books
 
 import com.fasterxml.jackson.annotation.JsonProperty
+import com.zhiying.application.account.Accounts
 import com.zhiying.application.analyze.run.AnalysisQueries
 import com.zhiying.application.analyze.run.BookAnalysisStatus
 import com.zhiying.application.analyze.run.TaskUsage
 import com.zhiying.application.importbook.ImportBook
+import com.zhiying.application.library.BookAccess
 import com.zhiying.application.library.BookOverview
+import com.zhiying.application.library.ExampleBooks
 import com.zhiying.application.library.LibraryQueries
 import com.zhiying.application.removal.BookRemoval
+import com.zhiying.domain.account.Account
+import com.zhiying.domain.account.AccountRole
 import com.zhiying.domain.library.BookId
 import com.zhiying.domain.library.ChapterInclusion
 import com.zhiying.domain.library.ChapterOutline
@@ -18,6 +23,7 @@ import org.springframework.web.bind.annotation.DeleteMapping
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestAttribute
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.ResponseStatus
@@ -32,45 +38,74 @@ class BookController(
     private val library: LibraryQueries,
     private val analysis: AnalysisQueries,
     private val removal: BookRemoval,
+    private val examples: ExampleBooks,
+    private val access: BookAccess,
+    private val accounts: Accounts,
 ) {
-
     /** 上传 EPUB（表单字段 file）：解析并保存，返回 201 与新书摘要；无法解析返回 UNREADABLE_BOOK。 */
     @PostMapping("/upload")
-    fun upload(@RequestParam("file") file: MultipartFile): ResponseEntity<UploadResponse> {
-        val overview = importBook.import(file.originalFilename.orEmpty(), file.bytes)
+    fun upload(
+        @RequestParam("file") file: MultipartFile,
+        @RequestAttribute("user") user: Account,
+    ): ResponseEntity<UploadResponse> {
+        val overview = importBook.import(file.originalFilename.orEmpty(), file.bytes, accounts.requireUser(user).id)
         return ResponseEntity.status(HttpStatus.CREATED).body(UploadResponse.from(overview))
     }
 
     /** 书目列表，新导入的在前。 */
     @GetMapping
-    fun list(): BookListResponse {
-        val books = library.listBooks()
+    fun list(
+        @RequestAttribute("user", required = false) user: Account?,
+    ): BookListResponse {
+        val books = access.list(user)
         val usage = analysis.bookUsage(books.map { it.book.id })
-        return BookListResponse(books.map { BookResponse.from(it, analysis.bookStatus(it.book.id), usage.getValue(it.book.id)) })
+        return BookListResponse(books.map { response(it, usage.getValue(it.book.id), user) }, user == null)
+    }
+
+    private fun response(
+        overview: BookOverview,
+        usage: TaskUsage,
+        user: Account?,
+    ): BookResponse {
+        val id = overview.book.id
+        val publicView = examples.isPublished(id) && user?.role != AccountRole.ADMIN
+        val status = if (publicView) examples.publishedStatus(id) else analysis.bookStatus(id)
+        return BookResponse.from(overview, status, if (publicView) TaskUsage() else usage).copy(
+            exampleSlug = examples.slug(id),
+            sourceFile = if (publicView) "" else overview.originalName,
+        )
     }
 
     /** 单本书详情；不存在返回 NOT_FOUND。 */
     @GetMapping("/{bookId}")
-    fun detail(@PathVariable bookId: String): BookResponse {
+    fun detail(
+        @PathVariable bookId: String,
+        @RequestAttribute("user", required = false) user: Account?,
+    ): BookResponse {
         val overview = library.getBook(BookId(bookId))
         val id = overview.book.id
-        return BookResponse.from(overview, analysis.bookStatus(id), analysis.bookUsage(listOf(id)).getValue(id))
+        return response(overview, analysis.bookUsage(listOf(id)).getValue(id), user)
     }
 
     /** 章节列表（不含正文），含不参与分析的章节及原因；书不存在返回 NOT_FOUND。 */
     @GetMapping("/{bookId}/chapters")
-    fun chapters(@PathVariable bookId: String) =
-        ChapterListResponse(library.listChapters(BookId(bookId)).map(ChapterResponse::from))
+    fun chapters(
+        @PathVariable bookId: String,
+    ) = ChapterListResponse(library.listChapters(BookId(bookId)).map(ChapterResponse::from))
 
     /** 删除书及其全部数据，返回 204；书不存在返回 NOT_FOUND，正在分析返回 ANALYSIS_ALREADY_RUNNING。 */
     @DeleteMapping("/{bookId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun delete(@PathVariable bookId: String) = removal.deleteBook(BookId(bookId))
+    fun delete(
+        @PathVariable bookId: String,
+    ) = removal.deleteBook(BookId(bookId))
 
     /** 清空该书的分析数据（书与章节保留），返回 204；错误同删除书。 */
     @DeleteMapping("/{bookId}/analysis")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    fun clearAnalysis(@PathVariable bookId: String) = removal.clearAnalysis(BookId(bookId))
+    fun clearAnalysis(
+        @PathVariable bookId: String,
+    ) = removal.clearAnalysis(BookId(bookId))
 }
 
 /** 上传结果。[analysisChapterCount] 为默认参与分析的章数。 */
@@ -108,15 +143,30 @@ data class BookResponse(
     @JsonProperty("analysis_chapter_count") val analysisChapterCount: Int,
     @JsonProperty("analysis_progress") val analysisProgress: AnalysisProgressResponse,
     @JsonProperty("token_usage") val tokenUsage: TokenUsageResponse,
+    @JsonProperty("example_slug") val exampleSlug: String? = null,
 ) {
     companion object {
         /** 由书概览与分析状态构造；作者缺失时给空串，与前端类型一致。 */
-        fun from(o: BookOverview, analysis: BookAnalysisStatus, usage: TaskUsage) = BookResponse(
-            o.book.id.value, o.book.title, o.book.author.orEmpty(), o.originalName, o.profile.totalChapters,
-            analysis.state.name.lowercase(), o.importedAt.toString(), o.profile.totalWords, o.profile.maxChapterWords,
-            o.profile.medianChapterWords, o.profile.analysisChapters,
+        fun from(
+            o: BookOverview,
+            analysis: BookAnalysisStatus,
+            usage: TaskUsage,
+        ) = BookResponse(
+            o.book.id.value,
+            o.book.title,
+            o.book.author.orEmpty(),
+            o.originalName,
+            o.profile.totalChapters,
+            analysis.state.name.lowercase(),
+            o.importedAt.toString(),
+            o.profile.totalWords,
+            o.profile.maxChapterWords,
+            o.profile.medianChapterWords,
+            o.profile.analysisChapters,
             AnalysisProgressResponse(
-                analysis.chaptersDone, analysis.chaptersFailed, analysis.state == BookAnalysisStatus.State.ANALYZED,
+                analysis.chaptersDone,
+                analysis.chaptersFailed,
+                analysis.state == BookAnalysisStatus.State.ANALYZED,
             ),
             TokenUsageResponse(usage.inputTokens, usage.outputTokens, usage.totalTokens, usage.requests),
         )
@@ -139,7 +189,10 @@ data class TokenUsageResponse(
 )
 
 /** 书目列表响应。 */
-data class BookListResponse(val books: List<BookResponse>)
+data class BookListResponse(
+    val books: List<BookResponse>,
+    @JsonProperty("public_only") val publicOnly: Boolean,
+)
 
 /**
  * 章节概要的 HTTP 表示。
@@ -163,11 +216,21 @@ data class ChapterResponse(
         fun from(c: ChapterOutline): ChapterResponse {
             val reason = (c.inclusion as? ChapterInclusion.Excluded)?.reason
             return ChapterResponse(
-                c.order, c.id.value, c.title, c.order, c.wordCount, c.inclusion.included, reason?.name, reason?.label, c.sourceHref,
+                c.order,
+                c.id.value,
+                c.title,
+                c.order,
+                c.wordCount,
+                c.inclusion.included,
+                reason?.name,
+                reason?.label,
+                c.sourceHref,
             )
         }
     }
 }
 
 /** 章节列表响应。 */
-data class ChapterListResponse(val chapters: List<ChapterResponse>)
+data class ChapterListResponse(
+    val chapters: List<ChapterResponse>,
+)

@@ -73,6 +73,11 @@ export function useChapterLedgers(bookId: string) {
   useEffect(() => {
     bookRef.current = bookId
     invalidate()
+    return () => {
+      generation.current += 1
+      bookRef.current = ''
+      queue.current = []
+    }
   }, [bookId, invalidate])
 
   const pump = useCallback(() => {

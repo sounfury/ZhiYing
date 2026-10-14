@@ -56,7 +56,7 @@ class ImportBook(
      * 入参：[fileName] 上传文件名（须以 .epub 结尾）；[content] 文件字节。出参：新书概览。
      * 文件名不合法抛 INVALID_ARGUMENT；解析失败抛 UNREADABLE_BOOK。
      */
-    fun import(fileName: String, content: ByteArray): BookOverview {
+    fun import(fileName: String, content: ByteArray, ownerId: String): BookOverview {
         if (!fileName.endsWith(".epub", ignoreCase = true)) {
             throw AppException(ErrorCode.INVALID_ARGUMENT, "只接受 .epub 文件")
         }
@@ -79,7 +79,7 @@ class ImportBook(
             importedAt = Instant.now(),
             profile = BookProfile.of(records.map { it.outline }),
         )
-        books.save(overview, records)
+        books.save(overview, records, ownerId)
         return overview
     }
 }

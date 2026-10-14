@@ -6,11 +6,11 @@ ZhiYing 面向想读中长篇小说、但被人物和称呼绕晕的读者：上
 
 系统由两部分组成：Kotlin 后端 `zhiying_backend/`（模块化单体）负责书籍导入、调用大模型逐章分析、汇总人物与关系、按结果版本发布，并通过 HTTP 提供给 React 前端 `frontend/`；前端负责书架、关系图浏览与分析进度展示。本文主要写后端，前端见末尾「前端」一节。产品范围见 [PRD](./PRD.md)，领域模型与分析流程细节见 [DESIGN](./DESIGN.md)。
 
-当前进度（2026-10-07）：从上传、整书分析（阅读单元调度、滚动人名册、后处理模型判断、团体归纳）到发布、出图与人物 / 类型 / 团体查询已全链路打通，并用真实模型跑通过单章重跑；前端已接入新接口，旧 Python 后端已删除。验收场景尚未落为测试。
+当前进度（2026-10-14）：从上传、整书分析（阅读单元调度、滚动人名册、后处理模型判断、团体归纳）到发布、出图与人物 / 类型 / 团体查询已全链路打通，并用真实模型跑通过单章重跑；账号、会话、邀请码与按用户隔离已完成，前端已接入，旧 Python 后端已删除。用量上限、反馈、秒传仍待实现；验收场景尚未落为测试。
 
 ## 数据流
 
-上传的 EPUB 拆成章节保存；分析编排逐章交给章阅读（大模型多轮工具循环）得到章抽取记录，再由后处理规则在全书范围内完成身份对齐、类型归一、有限补查与软关系兜底，组装成一套一致的结果版本并发布；全书读完后再做团体归纳；出图与人物 / 类型 / 团体查询只读已发布版本。
+上传的 EPUB 在书主权限范围内拆成章节，与新书及归属一并保存；分析编排逐章交给章阅读（大模型多轮工具循环）得到章抽取记录，再由后处理规则在全书范围内完成身份对齐、类型归一、有限补查与软关系兜底，组装成一套一致的结果版本并发布；全书读完后再做团体归纳；出图与人物 / 类型 / 团体查询只读已发布版本。
 
 ```mermaid
 flowchart TD
@@ -33,7 +33,7 @@ flowchart TD
 
     reader -->|EPUB 文件、分析请求| web
     web -->|EPUB 字节流| importbook
-    importbook -->|书、章节正文、是否参与分析| persistence
+    importbook -->|书、归属、章节正文、是否参与分析| persistence
     importbook -->|章节切分与参与分析规则| library
     web -->|开始分析 / 单章重跑| analyze
     persistence -->|待分析章节正文| analyze
@@ -70,16 +70,25 @@ flowchart TD
 
 - **实现状态**：已完成。
 - **覆盖范围**：`com/zhiying/web`、`com/zhiying/ZhiYingApplication`。
-- **职责**：Spring Boot 启动与依赖装配、路由、请求 / 响应 DTO、错误映射。书籍上传、查询、删除与清空分析，分析启动 / 取消 / 单章重跑、任务快照、进度推送（SSE）、章抽取结果、图与导出、人名册与人物详情、关系类型、团体、模型诊断接口。
+- **职责**：Spring Boot 启动与依赖装配、路由、请求 / 响应 DTO、错误映射；账号注册、登录 / 退出、管理员邀请码与密码重置接口。请求边界读取会话 Cookie、传递当前账号、设置或清除 Cookie，非安全方法检查 CSRF 请求头；书籍与任务权限由应用层判定。书籍上传、查询、删除与清空分析，分析启动 / 取消 / 单章重跑、任务快照、进度推送（SSE）、章抽取结果、图与导出、人名册与人物详情、关系类型、团体、模型诊断接口。
 - **对应位置**：`web/`（`com.zhiying.web.books`、`web.analysis`、`web.graph`、`web.cast`、`web.types`、`web.factions`、`web.diagnostics`、`web.error`）。
 
 [探索这个子系统](#module=com/zhiying/web)
+
+### 账号与访问控制
+
+- **实现状态**：已完成；产品权限见 PRD §5.11–5.12，表结构、事务和会话安全细节见 DESIGN §5.5。
+- **domain**：账号身份、角色及用户名 / 密码格式规则属于领域；不读取 Cookie、不执行密码算法、不访问数据库。
+- **application**：编排注册、登录、退出、邀请码创建、密码重置及首次管理员引导，生成随机会话 token；定义所需存储与密码算法接口。先查会话身份、书主或已发布示例，再执行查询或操作；章、任务、SSE 与导出入口都沿关联书检查权限。管理员角色仅增加维护能力，不授予他人私有书权限。
+- **infrastructure**：实现 SQLite 账号、邀请码、会话与书主存储，以及 JDK 密码派生与会话哈希；配置通过 `ZhiYingProperties` 绑定并装配应用层设置。管理员引导保留已有数据，只补齐无主书的归属。
+- **web / frontend**：web 处理 HTTP 会话与 CSRF 边界；前端提供登录、邀请码注册、退出、管理员邀请码与密码重置入口，按角色展示维护操作。前端与 API 使用同一站点，不开放 CORS；部署命令见 README。
+- **对应位置**：`domain/…/account`、`application/…/account`、`application/…/library/BookAccess.kt`、`infrastructure/…/persistence/account`、`infrastructure/…/config/AccountConfiguration.kt`。
 
 ### importbook · 书籍导入与书库
 
 - **实现状态**：已完成。
 - **覆盖范围**：`com/zhiying/application/importbook`、`com/zhiying/application/library`、`com/zhiying/application/removal`、`com/zhiying/infrastructure/epub`。
-- **职责**：解析 EPUB（阅读顺序、目录标题、正文清洗、按标题或章节标记切章），判定每章是否参与分析并给出原因，保存书与正文；提供书籍、章节与章节正文的查询，供章阅读读取。删除书与清空分析（`removal`）：有运行中任务时拒绝，按书删除记录在一个事务内完成（`persistence.SqliteBookDataEraser`），源文件不再被引用时一并删除。
+- **职责**：解析 EPUB（阅读顺序、目录标题、正文清洗、按标题或章节标记切章），判定每章是否参与分析并给出原因，在同一事务内保存新书、书主与正文；提供经应用层归属校验的书籍、章节与章节正文查询，供章阅读读取。删除书与清空分析（`removal`）：有运行中任务时拒绝，按书删除记录在一个事务内完成（`persistence.SqliteBookDataEraser`），源文件不再被引用时一并删除。
 - **对应位置**：`application/…/importbook`、`application/…/library`、`application/…/removal`、`infrastructure/…/epub`。
 
 [探索这个子系统](#module=com/zhiying/application/importbook)
@@ -114,7 +123,7 @@ flowchart TD
 ### persistence · 存储
 
 - **实现状态**：已完成。
-- **职责**：SQLite 数据源与建表脚本（`resources/schema/*.sql`，启动时执行）；书与章节（`library`）、结果版本与发布指针（`revision`）的存储，源 EPUB 按内容摘要存文件。章抽取记录（按章存 JSON，重跑产生新记录，当前指针指向最新）、分析任务与各章进度、书的分析状态存储在 `persistence.analysis`。
+- **职责**：SQLite 数据源与建表脚本（`resources/schema/*.sql`，启动时执行）；账号、邀请码、会话与书主关联的持久化（DESIGN §5.5）；书与章节（`library`）、结果版本与发布指针（`revision`）的存储，源 EPUB 按内容摘要存文件。章抽取记录（按章存 JSON，重跑产生新记录，当前指针指向最新）、分析任务与各章进度、书的分析状态存储在 `persistence.analysis`。
 - **对应位置**：`infrastructure/…/persistence`。
 
 [探索这个子系统](#module=com/zhiying/infrastructure/persistence)
@@ -122,7 +131,7 @@ flowchart TD
 ### diagnostics · 模型诊断
 
 - **实现状态**：已完成。
-- **职责**：检查模型服务能否完成对话、工具调用与结构化输出，供部署和调试时确认配置可用。
+- **职责**：仅管理员可检查模型服务能否完成对话、工具调用与结构化输出，供部署和调试时确认配置可用。
 - **对应位置**：`application/`（`com.zhiying.application.diagnostics`）。
 
 [探索这个子系统](#module=com/zhiying/application/diagnostics)
@@ -198,14 +207,14 @@ flowchart TD
 
 - **实现状态**：已完成首版（DESIGN §7）。
 - **覆盖范围**：`com/zhiying/domain/evaluation`、`com/zhiying/application/evaluation`、`com/zhiying/infrastructure/evaluation`、`com/zhiying/web/evaluation`。
-- **职责**：读仓库 `eval/` 下的评测集；准备评测书（导入或清空）并发起整书分析；把已发布版本与标准逐章对齐评分（domain 纯计算）；运行记录写到 `eval/runs/`（不入库）。
+- **职责**：仅管理员可读仓库 `eval/` 下的评测集；在本人拥有的书中匹配、导入或清空评测书并发起整书分析；把已发布版本与标准逐章对齐评分（domain 纯计算）；运行记录写到 `eval/runs/`（不入库）。
 - **对应位置**：评测目录由 `zhiying.eval.dir` 配置；接口前缀 `/api/eval/suites`。
 
 [探索这个子系统](#module=com/zhiying/domain/evaluation)
 
 ## 数据模型
 
-一本书有多个章节；每章每次分析产生一份章抽取记录。抽取中的人物提及经身份映射归到书内人物，关系候选经类型归一与语义判断形成章账本记录，通过准入的记录按「人物 A、人物 B、关系类型」聚合成关系事实。人物可属于多个团体。一次分析构建一个结果版本，发布后成为出图的唯一来源。字段与不变量见 [DESIGN §2](./DESIGN.md)。
+账号通过书主关联拥有书，一本书有多个章节；不同用户的上传各自保存书、章节、任务与结果，仅源文件按摘要共用。每章每次分析产生一份章抽取记录。抽取中的人物提及经身份映射归到书内人物，关系候选经类型归一与语义判断形成章账本记录，通过准入的记录按「人物 A、人物 B、关系类型」聚合成关系事实。人物可属于多个团体。一次分析构建一个结果版本，发布后成为出图的唯一来源。字段与不变量见 [DESIGN §2](./DESIGN.md)，账号与归属表见 [DESIGN §5.5](./DESIGN.md#55-账号会话与书籍归属)；共享结果仅为 §5.4 的待实现方案。
 
 ## 技术栈
 
@@ -214,7 +223,8 @@ flowchart TD
 | Kotlin 2.4 / JDK 21 | 后端语言与运行时；四个 Gradle 模块对应四层 |
 | Spring Boot 4（Web MVC） | HTTP 接口与依赖装配，只用于 `web` 与 `infrastructure` |
 | Spring AI 2（OpenAI 兼容协议） | 模型接入，当前接 DeepSeek；通过 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 切换 |
-| SQLite + `JdbcClient` + 文件 | 结构化记录与章节正文走 SQLite，访问只用 Spring `JdbcClient`（查询少，不引入 ORM）；表结构由 `resources/schema/*.sql` 启动时建立，不用迁移工具，结构变更直接删库重建；源 EPUB 按内容摘要存文件 |
+| SQLite + `JdbcClient` + 文件 | 结构化记录与章节正文走 SQLite，访问只用 Spring `JdbcClient`（查询少，不引入 ORM）；表结构由 `resources/schema/*.sql` 启动时以 `CREATE TABLE IF NOT EXISTS` 建立，不用迁移工具；账号上线新增表并补齐已有书归属，保留现有数据库；源 EPUB 按内容摘要存文件 |
+| JDK 密码与随机数 API + Cookie | 密码派生与会话哈希由基础设施实现，应用层生成随机会话 token，HTTP Cookie 与 CSRF 请求头检查由 web 处理，安全参数见 DESIGN §5.5 |
 | jsoup | 解析 EPUB 内的 XHTML |
 | SSE | 分析进度推送（Spring MVC `SseEmitter`，事件带递增 id，断线按 Last-Event-ID 回放） |
 | crap | 提交时的函数复杂度门禁，阈值见 `crap.toml` |
@@ -226,7 +236,7 @@ flowchart TD
 
 | 场景 | 命令 | 必要说明 |
 | :--- | :--- | :--- |
-| 启动项目 | `./gradlew :web:bootRun` | 先把 `.env.example` 复制为 `.env` 并填写模型配置 |
+| 启动项目 | `./gradlew :web:bootRun` | 模型配置、首次管理员密码与部署说明统一见 [README](../README.md#本地跑起来) |
 | 验收或测试 | `./gradlew test` | 目前尚无测试用例 |
 | 复杂度门禁 | `crap check` | 提交时由钩子自动执行，见 `CRAP_GUIDE.md` |
 | 构建或打包 | `./gradlew build` | 可执行包由 `web` 模块产出 |
@@ -241,9 +251,9 @@ flowchart TD
 | `src/state/` | 全局状态：当前书、章节聚焦与过滤、图数据、选中与人物聚焦、侧栏页签、分析任务 |
 | `src/hooks/` | 按数据源拆的读取与订阅（书架、图、人名册、章节、章节结果、关系类型、分析进度）；`analysisMock.ts` 为开发用的假进度 |
 | `src/components/GraphView/`、`src/graphLayout.ts`、`src/graphPlacement.ts`、`src/factions.ts` | 关系图：场景编排、布局与拓扑细化、势力配色、相机、样式与图例，基于 G6 渲染 |
-| `src/components/` 其余 | 顶栏、书架与上传、章节聚焦条、图工具栏与筛选、侧栏（人物、章节、详情）、分析进度 |
+| `src/components/` 其余 | 登录、邀请码注册、账号与管理员操作，顶栏、书架与上传、章节聚焦条、图工具栏与筛选、侧栏（人物、章节、详情）、分析进度 |
 | `src/styles/`、`src/theme.ts` | 设计变量与样式；主题在跟随系统 / 浅 / 深之间切换 |
-| `src/Root.tsx`、`src/eval/` | 页面路由；`/eval` 为评测页（开发者工具，按需加载），自带评测接口客户端 `evalApi.ts` |
+| `src/Root.tsx`、`src/eval/` | 页面路由；`/eval` 为管理员评测页（按需加载），自带评测接口客户端 `evalApi.ts` |
 
 图谱绘制按场景编排、几何计算、渲染分工：`layout.ts` 生成初始位置，再由 `graphPlacement.ts` 在势力内细化并按实际足迹重新装箱；亲疏视图保留扇区和径向档位。`routing.ts` 优先保留直线，存在遮挡或明显重叠时计算曲线绕行路径，`curveGeometry.ts` 统一生成贝塞尔曲线及采样，`curveEdge.ts` 接入 G6。`labels.ts` 按缩放与关注对象共同安排姓名和关系文字，空间不足时隐藏文字，内容仍由浮窗和详情提供；拖动结束后刷新路径与文字。可见行为见 PRD §5.7.2。
 
