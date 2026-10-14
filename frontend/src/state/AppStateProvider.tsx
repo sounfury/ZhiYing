@@ -29,6 +29,7 @@ import { AppStateContext, type AppStateValue } from './appStateContext'
 import { useAuth } from '../useAuth'
 
 const BOOK_KEY = 'zhiying.bookId'
+const REUSE_MESSAGE = '这本书已有分析结果，已直接加载'
 
 /** 初始选中的书：URL ?book= 优先，其次上次打开的书 */
 function initialBookId(): string {
@@ -190,7 +191,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       }
     }
     setError(err)
-    setMsg(m)
+    setMsg((previous) => !err && previous === REUSE_MESSAGE ? previous : m)
   }, [bookId, loadGraph])
 
   // 图重新加载（换章节范围 / 过滤）后，选中的人或连线若仍在图上就换成新对象，不在则取消选中
@@ -289,8 +290,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       setMsg('')
       try {
         const res = await uploadBook(file)
-        pushLog('ok', `已上传：${res.title}`)
-        setMsg(`已上传「${res.title}」，可以启动分析`)
+        disconnectAnalysis()
+        setBookDetail(undefined)
+        const message = res.reused
+          ? REUSE_MESSAGE
+          : res.existing ? `已打开「${res.title}」` : `已上传「${res.title}」，可以启动分析`
+        pushLog('ok', message)
+        setMsg(message)
         const uploaded = (await refreshBooks()).find((b) => b.book_id === res.book_id)
         if (uploaded) window.history.replaceState(null, '', bookLink(window.location.href, uploaded, ALL_BOOK_FOCUS, null))
         setInitialLink({ example: '', book: res.book_id, person: '', chapterFocus: ALL_BOOK_FOCUS })
@@ -305,7 +311,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setError(e instanceof Error ? e.message : String(e))
       }
     },
-    [user, publicOnly, openAccount, pushLog, refreshBooks],
+    [user, publicOnly, openAccount, pushLog, refreshBooks, disconnectAnalysis],
   )
 
   const onAnalyze = useCallback(async (opts?: { force?: boolean }) => {
@@ -331,6 +337,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const handleBookChange = useCallback((newBookId: string) => {
     disconnectAnalysis()
+    setMsg('')
     setInitialLink({ example: '', book: newBookId, person: '', chapterFocus: ALL_BOOK_FOCUS })
     const book = books.find((b) => b.book_id === newBookId)
     if (book) window.history.replaceState(null, '', bookLink(window.location.href, book, ALL_BOOK_FOCUS, null))

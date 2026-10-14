@@ -93,11 +93,15 @@ internal data class RevisionRecord(
     val groups: List<GroupRecord>,
     val memberships: List<MembershipRecord>,
     val appearances: Map<String, List<String>>,
+    val methodVersion: String? = null,
+    val fullBook: Boolean = false,
 )
 
 /** 领域对象 → 存储记录。 */
 internal fun AnalysisRevision.toRecord(): RevisionRecord = RevisionRecord(
     formatVersion = FORMAT_VERSION,
+    methodVersion = methodVersion,
+    fullBook = fullBook,
     id = id.value,
     bookId = bookId.value,
     analyzedChapters = analyzedChapters.map { it.value },
@@ -116,6 +120,8 @@ internal fun RevisionRecord.toDomain(): AnalysisRevision {
     val library = RelationTypeLibrary.of(types.map { it.toDomain() })
     return AnalysisRevision(
         id = RevisionId(id),
+        methodVersion = methodVersion,
+        fullBook = fullBook,
         bookId = BookId(bookId),
         analyzedChapters = analyzedChapters.mapTo(linkedSetOf()) { ChapterId(it) },
         persons = persons.map { it.toDomain() },

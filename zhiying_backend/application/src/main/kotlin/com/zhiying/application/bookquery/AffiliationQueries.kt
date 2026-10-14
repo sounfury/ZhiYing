@@ -2,7 +2,7 @@
 package com.zhiying.application.bookquery
 
 import com.zhiying.application.graphquery.RevisionStore
-import com.zhiying.application.library.LibraryQueries
+import com.zhiying.application.library.ShelfItems
 import com.zhiying.domain.affiliations.AffiliationGroup
 import com.zhiying.domain.identity.Person
 import com.zhiying.domain.library.BookId
@@ -31,12 +31,11 @@ data class AffiliationView(
  * 副作用：读书库确认书存在（不存在抛 NOT_FOUND），再只读一次结果存储；尚无已发布版本时返回空列表。
  */
 @Service
-class GetAffiliations(private val store: RevisionStore, private val library: LibraryQueries) {
+class GetAffiliations(private val store: RevisionStore, private val items: ShelfItems) {
 
     /** 入参：[bookId] 书 ID。出参：[AffiliationView]，团体按版本内顺序，成员按人物顺序。 */
     fun execute(bookId: BookId): AffiliationView {
-        library.getBook(bookId)
-        val revision = store.findPublished(bookId) ?: return AffiliationView(bookId, null, emptyList(), emptyMap())
+        val revision = store.findPublished(items.resultBookId(bookId)) ?: return AffiliationView(bookId, null, emptyList(), emptyMap())
         val groups = revision.affiliations.groups.map { group ->
             val members = revision.affiliations.memberships.filter { it.group == group.id }
                 .map { GroupMember(revision.personsById.getValue(it.person), it.role, it.evidence) }

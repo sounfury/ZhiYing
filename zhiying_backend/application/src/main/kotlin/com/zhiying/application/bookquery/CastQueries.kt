@@ -4,7 +4,7 @@ package com.zhiying.application.bookquery
 import com.zhiying.application.error.AppException
 import com.zhiying.application.error.ErrorCode
 import com.zhiying.application.graphquery.RevisionStore
-import com.zhiying.application.library.LibraryQueries
+import com.zhiying.application.library.ShelfItems
 import com.zhiying.domain.affiliations.AffiliationGroup
 import com.zhiying.domain.identity.Person
 import com.zhiying.domain.identity.PersonId
@@ -40,12 +40,11 @@ data class CastView(val bookId: BookId, val revision: RevisionId?, val persons: 
  * 副作用：读书库确认书存在（不存在抛 NOT_FOUND），再只读一次结果存储；尚无已发布版本时返回空名册而不是错误。
  */
 @Service
-class GetCast(private val store: RevisionStore, private val library: LibraryQueries) {
+class GetCast(private val store: RevisionStore, private val items: ShelfItems) {
 
     /** 入参：[bookId] 书 ID；[order] 排序方式。出参：[CastView]。 */
     fun execute(bookId: BookId, order: CastOrder = CastOrder.DEFAULT): CastView {
-        library.getBook(bookId)
-        val revision = store.findPublished(bookId) ?: return CastView(bookId, null, emptyList())
+        val revision = store.findPublished(items.resultBookId(bookId)) ?: return CastView(bookId, null, emptyList())
         val entries = revision.persons.map { castEntry(revision, it) }
         val sorted = if (order == CastOrder.APPEARANCE) entries.sortedByDescending { it.appearanceCount } else entries
         return CastView(bookId, revision.id, sorted)
@@ -86,12 +85,11 @@ data class PersonDetail(
  * 书不存在、尚无已发布结果或人物不在当前结果版本内，都抛 NOT_FOUND（没有这个人物可返回）。
  */
 @Service
-class GetPersonDetail(private val store: RevisionStore, private val library: LibraryQueries) {
+class GetPersonDetail(private val store: RevisionStore, private val items: ShelfItems) {
 
     /** 入参：[bookId] 书 ID；[personId] 人物 ID。 */
     fun execute(bookId: BookId, personId: PersonId): PersonDetail {
-        library.getBook(bookId)
-        val revision = store.findPublished(bookId) ?: throw notFound(personId)
+        val revision = store.findPublished(items.resultBookId(bookId)) ?: throw notFound(personId)
         val person = revision.personsById[personId] ?: throw notFound(personId)
         val memberships = revision.affiliations.memberships.filter { it.person == personId }.mapNotNull { m ->
             revision.affiliations.groups.firstOrNull { it.id == m.group }?.let { PersonMembership(it, m.role, m.evidence) }

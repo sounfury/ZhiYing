@@ -6,6 +6,7 @@ import com.zhiying.domain.identity.Person
 import com.zhiying.domain.identity.PersonId
 import com.zhiying.domain.library.BookId
 import com.zhiying.domain.library.ChapterId
+import com.zhiying.domain.library.EvidenceRef
 import com.zhiying.domain.relations.RelationFact
 import com.zhiying.domain.relations.RelationOccurrence
 import com.zhiying.domain.relations.RelationTypeLibrary
@@ -38,6 +39,8 @@ class AnalysisRevision(
     val affiliations: Affiliations,
     val appearances: Map<PersonId, Set<ChapterId>>,
     val chapterOrder: Map<ChapterId, Int> = emptyMap(),
+    val methodVersion: String? = null,
+    val fullBook: Boolean = false,
 ) {
     /** 按 ID 索引的人物。 */
     val personsById: Map<PersonId, Person> = persons.associateBy { it.id }
@@ -45,6 +48,39 @@ class AnalysisRevision(
     init {
         require(personsById.size == persons.size) { "人物 ID 重复" }
         requireReferencesKnown()
+    }
+
+    /** 只有当前方法成功发布的完整整书结果可复用；旧结果缺少标记时自然不命中。 */
+    fun reusableFor(currentMethod: String): Boolean = fullBook && methodVersion == currentMethod
+
+    fun withMethod(method: String, full: Boolean): AnalysisRevision = AnalysisRevision(
+        id, bookId, analyzedChapters, persons, types, occurrences, affiliations, appearances, chapterOrder, method, full,
+    )
+
+    /** 分叉首次重跑的只读上下文：身份和类型不变，所有章节来源重定位到新书。 */
+    fun remapChapters(targetBook: BookId, chapters: Map<ChapterId, ChapterId>): AnalysisRevision {
+        fun evidence(ref: EvidenceRef): EvidenceRef = ref.copy(
+            chapterId = chapters.getValue(ref.chapterId),
+            quotes = ref.quotes.map { it.copy(chapterId = chapters.getValue(it.chapterId)) },
+        )
+        return AnalysisRevision(
+            id = id,
+            bookId = targetBook,
+            analyzedChapters = analyzedChapters.mapTo(linkedSetOf()) { chapters.getValue(it) },
+            persons = persons.map { person ->
+                person.copy(bindings = person.bindings.map { it.copy(sourceChapter = chapters.getValue(it.sourceChapter)) })
+            },
+            types = types,
+            occurrences = occurrences.map { it.copy(chapterId = chapters.getValue(it.chapterId), evidence = it.evidence.map(::evidence)) },
+            affiliations = Affiliations(
+                affiliations.groups.map { it.copy(nameSource = evidence(it.nameSource)) },
+                affiliations.memberships.map { it.copy(evidence = evidence(it.evidence)) },
+            ),
+            appearances = appearances.mapValues { (_, appeared) -> appeared.mapTo(linkedSetOf()) { chapters.getValue(it) } },
+            chapterOrder = chapterOrder.entries.associate { chapters.getValue(it.key) to it.value },
+            methodVersion = methodVersion,
+            fullBook = fullBook,
+        )
     }
 
     /** 全部已准入记录汇总成的关系事实，同一对人物的多种类型各自独立。 */

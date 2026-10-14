@@ -8,7 +8,7 @@ import com.zhiying.application.graphquery.RevisionStore
 import com.zhiying.domain.library.BookId
 import org.springframework.stereotype.Service
 
-/** 由基础设施装配；固定 slug 对应书 ID，调整书 ID 不改变宣传链接。 */
+/** 由基础设施装配；固定 slug 对应条目 ID，调整书 ID 不改变宣传链接。 */
 data class ExampleSettings(
     val books: Map<String, String>,
 ) {
@@ -22,6 +22,8 @@ data class ExampleSettings(
 class ExampleBooks(
     private val settings: ExampleSettings,
     private val revisions: RevisionStore,
+    private val items: ShelfItems,
+    private val shelves: ShelfItemStore,
 ) {
     fun slug(id: BookId): String? =
         settings.books.entries
@@ -30,7 +32,7 @@ class ExampleBooks(
 
     fun ids(): List<BookId> = settings.books.values.map(::BookId)
 
-    fun isPublished(id: BookId): Boolean = slug(id) != null && revisions.publishedId(id) != null
+    fun isPublished(id: BookId): Boolean = slug(id) != null && shelves.find(id)?.let { revisions.publishedId(it.bookId) } != null
 
     fun requireRemovable(id: BookId) {
         if (slug(id) != null) throw AppException(ErrorCode.READ_ONLY, "示例书不能删除或清空分析")
@@ -38,7 +40,7 @@ class ExampleBooks(
 
     /** 维护任务不会改变访客看到的状态或已读章范围。 */
     fun publishedStatus(id: BookId): BookAnalysisStatus {
-        val revision = revisions.findPublished(id) ?: throw AppException(ErrorCode.NOT_FOUND)
+        val revision = revisions.findPublished(items.resultBookId(id)) ?: throw AppException(ErrorCode.NOT_FOUND)
         return BookAnalysisStatus(
             state = BookAnalysisStatus.State.ANALYZED,
             chaptersDone = revision.analyzedChapters.mapNotNull { revision.chapterOrder[it] }.sorted(),

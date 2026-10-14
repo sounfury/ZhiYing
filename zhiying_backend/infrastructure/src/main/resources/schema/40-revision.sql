@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS analysis_revision (
     revision_id    TEXT PRIMARY KEY,
     book_id        TEXT NOT NULL,
     format_version INTEGER NOT NULL,
+    method_version TEXT,
+    full_book      INTEGER NOT NULL DEFAULT 0,
     payload        TEXT NOT NULL,
     created_at     TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );

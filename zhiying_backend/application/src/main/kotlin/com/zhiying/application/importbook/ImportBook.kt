@@ -1,12 +1,18 @@
-// 导入书用例：解析 EPUB → 保存源文件 → 在一个事务中保存书与章节；解析与存储能力由基础设施实现。
+// 上传用例在任务登记锁内判定本人重复与可秒传结果；未命中时解析并事务保存书、条目和章节。
 package com.zhiying.application.importbook
 
+import com.zhiying.application.analyze.run.AnalysisMethod
+import com.zhiying.application.analyze.run.AnalysisRunner
 import com.zhiying.application.error.AppException
 import com.zhiying.application.error.ErrorCode
+import com.zhiying.application.graphquery.RevisionStore
 import com.zhiying.application.library.BookOverview
 import com.zhiying.application.library.BookRepository
 import com.zhiying.application.library.BookSourceStore
 import com.zhiying.application.library.ChapterRecord
+import com.zhiying.application.library.ShelfItem
+import com.zhiying.application.library.ShelfItemStore
+import com.zhiying.application.library.ShelfItems
 import com.zhiying.application.quota.QuotaUsage
 import com.zhiying.domain.account.Account
 import com.zhiying.domain.library.Book
@@ -15,15 +21,13 @@ import com.zhiying.domain.library.BookProfile
 import com.zhiying.domain.library.ChapterId
 import com.zhiying.domain.library.ChapterInclusion
 import com.zhiying.domain.library.ChapterOutline
+import com.zhiying.domain.library.IMPORT_VERSION
+import com.zhiying.domain.library.SourceFileRef
 import org.springframework.stereotype.Service
+import java.security.MessageDigest
 import java.time.Instant
 import java.util.UUID
 
-/**
- * 解析出的一章。
- *
- * 入参：[text] 清洗后的正文；[wordCount] 字数；[sourceHref] 章节来自 EPUB 内的哪个文件；[inclusion] 是否参与分析及原因。
- */
 data class ParsedChapter(
     val title: String,
     val text: String,
@@ -32,60 +36,97 @@ data class ParsedChapter(
     val inclusion: ChapterInclusion,
 )
 
-/** 解析出的书：元数据与按阅读顺序排列的章节。 */
-data class ParsedBook(val title: String?, val author: String?, val chapters: List<ParsedChapter>)
+data class ParsedBook(
+    val title: String?,
+    val author: String?,
+    val chapters: List<ParsedChapter>,
+)
 
-/** EPUB 解析能力。 */
 interface EpubParser {
-    /**
-     * 解析 EPUB 内容。
-     *
-     * 入参：[content] 文件字节。出参：解析结果。无法解析或没有可分析章节时抛 [ErrorCode.UNREADABLE_BOOK]。
-     */
     fun parse(content: ByteArray): ParsedBook
 }
 
-/** 导入书用例。 */
+data class ImportResult(
+    val overview: BookOverview,
+    val existing: Boolean = false,
+    val reused: Boolean = false,
+)
+
+/** 导入与分叉共用的解析、建书步骤；保存由各用例显式执行。 */
+@Service
+class BookImporter(
+    private val parser: EpubParser,
+) {
+    fun prepare(
+        fileName: String,
+        content: ByteArray,
+        source: SourceFileRef,
+    ): Pair<BookOverview, List<ChapterRecord>> {
+        val parsed = parser.parse(content)
+        val bookId = BookId(UUID.randomUUID().toString())
+        val title = parsed.title?.takeIf { it.isNotBlank() } ?: fileName.substringBeforeLast('.')
+        val records =
+            parsed.chapters.mapIndexed { index, c ->
+                val outline =
+                    ChapterOutline(
+                        ChapterId(UUID.randomUUID().toString()),
+                        bookId,
+                        index + 1,
+                        c.title,
+                        c.wordCount,
+                        c.sourceHref,
+                        c.inclusion,
+                    )
+                ChapterRecord(outline, c.text)
+            }
+        return BookOverview(
+            Book(bookId, title.trim(), parsed.author?.takeIf { it.isNotBlank() }, source),
+            fileName,
+            Instant.now(),
+            BookProfile.of(records.map { it.outline }),
+        ) to records
+    }
+}
+
 @Service
 class ImportBook(
-    private val parser: EpubParser,
+    private val importer: BookImporter,
     private val sources: BookSourceStore,
     private val books: BookRepository,
     private val quota: QuotaUsage,
+    private val items: ShelfItems,
+    private val shelves: ShelfItemStore,
+    private val revisions: RevisionStore,
+    private val method: AnalysisMethod,
+    private val runner: AnalysisRunner,
 ) {
-    /**
-     * 导入一本 EPUB。
-     *
-     * 入参：[fileName] 上传文件名（须以 .epub 结尾）；[content] 文件字节。出参：新书概览。
-     * 文件名不合法抛 INVALID_ARGUMENT；解析失败抛 UNREADABLE_BOOK。
-     */
-    // 检查与保存共用导入锁，避免并发上传越过书数上限。
-    @Synchronized
-    fun import(fileName: String, content: ByteArray, user: Account): BookOverview {
-        if (!fileName.endsWith(".epub", ignoreCase = true)) {
-            throw AppException(ErrorCode.INVALID_ARGUMENT, "只接受 .epub 文件")
+    fun import(
+        fileName: String,
+        content: ByteArray,
+        user: Account,
+    ): ImportResult =
+        runner.withRegistrationLock {
+            if (!fileName.endsWith(".epub", ignoreCase = true)) {
+                throw AppException(ErrorCode.INVALID_ARGUMENT, "只接受 .epub 文件")
+            }
+            val usage = quota.snapshot(user)
+            // 重复上传不新增条目，仍受单文件大小限制。
+            quota.requireAllowed(usage.copy(books = 0, isAdministrator = true).checkUpload(content.size.toLong()))
+            val source = SourceFileRef(MessageDigest.getInstance("SHA-256").digest(content).joinToString("") { "%02x".format(it) })
+            shelves.findExisting(user.id, source)?.let { return@withRegistrationLock ImportResult(items.overview(it.id), existing = true) }
+            quota.requireAllowed(usage.checkUpload(content.size.toLong()))
+            val candidate =
+                shelves.candidates(source, IMPORT_VERSION).firstOrNull {
+                    !runner.hasUnsettledTask(it) && revisions.findPublished(it)?.reusableFor(method.version) == true
+                }
+            if (candidate != null) {
+                val item = ShelfItem(BookId(UUID.randomUUID().toString()), user.id, candidate, null, fileName, Instant.now())
+                shelves.add(item)
+                return@withRegistrationLock ImportResult(items.overview(item.id), reused = true)
+            }
+            val (overview, chapters) = importer.prepare(fileName, content, source)
+            sources.save(content)
+            books.save(overview, chapters, user.id)
+            ImportResult(overview)
         }
-        quota.requireAllowed(quota.snapshot(user).checkUpload(content.size.toLong()))
-        // 1. 解析（纯计算，失败则什么都不落地）
-        val parsed = parser.parse(content)
-        // 2. 保存源文件（副作用：写文件）
-        val source = sources.save(content)
-        // 3. 组装并保存书与章节（副作用：数据库事务）
-        val bookId = BookId(UUID.randomUUID().toString())
-        val title = parsed.title?.takeIf { it.isNotBlank() } ?: fileName.substringBeforeLast('.')
-        val records = parsed.chapters.mapIndexed { index, c ->
-            val outline = ChapterOutline(
-                ChapterId(UUID.randomUUID().toString()), bookId, index + 1, c.title, c.wordCount, c.sourceHref, c.inclusion,
-            )
-            ChapterRecord(outline, c.text)
-        }
-        val overview = BookOverview(
-            book = Book(bookId, title.trim(), parsed.author?.takeIf { it.isNotBlank() }, source),
-            originalName = fileName,
-            importedAt = Instant.now(),
-            profile = BookProfile.of(records.map { it.outline }),
-        )
-        books.save(overview, records, user.id)
-        return overview
-    }
 }

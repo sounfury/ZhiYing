@@ -3,6 +3,8 @@ package com.zhiying.application.quota
 
 import com.zhiying.application.analyze.run.AnalysisTask
 import com.zhiying.application.analyze.run.TaskId
+import com.zhiying.application.analyze.run.TaskUsage
+import com.zhiying.domain.library.BookId
 import com.zhiying.application.error.AppException
 import com.zhiying.application.error.ErrorCode
 import com.zhiying.application.library.BookRepository
@@ -31,13 +33,18 @@ interface UsageLedger {
         task: AnalysisTask,
         userId: String,
         chars: Long,
+        itemId: BookId,
     )
 
     fun settle(
         taskId: TaskId,
         chars: Long,
         tokens: Long,
+        usage: TaskUsage,
     )
+
+    /** 按本人条目统计历史用量，删除或清空分析不影响流水。 */
+    fun usageByItem(userId: String, itemIds: Collection<BookId>): Map<BookId, TaskUsage>
 
     /** 启动时按各章首次读取标记和最后落库 token 结算所有遗留流水。 */
     fun settleInterrupted()
@@ -72,7 +79,7 @@ class QuotaUsage(
     ): UsageSnapshot =
         UsageSnapshot(
             settings.limits,
-            books.listBooks(user.id).count { examples.slug(it.book.id) == null }.toLong(),
+            books.listBooks(user.id).count { examples.slug(it.itemId) == null }.toLong(),
             ledger.usedChars(user.id),
             runningTasks,
             todayTokens,

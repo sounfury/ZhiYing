@@ -8,6 +8,7 @@ import com.zhiying.application.error.AppException
 import com.zhiying.application.error.ErrorCode
 import com.zhiying.domain.account.Account
 import com.zhiying.domain.account.AccountRole
+import org.springframework.context.annotation.DependsOn
 import org.springframework.jdbc.core.simple.JdbcClient
 import org.springframework.stereotype.Repository
 import org.springframework.transaction.annotation.Transactional
@@ -16,6 +17,7 @@ import java.sql.ResultSet
 import java.time.Instant
 
 @Repository
+@DependsOn("instantReuseMigration")
 class SqliteAccountStore(
     private val jdbc: JdbcClient,
 ) : AccountStore {
@@ -33,7 +35,7 @@ class SqliteAccountStore(
     ) {
         insertAccount(account, passwordHash)
         jdbc
-            .sql("INSERT INTO book_owners (book_id, user_id) SELECT id, ? FROM books WHERE id NOT IN (SELECT book_id FROM book_owners)")
+            .sql("INSERT INTO shelf_items (id, user_id, book_id, original_name, created_at) SELECT id, ?, id, original_name, imported_at FROM books WHERE id NOT IN (SELECT book_id FROM shelf_items UNION SELECT pending_book_id FROM shelf_items WHERE pending_book_id IS NOT NULL)")
             .param(account.id)
             .update()
     }

@@ -20,6 +20,7 @@ data class BookOverview(
     val originalName: String,
     val importedAt: Instant,
     val profile: BookProfile,
+    val itemId: BookId = book.id,
 )
 
 /** 一章的概要与正文，导入时整体保存。 */
@@ -28,14 +29,12 @@ data class ChapterRecord(val outline: ChapterOutline, val text: String)
 /** 书库仓储：书与章节的持久化。 */
 interface BookRepository {
     /** 在同一事务中保存书及其全部章节；任一失败则整体不保存。 */
-    fun save(overview: BookOverview, chapters: List<ChapterRecord>, ownerId: String)
+    fun save(overview: BookOverview, chapters: List<ChapterRecord>, ownerId: String?)
 
     /** 按导入时间倒序列出全部书。 */
     fun listBooks(): List<BookOverview>
 
     fun listBooks(ownerId: String): List<BookOverview>
-
-    fun ownerId(bookId: BookId): String?
 
     /** 取书概览；不存在返回 null。 */
     fun findBook(id: BookId): BookOverview?
@@ -54,6 +53,9 @@ interface BookRepository {
 interface BookSourceStore {
     /** 保存源文件并返回其不可变引用（内容摘要）；相同内容重复保存不会重复占用空间。 */
     fun save(content: ByteArray): SourceFileRef
+
+    /** 读取已保存的源文件，供共享书分叉重新导入。 */
+    fun read(ref: SourceFileRef): ByteArray
 
     /** 删除源文件；文件不存在时什么也不做。调用方须确认已没有书引用它。 */
     fun delete(ref: SourceFileRef)

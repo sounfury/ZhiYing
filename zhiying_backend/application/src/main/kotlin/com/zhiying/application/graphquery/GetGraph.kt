@@ -4,6 +4,7 @@ package com.zhiying.application.graphquery
 import com.zhiying.application.error.AppException
 import com.zhiying.application.error.ErrorCode
 import com.zhiying.application.library.LibraryQueries
+import com.zhiying.application.library.ShelfItems
 import com.zhiying.domain.graph.ChapterFocus
 import com.zhiying.domain.graph.DisplayScoring
 import com.zhiying.domain.graph.GraphProjection
@@ -47,6 +48,7 @@ class GetGraph(
     private val store: RevisionStore,
     private val library: LibraryQueries,
     private val settings: GraphSettings,
+    private val items: ShelfItems,
 ) {
 
     /**
@@ -59,15 +61,16 @@ class GetGraph(
         val min = request.minAppearance ?: settings.defaultMinAppearance
         if (min < 0) throw AppException(ErrorCode.INVALID_ARGUMENT, "min_appearance 不能为负")
         // 1. 读书库：书不存在直接 404，并取书籍总章数
-        val totalChapters = library.getBook(bookId).profile.totalChapters
+        val actualId = items.resultBookId(bookId)
+        val totalChapters = library.getBook(actualId).profile.totalChapters
         // 2. 读取当前已发布版本（固定一个版本）
-        val revision = store.findPublished(bookId)
+        val revision = store.findPublished(actualId)
             ?: return GraphResult(GraphView.empty(bookId, min, request.focus), totalChapters)
         if (request.focus != null && request.focus !in revision.personsById) {
             throw AppException(ErrorCode.NOT_FOUND, "人物不存在: ${request.focus!!.value}")
         }
         // 3. 纯计算投影
         val query = GraphQuery(min, request.focus, request.types, request.hardness, request.chapterFocus)
-        return GraphResult(GraphProjection.project(revision, query, settings.scoring), totalChapters)
+        return GraphResult(GraphProjection.project(revision, query, settings.scoring).copy(bookId = bookId), totalChapters)
     }
 }

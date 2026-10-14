@@ -5,6 +5,9 @@ CREATE TABLE IF NOT EXISTS usage_ledger (
     item_id     TEXT NOT NULL,
     chars       INTEGER NOT NULL CHECK (chars >= 0),
     tokens      INTEGER NOT NULL DEFAULT 0 CHECK (tokens >= 0),
+    input_tokens INTEGER NOT NULL DEFAULT 0,
+    output_tokens INTEGER NOT NULL DEFAULT 0,
+    requests    INTEGER NOT NULL DEFAULT 0,
     started_at  TEXT NOT NULL,
     settled_at  TEXT
 );

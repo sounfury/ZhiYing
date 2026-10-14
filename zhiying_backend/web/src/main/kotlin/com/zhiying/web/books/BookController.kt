@@ -10,7 +10,7 @@ import com.zhiying.application.importbook.ImportBook
 import com.zhiying.application.library.BookAccess
 import com.zhiying.application.library.BookOverview
 import com.zhiying.application.library.ExampleBooks
-import com.zhiying.application.library.LibraryQueries
+import com.zhiying.application.library.ShelfItems
 import com.zhiying.application.removal.BookRemoval
 import com.zhiying.domain.account.Account
 import com.zhiying.domain.account.AccountRole
@@ -35,7 +35,7 @@ import org.springframework.web.multipart.MultipartFile
 @RequestMapping("/api/books")
 class BookController(
     private val importBook: ImportBook,
-    private val library: LibraryQueries,
+    private val items: ShelfItems,
     private val analysis: AnalysisQueries,
     private val removal: BookRemoval,
     private val examples: ExampleBooks,
@@ -48,8 +48,11 @@ class BookController(
         @RequestParam("file") file: MultipartFile,
         @RequestAttribute("user") user: Account,
     ): ResponseEntity<UploadResponse> {
-        val overview = importBook.import(file.originalFilename.orEmpty(), file.bytes, accounts.requireUser(user))
-        return ResponseEntity.status(HttpStatus.CREATED).body(UploadResponse.from(overview))
+        val result = importBook.import(file.originalFilename.orEmpty(), file.bytes, accounts.requireUser(user))
+        return ResponseEntity
+            .status(
+                HttpStatus.CREATED,
+            ).body(UploadResponse.from(result.overview).copy(existing = result.existing, reused = result.reused))
     }
 
     /** 书目列表，新导入的在前。 */
@@ -57,9 +60,9 @@ class BookController(
     fun list(
         @RequestAttribute("user", required = false) user: Account?,
     ): BookListResponse {
-        val books = access.list(user)
-        val usage = analysis.bookUsage(books.map { it.book.id })
-        return BookListResponse(books.map { response(it, usage.getValue(it.book.id), user) }, user == null)
+        val listed = access.list(user)
+        val usage = analysis.bookUsage(listed.map { it.itemId }, user?.id)
+        return BookListResponse(listed.map { response(it, usage.getValue(it.itemId), user) }, user == null)
     }
 
     private fun response(
@@ -67,7 +70,7 @@ class BookController(
         usage: TaskUsage,
         user: Account?,
     ): BookResponse {
-        val id = overview.book.id
+        val id = overview.itemId
         val publicView = examples.isPublished(id) && user?.role != AccountRole.ADMIN
         val status = if (publicView) examples.publishedStatus(id) else analysis.bookStatus(id)
         return BookResponse.from(overview, status, if (publicView) TaskUsage() else usage).copy(
@@ -82,16 +85,16 @@ class BookController(
         @PathVariable bookId: String,
         @RequestAttribute("user", required = false) user: Account?,
     ): BookResponse {
-        val overview = library.getBook(BookId(bookId))
-        val id = overview.book.id
-        return response(overview, analysis.bookUsage(listOf(id)).getValue(id), user)
+        val overview = items.overview(BookId(bookId))
+        val id = overview.itemId
+        return response(overview, analysis.bookUsage(listOf(id), user?.id).getValue(id), user)
     }
 
     /** 章节列表（不含正文），含不参与分析的章节及原因；书不存在返回 NOT_FOUND。 */
     @GetMapping("/{bookId}/chapters")
     fun chapters(
         @PathVariable bookId: String,
-    ) = ChapterListResponse(library.listChapters(BookId(bookId)).map(ChapterResponse::from))
+    ) = ChapterListResponse(items.listChapters(BookId(bookId)).map(ChapterResponse::from))
 
     /** 删除书及其全部数据，返回 204；书不存在返回 NOT_FOUND，正在分析返回 ANALYSIS_ALREADY_RUNNING。 */
     @DeleteMapping("/{bookId}")
@@ -114,10 +117,12 @@ data class UploadResponse(
     val title: String,
     @JsonProperty("total_chapters") val totalChapters: Int,
     @JsonProperty("analysis_chapter_count") val analysisChapterCount: Int,
+    val existing: Boolean = false,
+    val reused: Boolean = false,
 ) {
     companion object {
         /** 由书概览构造。 */
-        fun from(o: BookOverview) = UploadResponse(o.book.id.value, o.book.title, o.profile.totalChapters, o.profile.analysisChapters)
+        fun from(o: BookOverview) = UploadResponse(o.itemId.value, o.book.title, o.profile.totalChapters, o.profile.analysisChapters)
     }
 }
 
@@ -126,7 +131,7 @@ data class UploadResponse(
  *
  * [status] 取自最近一次整书分析：uploaded 未分析 / analyzing / analyzed / failed / cancelled；
  * [analysisProgress] 为最近一次整书任务中已有抽取与失败的章序号（reconcile_done 沿用旧字段名，等价于已分析完成）。
- * [tokenUsage] 为本书累计模型用量（整书分析与单章重跑合计，含失败与取消的任务）。
+ * [tokenUsage] 为本人条目的累计模型用量（整书分析与单章重跑合计，含失败与取消的任务）。
  * 单章重跑进行中也显示 analyzing。factions_stale 在新设计中不存在（团体随每个结果版本一并生成）。
  */
 data class BookResponse(
@@ -152,7 +157,7 @@ data class BookResponse(
             analysis: BookAnalysisStatus,
             usage: TaskUsage,
         ) = BookResponse(
-            o.book.id.value,
+            o.itemId.value,
             o.book.title,
             o.book.author.orEmpty(),
             o.originalName,

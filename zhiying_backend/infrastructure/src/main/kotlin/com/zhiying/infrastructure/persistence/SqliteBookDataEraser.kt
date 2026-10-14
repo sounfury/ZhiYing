@@ -33,6 +33,7 @@ class SqliteBookDataEraser(
     }
 
     override fun eraseBook(bookId: BookId): SourceFileRef? = transactions.execute {
+        if (references(bookId) > 0) return@execute null
         deleteAnalysis(bookId)
         val ref = jdbc.sql("SELECT source_ref FROM books WHERE id = ?").param(bookId.value)
             .query(String::class.java).optional().orElse(null)
@@ -41,6 +42,17 @@ class SqliteBookDataEraser(
             jdbc.sql("SELECT COUNT(*) FROM books WHERE source_ref = ?").param(it).query(Int::class.java).single() == 0
         }?.let(::SourceFileRef)
     }
+
+    override fun eraseItem(itemId: BookId): List<SourceFileRef> = transactions.execute {
+        val ids = jdbc.sql("SELECT book_id, pending_book_id FROM shelf_items WHERE id = ?").param(itemId.value)
+            .query { rs, _ -> listOfNotNull(rs.getString("book_id"), rs.getString("pending_book_id")).map(::BookId) }
+            .optional().orElse(emptyList())
+        jdbc.sql("DELETE FROM shelf_items WHERE id = ?").param(itemId.value).update()
+        ids.distinct().mapNotNull(::eraseBook).distinct()
+    }
+
+    private fun references(bookId: BookId): Int = jdbc.sql("SELECT COUNT(*) FROM shelf_items WHERE book_id = ? OR pending_book_id = ?")
+        .params(bookId.value, bookId.value).query(Int::class.java).single()
 
     private fun deleteAnalysis(bookId: BookId) {
         ANALYSIS_TABLES.forEach { table -> jdbc.sql("DELETE FROM $table WHERE book_id = ?").param(bookId.value).update() }

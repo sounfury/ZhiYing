@@ -1,4 +1,4 @@
--- 账号、限次邀请码、持久登录与书籍归属；其他书籍数据经 book_id 继承上传者。
+-- 账号、限次邀请码、持久登录与书架条目；条目保存归属，书可共享。
 CREATE TABLE IF NOT EXISTS accounts (
     id            TEXT PRIMARY KEY,
     username      TEXT NOT NULL COLLATE NOCASE UNIQUE,
@@ -22,8 +22,14 @@ CREATE TABLE IF NOT EXISTS account_sessions (
 );
 CREATE INDEX IF NOT EXISTS idx_account_sessions_user ON account_sessions(user_id);
 
-CREATE TABLE IF NOT EXISTS book_owners (
-    book_id TEXT PRIMARY KEY REFERENCES books(id) ON DELETE CASCADE,
-    user_id TEXT NOT NULL REFERENCES accounts(id)
+CREATE TABLE IF NOT EXISTS shelf_items (
+    id              TEXT PRIMARY KEY,
+    user_id         TEXT NOT NULL REFERENCES accounts(id),
+    book_id         TEXT NOT NULL REFERENCES books(id),
+    pending_book_id TEXT REFERENCES books(id),
+    original_name   TEXT NOT NULL,
+    created_at      TEXT NOT NULL
 );
-CREATE INDEX IF NOT EXISTS idx_book_owners_user ON book_owners(user_id);
+CREATE INDEX IF NOT EXISTS idx_shelf_items_user ON shelf_items(user_id);
+CREATE INDEX IF NOT EXISTS idx_shelf_items_book ON shelf_items(book_id);
+CREATE INDEX IF NOT EXISTS idx_shelf_items_pending ON shelf_items(pending_book_id);

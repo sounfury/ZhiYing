@@ -31,21 +31,24 @@ class SqliteBookRepository(private val jdbc: JdbcClient) : BookRepository {
 
     /** 先写书，再逐章写概要与正文；事务保证要么全部保存要么都不保存。 */
     @Transactional
-    override fun save(overview: BookOverview, chapters: List<ChapterRecord>, ownerId: String) {
+    override fun save(overview: BookOverview, chapters: List<ChapterRecord>, ownerId: String?) {
         val book = overview.book
         val p = overview.profile
         jdbc.sql(
             """INSERT INTO books (id, title, author, source_ref, original_name, imported_at, total_chapters,
-               analysis_chapters, total_words, max_chapter_words, median_chapter_words)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               analysis_chapters, total_words, max_chapter_words, median_chapter_words, import_version)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         ).params(
             listOf(
                 book.id.value, book.title, book.author, book.source.value, overview.originalName,
                 overview.importedAt.toString(), p.totalChapters, p.analysisChapters, p.totalWords,
-                p.maxChapterWords, p.medianChapterWords,
+                p.maxChapterWords, p.medianChapterWords, book.importVersion,
             ),
         ).update()
-        jdbc.sql("INSERT INTO book_owners (book_id, user_id) VALUES (?, ?)").params(book.id.value, ownerId).update()
+        if (ownerId != null) {
+            jdbc.sql("INSERT INTO shelf_items (id, user_id, book_id, original_name, created_at) VALUES (?, ?, ?, ?, ?)")
+                .params(overview.itemId.value, ownerId, book.id.value, overview.originalName, overview.importedAt.toString()).update()
+        }
         for ((outline, text) in chapters) {
             val reason = (outline.inclusion as? ChapterInclusion.Excluded)?.reason?.name
             jdbc.sql(
@@ -67,11 +70,8 @@ class SqliteBookRepository(private val jdbc: JdbcClient) : BookRepository {
         jdbc.sql("SELECT * FROM books ORDER BY imported_at DESC, rowid DESC").query { rs, _ -> overviewOf(rs) }.list()
 
     override fun listBooks(ownerId: String): List<BookOverview> =
-        jdbc.sql("SELECT b.* FROM books b JOIN book_owners o ON o.book_id = b.id WHERE o.user_id = ? ORDER BY b.imported_at DESC, b.rowid DESC")
-            .param(ownerId).query { rs, _ -> overviewOf(rs) }.list()
-
-    override fun ownerId(bookId: BookId): String? =
-        jdbc.sql("SELECT user_id FROM book_owners WHERE book_id = ?").param(bookId.value).query(String::class.java).optional().orElse(null)
+        jdbc.sql("SELECT b.*, s.id AS item_id, s.original_name AS item_name, s.created_at AS item_created FROM books b JOIN shelf_items s ON s.book_id = b.id WHERE s.user_id = ? ORDER BY s.created_at DESC, s.rowid DESC")
+            .param(ownerId).query { rs, _ -> overviewOf(rs).copy(itemId = BookId(rs.getString("item_id")), originalName = rs.getString("item_name"), importedAt = Instant.parse(rs.getString("item_created"))) }.list()
 
     /** 按 ID 取书概览。 */
     override fun findBook(id: BookId): BookOverview? =
@@ -97,7 +97,7 @@ class SqliteBookRepository(private val jdbc: JdbcClient) : BookRepository {
 
     /** 当前行转书概览。 */
     private fun overviewOf(rs: ResultSet) = BookOverview(
-        book = Book(BookId(rs.getString("id")), rs.getString("title"), rs.getString("author"), SourceFileRef(rs.getString("source_ref"))),
+        book = Book(BookId(rs.getString("id")), rs.getString("title"), rs.getString("author"), SourceFileRef(rs.getString("source_ref")), rs.getInt("import_version")),
         originalName = rs.getString("original_name"),
         importedAt = Instant.parse(rs.getString("imported_at")),
         profile = BookProfile(

@@ -28,11 +28,11 @@ interface AnalysisTaskStore {
     /** 取某本书最近一次（按开始时间）任务，无则为 null。 */
     fun latest(bookId: BookId): AnalysisTask?
 
+    /** 按任务书和发起条目查询；秒传条目不返回原分析者的任务与用量。 */
+    fun latestForItem(bookId: BookId, itemId: BookId): AnalysisTask?
+
     /** 取书的分析状态（最近一次整书任务）；从未分析过返回 [BookAnalysisStatus.UPLOADED]。 */
     fun bookStatus(bookId: BookId): BookAnalysisStatus
-
-    /** 按书汇总全部任务（整书与单章重跑，含失败、取消）的累计用量，一次聚合；从未分析返回全 0。 */
-    fun usageByBook(bookIds: Collection<BookId>): Map<BookId, TaskUsage>
 
     /** 服务启动时把遗留的运行中任务标记为失败（进程重启已中断它们），返回处理的任务数。 */
     fun interruptRunning(reason: String): Int

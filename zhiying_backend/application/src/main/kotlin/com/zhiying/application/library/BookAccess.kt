@@ -13,11 +13,12 @@ class BookAccess(
     private val books: BookRepository,
     private val examples: ExampleBooks,
     private val accounts: Accounts,
+    private val items: ShelfItems,
 ) {
     fun list(user: Account?): List<BookOverview> {
         val own = user?.let { books.listBooks(it.id) }.orEmpty()
-        val published = examples.ids().filter(examples::isPublished).mapNotNull(books::findBook)
-        return (own + published).distinctBy { it.book.id }.sortedByDescending { it.importedAt }
+        val published = examples.ids().filter(examples::isPublished).map(items::overview)
+        return (own + published).distinctBy { it.itemId }.sortedByDescending { it.importedAt }
     }
 
     fun requireOwner(
@@ -25,7 +26,7 @@ class BookAccess(
         id: BookId,
     ) {
         val account = accounts.requireUser(user)
-        if (books.ownerId(id) != account.id) throw AppException(ErrorCode.NOT_FOUND)
+        if (items.get(id).userId != account.id) throw AppException(ErrorCode.NOT_FOUND)
     }
 
     fun requireWrite(

@@ -2,7 +2,7 @@
 package com.zhiying.application.bookquery
 
 import com.zhiying.application.graphquery.RevisionStore
-import com.zhiying.application.library.LibraryQueries
+import com.zhiying.application.library.ShelfItems
 import com.zhiying.domain.library.BookId
 import com.zhiying.domain.relations.BuiltInRelationTypes
 import com.zhiying.domain.relations.RelationType
@@ -25,12 +25,11 @@ data class RelationTypeView(val bookId: BookId, val revision: RevisionId?, val t
  * 因为内置类型本来就是这本书可用的类型。
  */
 @Service
-class GetRelationTypes(private val store: RevisionStore, private val library: LibraryQueries) {
+class GetRelationTypes(private val store: RevisionStore, private val items: ShelfItems) {
 
     /** 入参：[bookId] 书 ID。出参：[RelationTypeView]，类型按库内顺序。 */
     fun execute(bookId: BookId): RelationTypeView {
-        library.getBook(bookId)
-        val revision = store.findPublished(bookId)
+        val revision = store.findPublished(items.resultBookId(bookId))
             ?: return RelationTypeView(bookId, null, BuiltInRelationTypes.library().types.map { RelationTypeUsage(it, 0, 0) })
         val facts = revision.facts().groupBy { it.key.type }
         val usages = revision.types.types.map { type ->

@@ -109,6 +109,12 @@ class SqliteAnalysisTaskStore(
         jdbc.sql("SELECT * FROM analysis_task WHERE book_id = ? ORDER BY started_at DESC, rowid DESC LIMIT 1")
             .param(bookId.value).query { rs, _ -> taskOf(rs) }.optional().orElse(null)
 
+    override fun latestForItem(bookId: BookId, itemId: BookId): AnalysisTask? = jdbc.sql(
+        """SELECT t.* FROM analysis_task t LEFT JOIN usage_ledger l ON l.task_id = t.task_id
+            WHERE t.book_id = ? AND (l.item_id = ? OR (l.task_id IS NULL AND t.book_id = ?))
+            ORDER BY t.started_at DESC, t.rowid DESC LIMIT 1""",
+    ).params(bookId.value, itemId.value, itemId.value).query { rs, _ -> taskOf(rs) }.optional().orElse(null)
+
     override fun bookStatus(bookId: BookId): BookAnalysisStatus =
         jdbc.sql("SELECT * FROM book_analysis WHERE book_id = ?").param(bookId.value).query { rs, _ ->
             BookAnalysisStatus(
@@ -119,17 +125,6 @@ class SqliteAnalysisTaskStore(
                 chaptersFailed = mapper.readValue<List<Int>>(rs.getString("failed_orders")),
             )
         }.optional().orElse(BookAnalysisStatus.UPLOADED)
-
-    override fun usageByBook(bookIds: Collection<BookId>): Map<BookId, TaskUsage> {
-        if (bookIds.isEmpty()) return emptyMap()
-        val sums = jdbc.sql(
-            """SELECT book_id, SUM(requests) AS r, SUM(input_tokens) AS i, SUM(output_tokens) AS o, SUM(total_tokens) AS t
-               FROM analysis_task WHERE book_id IN (:ids) GROUP BY book_id""",
-        ).param("ids", bookIds.map { it.value }).query { rs, _ ->
-            BookId(rs.getString("book_id")) to TaskUsage(rs.getLong("r"), rs.getLong("i"), rs.getLong("o"), rs.getLong("t"))
-        }.list().toMap()
-        return bookIds.associateWith { sums[it] ?: TaskUsage() }
-    }
 
     override fun interruptRunning(reason: String): Int = transactions.execute {
         val now = Instant.now().toString()

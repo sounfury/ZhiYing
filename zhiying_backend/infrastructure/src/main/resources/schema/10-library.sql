@@ -12,6 +12,7 @@ CREATE TABLE IF NOT EXISTS books (
     analysis_chapters     INTEGER NOT NULL,
     total_words           INTEGER NOT NULL,
     max_chapter_words     INTEGER NOT NULL,
+    import_version        INTEGER NOT NULL DEFAULT 1,
     median_chapter_words  INTEGER NOT NULL
 );
 

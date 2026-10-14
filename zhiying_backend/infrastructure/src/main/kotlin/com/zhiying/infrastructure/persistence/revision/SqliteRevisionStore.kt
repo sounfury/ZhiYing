@@ -2,6 +2,7 @@
 package com.zhiying.infrastructure.persistence.revision
 
 import com.zhiying.application.graphquery.RevisionStore
+import com.zhiying.application.removal.BookDataEraser
 import com.zhiying.domain.library.BookId
 import com.zhiying.domain.revision.AnalysisRevision
 import com.zhiying.domain.revision.RevisionId
@@ -21,6 +22,7 @@ import tools.jackson.module.kotlin.readValue
 class SqliteRevisionStore(
     private val jdbc: JdbcClient,
     private val transactions: TransactionTemplate,
+    private val eraser: BookDataEraser,
 ) : RevisionStore {
     private val mapper = jacksonObjectMapper()
 
@@ -28,8 +30,8 @@ class SqliteRevisionStore(
     override fun save(revision: AnalysisRevision) {
         val payload = mapper.writeValueAsString(revision.toRecord())
         jdbc
-            .sql("INSERT INTO analysis_revision (revision_id, book_id, format_version, payload) VALUES (?, ?, ?, ?)")
-            .params(revision.id.value, revision.bookId.value, FORMAT_VERSION, payload)
+            .sql("INSERT INTO analysis_revision (revision_id, book_id, format_version, payload, method_version, full_book) VALUES (?, ?, ?, ?, ?, ?)")
+            .params(listOf(revision.id.value, revision.bookId.value, FORMAT_VERSION, payload, revision.methodVersion, if (revision.fullBook) 1 else 0))
             .update()
     }
 
@@ -85,6 +87,11 @@ class SqliteRevisionStore(
                     "published_at = strftime('%Y-%m-%dT%H:%M:%fZ', 'now')",
             ).params(bookId.value, revision.value)
             .update()
+        val previousBooks = jdbc.sql("SELECT book_id FROM shelf_items WHERE pending_book_id = ?")
+            .param(bookId.value).query { rs, _ -> BookId(rs.getString("book_id")) }.list()
+        jdbc.sql("UPDATE shelf_items SET book_id = ?, pending_book_id = NULL WHERE pending_book_id = ?")
+            .params(bookId.value, bookId.value).update()
+        previousBooks.distinct().forEach { eraser.eraseBook(it) }
     }
 
     override fun publishedId(bookId: BookId): RevisionId? =

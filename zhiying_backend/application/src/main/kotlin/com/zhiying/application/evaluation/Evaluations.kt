@@ -11,6 +11,7 @@ import com.zhiying.application.graphquery.RevisionStore
 import com.zhiying.application.importbook.ImportBook
 import com.zhiying.application.library.BookRepository
 import com.zhiying.application.library.LibraryQueries
+import com.zhiying.application.library.ShelfItems
 import com.zhiying.application.removal.BookRemoval
 import com.zhiying.domain.account.Account
 import com.zhiying.domain.evaluation.EvaluationReport
@@ -110,6 +111,7 @@ class Evaluations(
     private val tasks: AnalysisTaskStore,
     private val settings: EvaluationSettings,
     private val books: BookRepository,
+    private val items: ShelfItems,
 ) {
 
     /** 列出评测集；某个评测集标注读不出来时照常列出并附原因。 */
@@ -129,7 +131,7 @@ class Evaluations(
     fun prepare(name: String, user: Account): PreparedEvaluation {
         val suite = suites.load(name)
         val existing = findBook(suite, user.id)
-        val bookId = existing ?: suites.source(name).let { importBook.import(it.fileName, it.content, user).book.id }
+        val bookId = existing ?: suites.source(name).let { importBook.import(it.fileName, it.content, user).overview.itemId }
         if (existing != null) removal.clearAnalysis(bookId)
         val task = runner.startFull(bookId, toChapter = null, force = true, user = user)
         return PreparedEvaluation(bookId, task, imported = existing == null)
@@ -142,11 +144,12 @@ class Evaluations(
     fun score(name: String, ownerId: String): EvaluationRun {
         val suite = suites.load(name)
         val bookId = findBook(suite, ownerId) ?: throw AppException(ErrorCode.NOT_FOUND, "书库里没有《${suite.book}》，请先重新分析并评测")
-        if (runner.activeTask(bookId) != null) throw AppException(ErrorCode.ANALYSIS_ALREADY_RUNNING, "该书正在分析，完成后再评测")
-        val revision = revisions.findPublished(bookId) ?: throw AppException(ErrorCode.NOT_FOUND, "《${suite.book}》还没有分析结果")
-        val chapters = library.listAnalyzableChapters(bookId).sortedBy { it.order }.map { library.readChapter(it.id) }
+        val actualId = items.resultBookId(bookId)
+        if (runner.activeTask(items.taskBookId(bookId)) != null) throw AppException(ErrorCode.ANALYSIS_ALREADY_RUNNING, "该书正在分析，完成后再评测")
+        val revision = revisions.findPublished(actualId) ?: throw AppException(ErrorCode.NOT_FOUND, "《${suite.book}》还没有分析结果")
+        val chapters = library.listAnalyzableChapters(actualId).sortedBy { it.order }.map { library.readChapter(it.id) }
         val report = EvaluationScorer.score(suite, revision, chapters)
-        val task = tasks.latest(bookId)?.takeIf { it.revisionId == revision.id }
+        val task = tasks.latest(actualId)?.takeIf { it.revisionId == revision.id }
         val now = Instant.now()
         val run = EvaluationRun(
             id = RUN_ID.format(now),
@@ -172,7 +175,7 @@ class Evaluations(
     /** 只在当前管理员自己的书架按书名与正文章数认书。 */
     private fun findBook(suite: GoldSuite, ownerId: String): BookId? = books.listBooks(ownerId)
         .filter { it.book.title == suite.book && it.profile.analysisChapters == suite.chapterCount }
-        .maxByOrNull { it.importedAt }?.book?.id
+        .maxByOrNull { it.importedAt }?.itemId
 
     private companion object {
         /** 运行记录 ID：本地时间到秒。 */

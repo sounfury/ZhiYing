@@ -7,7 +7,6 @@ import com.zhiying.application.account.Accounts
 import com.zhiying.application.analyze.run.AnalysisQueries
 import com.zhiying.application.analyze.run.AnalysisRunner
 import com.zhiying.application.analyze.run.AnalysisTask
-import com.zhiying.application.library.LibraryQueries
 import com.zhiying.domain.account.Account
 import com.zhiying.domain.library.BookId
 import org.springframework.http.MediaType
@@ -31,7 +30,6 @@ import java.util.concurrent.Executors
 class AnalysisController(
     private val runner: AnalysisRunner,
     private val queries: AnalysisQueries,
-    private val library: LibraryQueries,
     private val json: JsonMapper,
     private val accounts: Accounts,
 ) {
@@ -78,7 +76,7 @@ class AnalysisController(
         @CookieValue("zhiying_session") token: String,
     ): SseEmitter {
         val id = BookId(bookId)
-        library.getBook(id) // 书不存在返回 404，而不是一个空的事件流
+        queries.currentTask(id) // 条目不存在返回 404，而不是一个空的事件流
         val sender = SseSender(SseEmitter(0L), json, keepalive) { accounts.currentUser(token) != null }
         val emitter = sender.emitter
         val subscription = runner.subscribe(id, lastEventId?.toLongOrNull() ?: 0L, sender::onEvent)
@@ -117,7 +115,7 @@ class AnalysisController(
     ): Map<String, Any?> {
         val id = BookId(bookId)
         val stored = queries.chapterExtraction(id, cid)
-        return AnalysisPayloads.extraction(cid, stored, library.readChapter(id, cid))
+        return AnalysisPayloads.extraction(cid, stored, queries.readChapter(id, cid))
     }
 }
 

@@ -350,7 +350,7 @@ export async function stopAnalysis(bookId: string): Promise<{ status: string }> 
   return request(`/api/books/${bookId}/analyze/stop`, { method: 'POST' })
 }
 
-export async function uploadBook(file: File): Promise<{ book_id: string; title: string }> {
+export async function uploadBook(file: File): Promise<{ book_id: string; title: string; existing: boolean; reused: boolean }> {
   const form = new FormData()
   form.append('file', file)
   return request('/api/books/upload', { method: 'POST', body: form })
