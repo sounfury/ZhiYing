@@ -240,10 +240,12 @@ flowchart TD
 | `src/api.ts` | 后端客户端：所有 HTTP / SSE 调用，接口字段到前端类型的转换集中在这里 |
 | `src/state/` | 全局状态：当前书、章节聚焦与过滤、图数据、选中与人物聚焦、侧栏页签、分析任务 |
 | `src/hooks/` | 按数据源拆的读取与订阅（书架、图、人名册、章节、章节结果、关系类型、分析进度）；`analysisMock.ts` 为开发用的假进度 |
-| `src/components/GraphView/`、`src/graphLayout.ts`、`src/factions.ts` | 关系图：场景编排、布局几何、势力配色、相机、样式与图例，基于 G6 渲染 |
+| `src/components/GraphView/`、`src/graphLayout.ts`、`src/graphPlacement.ts`、`src/factions.ts` | 关系图：场景编排、布局与拓扑细化、势力配色、相机、样式与图例，基于 G6 渲染 |
 | `src/components/` 其余 | 顶栏、书架与上传、章节聚焦条、图工具栏与筛选、侧栏（人物、章节、详情）、分析进度 |
 | `src/styles/`、`src/theme.ts` | 设计变量与样式；主题在跟随系统 / 浅 / 深之间切换 |
 | `src/Root.tsx`、`src/eval/` | 页面路由；`/eval` 为评测页（开发者工具，按需加载），自带评测接口客户端 `evalApi.ts` |
+
+图谱绘制按场景编排、几何计算、渲染分工：`layout.ts` 生成初始位置，再由 `graphPlacement.ts` 在势力内细化并按实际足迹重新装箱；亲疏视图保留扇区和径向档位。`routing.ts` 优先保留直线，存在遮挡或明显重叠时计算曲线绕行路径，`curveGeometry.ts` 统一生成贝塞尔曲线及采样，`curveEdge.ts` 接入 G6。`labels.ts` 按缩放与关注对象共同安排姓名和关系文字，空间不足时隐藏文字，内容仍由浮窗和详情提供；拖动结束后刷新路径与文字。可见行为见 PRD §5.7.2。
 
 | 场景 | 命令（在 `frontend/` 执行） |
 | :--- | :--- |

@@ -170,6 +170,24 @@
   font-weight: 600;
 }
 
+.side .chip.faction {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.side .chip.faction i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.side .chip.faction em {
+  font-style: normal;
+  font-size: 10.5px;
+  opacity: 0.65;
+}
+
 .side .chip.as-btn {
   cursor: pointer;
   font-family: var(--serif);

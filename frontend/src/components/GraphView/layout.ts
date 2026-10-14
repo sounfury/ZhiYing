@@ -2,10 +2,11 @@
  * 关系图的场景编排：决定画哪些人、各自放在哪、属于哪个势力区块、连线文字放哪。
  *
  * - 视图切片：中心视图取一度邻域，势力筛选裁块
- * - 势力分区（默认）：每块内核心人物居中、其余按与核心的亲疏分环，环上座位朝向连得多的邻块；
- *   各块当矩形贪心装箱，连边多的块挨着放（PRD §5.7.5）
+ * - 多势力分身：主角 / 配角在有关系的非主势力块里再出现一次，相关连线改连分身（PRD §5.7.5）
+ * - 势力分区（默认）：同心环为初始座位，再根据成员关系换座、松弛并预留姓名足迹；
+ *   各块按实际矩形边界装箱，连边多的块挨着放（PRD §5.7.5）
  * - 亲疏扇区：以中心人物为圆心，按与他关系的硬 / 中 / 软 / 间接 / 无连线分档成扇区
- * - 连线文字避让：沿线试几个位置，与人物、名字、已放文字都不重叠才算「放得下」
+ * - 平滑连线：避开沿途人物及姓名、拆开重叠通道；文字由 labels.ts 按当前缩放与交互态统一避让
  *
  * 只做纯计算，不碰 G6；颜色与交互态见 style.ts。
  */
@@ -19,6 +20,9 @@ import {
   type Point,
   type RectBox,
 } from '../../graphLayout'
+import { refinePlacement, type PlacementBounds, type PlacementNode } from '../../graphPlacement'
+import { routeEdges } from './routing'
+import { nameFontSize, textWidth } from './geometry'
 import type { GraphSlice, Hardness, Scene, SceneCombo, SceneEdge, SceneNode } from './types'
 
 // ── 关系强度 ──────────────────────────────────────────────
@@ -56,22 +60,6 @@ const IMPORTANCE_RANK: Record<string, number> = { main: 3, supporting: 2, minor:
 export function nodeRadius(importance: string, center = false): number {
   if (center) return 32
   return importance === 'main' ? 27 : importance === 'supporting' ? 20 : 14
-}
-
-/** 名字字号：主角大、龙套小 */
-export function nameFontSize(importance: string): number {
-  return importance === 'main' ? 15 : importance === 'supporting' ? 13 : 11.5
-}
-
-/** 估算中文为主的文字宽度（不量真实字体：只用于避让，宁宽勿窄） */
-export function textWidth(text: string, fontSize: number): number {
-  let w = 0
-  for (const ch of text) {
-    if (ch === '·' || ch === ' ') w += 0.5
-    else if (ch.charCodeAt(0) < 128) w += 0.58
-    else w += 1
-  }
-  return w * fontSize
 }
 
 // ── 视图切片 ──────────────────────────────────────────────
@@ -149,11 +137,18 @@ function tieRank(edgesByPair: Map<string, Hardness>, a: string, b: string): numb
   return h ? HARDNESS_RANK[h] : 0
 }
 
-/** 势力分区：块内同心环 + 块间矩形装箱 */
+/** 布局时预留姓名足迹，避免排座后再靠隐藏姓名解决拥挤。 */
+function placementNode(n: GraphNode, egoId: string | null): PlacementNode {
+  const fs = nameFontSize(n.importance)
+  return { id: n.person_id, radius: nodeRadius(n.importance, n.person_id === egoId), nameWidth: textWidth(n.name, fs), nameHeight: fs + 3, nameGap: 7 }
+}
+
+/** 势力分区：环形初始座位 → 拓扑细化 → 按实际足迹装箱。 */
 export function placeByFaction(
   slice: GraphSlice,
   factions: GraphFaction[],
   centerId: string | null,
+  egoId: string | null = null,
 ): Placed {
   const nodeById = new Map(slice.nodes.map((n) => [n.person_id, n]))
   const edgesByPair = new Map<string, Hardness>()
@@ -301,6 +296,44 @@ export function placeByFaction(
     }
   }
 
+  // 5. 块内根据全部成员关系换座、松弛；核心固定，预留节点与姓名足迹。
+  const refined = new Map<string, Map<string, Point>>()
+  const bounds = new Map<string, { x: number; y: number; w: number; h: number }>()
+  for (const b of blocks) {
+    const hub = layoutOf.get(b.id)!.hub
+    const origin = pos.get(hub)!
+    const members = b.ids.map((id) => nodeById.get(id)!)
+    const local = refinePlacement({
+      positions: new Map(b.ids.map((id) => { const p = pos.get(id)!; return [id, { x: p.x - origin.x, y: p.y - origin.y }] })),
+      nodes: members.map((n) => placementNode(n, egoId)),
+      edges: slice.edges,
+      groups: new Map(b.ids.map((id) => [id, b.id])),
+      fixedCenter: hub,
+    })
+    refined.set(b.id, local)
+    let x1 = Infinity, y1 = Infinity, x2 = -Infinity, y2 = -Infinity
+    for (const n of members) {
+      const p = local.get(n.person_id)!, foot = placementNode(n, egoId)
+      const halfWidth = Math.max(foot.radius + 4, foot.nameWidth / 2 + 4)
+      x1 = Math.min(x1, p.x - halfWidth); x2 = Math.max(x2, p.x + halfWidth)
+      y1 = Math.min(y1, p.y - foot.radius - 4)
+      y2 = Math.max(y2, p.y + foot.radius + 7 + foot.nameHeight + 4)
+    }
+    bounds.set(b.id, { x: (x1 + x2) / 2, y: (y1 + y2) / 2, w: x2 - x1, h: y2 - y1 })
+  }
+  // 6. 细化后按真实矩形重新装箱，长名字和移动后的成员仍留在本势力内。
+  const finalCenters = packRects(ordered.map((b) => {
+    const box = bounds.get(b.id)!
+    return { id: b.id, w: box.w + BLOCK.padX * 2, h: box.h + BLOCK.padTop + BLOCK.padBottom, links: links.get(b.id) ?? new Map() }
+  }), { margin: BLOCK.margin, aspect: 1.35 })
+  for (const b of blocks) {
+    const center = finalCenters.get(b.id)!, box = bounds.get(b.id)!
+    refined.get(b.id)!.forEach((p, id) => pos.set(id, {
+      x: p.x + center.x - box.x,
+      y: p.y + center.y - box.y + (BLOCK.padTop - BLOCK.padBottom) / 2,
+    }))
+  }
+
   return {
     pos,
     comboOf: blockOf,
@@ -317,6 +350,7 @@ export function placeByAffinity(
   slice: GraphSlice,
   factions: GraphFaction[],
   centerId: string,
+  egoId: string | null = null,
 ): Placed {
   const neighbors = buildNeighborMap(slice.nodes, slice.edges)
   const tierOf = new Map<string, Tier>()
@@ -353,59 +387,80 @@ export function placeByAffinity(
     minWedgeSpan: 0.3,
     baseRadiusOf: (id) => TIER_RADIUS[id as Tier],
   })
-  const pos = new Map(packed.pos)
-  pos.set(centerId, { x: 0, y: 0 })
+  const initial = new Map(packed.pos)
+  initial.set(centerId, { x: 0, y: 0 })
+  const bounds = new Map<string, PlacementBounds>()
+  const groups = new Map<string, string>()
+  const nodeById = new Map(slice.nodes.map((n) => [n.person_id, n]))
+  for (const bucket of buckets) {
+    const wedge = packed.wedges.get(bucket.id)
+    if (!wedge) continue
+    for (const id of bucket.ids) {
+      const p = initial.get(id)!, radius = Math.hypot(p.x, p.y)
+      groups.set(id, `${bucket.id}:${nodeById.get(id)!.primary_faction_id ?? ''}`)
+      bounds.set(id, { origin: { x: 0, y: 0 }, minRadius: Math.max(wedge.baseRadius, radius - 24), maxRadius: radius + 24, minAngle: wedge.a0 + 0.03, maxAngle: wedge.a1 - 0.03 })
+    }
+  }
+  const pos = refinePlacement({ positions: initial, nodes: slice.nodes.map((n) => placementNode(n, egoId)), edges: slice.edges, groups, fixedCenter: centerId, bounds })
   return { pos, comboOf: new Map(), combos: [] }
 }
 
-// ── 连线文字避让 ──────────────────────────────────────────────
+// ── 多势力分身 ──────────────────────────────────────────────
 
-type Box = [number, number, number, number]
-const hit = (a: Box, b: Box) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
-const LABEL_TRIES = [0.5, 0.38, 0.62, 0.28, 0.72, 0.2, 0.8]
-export const EDGE_LABEL_FONT = 11.5
+type Cast = {
+  /** 含分身的落座名单：分身是 person_id 换成分身 id、主势力换成所在块的人物副本 */
+  slice: GraphSlice
+  factions: GraphFaction[]
+  /** 分身 id → 人物 id */
+  personOf: Map<string, string>
+  /** 每条边两端实际连到的节点 id，与 slice.edges 一一对应 */
+  ends: [string, string][]
+}
 
-/** 给每条线找一个不压人、不压名字、不压别的线文字的位置；找不到就标记放不下 */
-function placeEdgeLabels(nodes: SceneNode[], edges: SceneEdge[], focusSingle: boolean) {
-  const byId = new Map(nodes.map((n) => [n.id, n]))
-  const boxes: Box[] = []
-  for (const n of nodes) {
-    boxes.push([n.x - n.r - 2, n.y - n.r - 2, n.x + n.r + 2, n.y + n.r + 2])
-    const fs = nameFontSize(n.node.importance)
-    const w = textWidth(n.node.name, fs) / 2 + 3
-    boxes.push([n.x - w, n.y + n.r + 3, n.x + w, n.y + n.r + 6 + fs])
+/**
+ * 多势力分身（PRD §5.7.5）：主角 / 配角与另一势力块的人有关系、且自己也属于那个势力时，
+ * 在那个块里生成分身并把这条关系连到分身上。按边生成，所以挂名而无连线的势力不会有分身。
+ * 中心人物只出现一次。两端都能分身时取 person_a 一侧，保证结果确定。
+ */
+function castWithTwins(slice: GraphSlice, factions: GraphFaction[], egoId: string | null): Cast {
+  const nodeById = new Map(slice.nodes.map((n) => [n.person_id, n]))
+  const blockOf = new Map<string, string>()
+  for (const f of [...factions].sort((a, b) => a.order - b.order)) {
+    for (const id of f.member_ids) if (!blockOf.has(id)) blockOf.set(id, f.faction_id)
   }
-  const prio = (e: SceneEdge) =>
-    (focusSingle && e.inFocus ? 100 : 0) +
-    HARDNESS_RANK[e.hardness] * 10 +
-    (byId.get(e.source)!.r + byId.get(e.target)!.r) / 10
-  for (const e of [...edges].sort((a, b) => prio(b) - prio(a))) {
-    const s = byId.get(e.source)!
-    const t = byId.get(e.target)!
-    const len = Math.hypot(t.x - s.x, t.y - s.y) || 1
-    const ux = (t.x - s.x) / len
-    const uy = (t.y - s.y) / len
-    const ax = s.x + ux * s.r
-    const ay = s.y + uy * s.r
-    const bx = t.x - ux * t.r
-    const by = t.y - uy * t.r
-    const w = textWidth(e.labelText, EDGE_LABEL_FONT) + 8
-    const h = EDGE_LABEL_FONT + 6
-    e.labelFits = false
-    e.labelRatio = 0.5
-    if (!e.labelText || len - s.r - t.r < Math.min(w, 60)) continue
-    for (const r of LABEL_TRIES) {
-      // 与 G6 二次曲线一致：控制点沿连线法向偏移，标签随曲线避让。
-      const bend = 2 * r * (1 - r) * e.curveOffset
-      const x = ax + (bx - ax) * r + uy * bend
-      const y = ay + (by - ay) * r - ux * bend
-      const box: Box = [x - w / 2, y - h / 2, x + w / 2, y + h / 2]
-      if (boxes.some((b) => hit(b, box))) continue
-      boxes.push(box)
-      e.labelFits = true
-      e.labelRatio = r
-      break
-    }
+  const personOf = new Map<string, string>()
+  const blockOfTwin = new Map<string, string>()
+  const twinToward = (id: string, other: string): string | null => {
+    const n = nodeById.get(id)!
+    const block = blockOf.get(other)
+    if (!block || block === blockOf.get(id) || id === egoId) return null
+    if ((n.importance !== 'main' && n.importance !== 'supporting') || !n.faction_ids.includes(block)) return null
+    const twin = `${id}@${block}`
+    personOf.set(twin, id)
+    blockOfTwin.set(twin, block)
+    return twin
+  }
+  const ends = slice.edges.map((e): [string, string] => {
+    const a = twinToward(e.person_a, e.person_b)
+    if (a) return [a, e.person_b]
+    return [e.person_a, twinToward(e.person_b, e.person_a) ?? e.person_b]
+  })
+  const twins = [...personOf].map(([twin, person]) => ({
+    ...nodeById.get(person)!,
+    person_id: twin,
+    primary_faction_id: blockOfTwin.get(twin)!,
+  }))
+  return {
+    slice: {
+      nodes: [...slice.nodes, ...twins],
+      edges: slice.edges.map((e, i) => ({ ...e, person_a: ends[i][0], person_b: ends[i][1] })),
+    },
+    factions: factions.map((f) => ({
+      ...f,
+      member_ids: [...f.member_ids, ...twins.filter((t) => t.primary_faction_id === f.faction_id).map((t) => t.person_id)],
+    })),
+    personOf,
+    ends,
   }
 }
 
@@ -430,48 +485,52 @@ export function buildScene(opts: {
 }): Scene {
   const { slice, factions, centerId, egoId, useFactionLayout, focusSingle } = opts
   const factionById = new Map(factions.map((f) => [f.faction_id, f]))
-  const placed =
-    useFactionLayout || !centerId
-      ? placeByFaction(slice, factions, centerId)
-      : placeByAffinity(slice, factions, centerId)
+  // 分身只在势力分区里有意义；亲疏扇区没有势力块，每人只画一次
+  const cast = useFactionLayout || !centerId ? castWithTwins(slice, factions, egoId) : null
+  const placed = cast
+    ? placeByFaction(cast.slice, cast.factions, centerId, egoId)
+    : placeByAffinity(slice, factions, centerId!, egoId)
+  const personById = new Map(slice.nodes.map((n) => [n.person_id, n]))
 
-  const nodes: SceneNode[] = slice.nodes.map((n) => {
+  const nodes: SceneNode[] = (cast?.slice.nodes ?? slice.nodes).map((n) => {
     const p = placed.pos.get(n.person_id) ?? { x: 0, y: 0 }
-    const center = n.person_id === egoId
+    const personId = cast?.personOf.get(n.person_id) ?? n.person_id
+    const ghost = personId !== n.person_id
+    const center = personId === egoId
     const faction = n.primary_faction_id ? factionById.get(n.primary_faction_id) : undefined
     return {
       id: n.person_id,
-      node: n,
+      personId,
+      ghost,
+      node: personById.get(personId)!,
       x: p.x,
       y: p.y,
       slot: factionSlot(faction),
-      r: nodeRadius(n.importance, center),
+      r: nodeRadius(n.importance, center) * (ghost ? 0.85 : 1),
       center,
       combo: placed.comboOf.get(n.person_id),
     }
   })
 
-  const edgePairs = new Set(slice.edges.map((e) => `e:${e.person_a}|${e.person_b}`))
-  const edges: SceneEdge[] = slice.edges.map((e) => ({
+  const edges: SceneEdge[] = slice.edges.map((e, i) => ({
     id: `e:${e.person_a}|${e.person_b}`,
     edge: e,
-    source: e.person_a,
-    target: e.person_b,
-    curveOffset: edgePairs.has(`e:${e.person_b}|${e.person_a}`) ? 24 : 0,
+    source: cast?.ends[i][0] ?? e.person_a,
+    target: cast?.ends[i][1] ?? e.person_b,
+    controlPoints: [],
+    path: [],
     hardness: edgeHardness(e),
     inFocus: e.tags.some((t) => t.in_focus_chapter),
     labelText: edgeLabelText(e, focusSingle),
-    labelRatio: 0.5,
-    labelFits: false,
   }))
-  placeEdgeLabels(nodes, edges, focusSingle)
+  routeEdges(nodes, edges)
 
   return {
     nodes,
     edges,
+    twins: [...(cast?.personOf ?? [])].map(([twin, person]) => ({ id: `twin:${twin}`, personId: person, source: person, target: twin })),
     combos: placed.combos,
     focusSingle,
     dense: nodes.length > 40 || edges.length > 70,
-    neighbors: buildNeighborMap(slice.nodes, slice.edges),
   }
 }

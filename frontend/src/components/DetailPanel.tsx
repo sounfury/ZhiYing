@@ -1,7 +1,7 @@
 /**
  * 侧栏「人物」页签：
  * - 未选中：本书概览（书名、作者、人物 / 关系 / 势力数，耗时与用量）+ 出场最多的人物；
- * - 选中人物：人物卡（标签、全书简介或单章里的事件、出场章节条、以此人为中心、按硬 / 中 / 软分组的关系与依据）；
+ * - 选中人物：人物卡（标签、所属势力、全书简介或单章里的事件、出场章节条、以此人为中心、按硬 / 中 / 软分组的关系与依据）；
  * - 选中连线：两人之间每条关系的类型、硬度、章节与引文。
  * 聚焦视图照常显示全书简介，单章另列本章记录（PRD §5.7.1），证据展示遵循 PRD §5.6。
  */
@@ -17,7 +17,7 @@ import {
   type GraphNode,
   type GraphTag,
 } from '../api'
-import { UNASSIGNED_FACTION_ID } from '../factions'
+import { UNASSIGNED_FACTION_ID, factionColor } from '../factions'
 import { edgeDirection } from '../relationDirection'
 import { GENDER_LABEL, IMPORTANCE_LABEL, formatTokens, shortTitle } from '../labels'
 import { Avatar, HardnessSymbol, PersonRow } from './PersonParts'
@@ -226,7 +226,14 @@ function PersonCard({
   const singleChapter = focus?.mode === 'single' ? focus.chapter : null
   const short = shortName(node.name)
   const color = nodeColor(graph, node)
-  const faction = graph?.factions.find((f) => f.faction_id === node.primary_faction_id)
+  // 所属势力：主势力排最前，其余按图上的势力顺序
+  const factions = (graph?.factions ?? [])
+    .filter((f) => f.faction_id !== UNASSIGNED_FACTION_ID && node.faction_ids.includes(f.faction_id))
+    .sort(
+      (a, b) =>
+        Number(b.faction_id === node.primary_faction_id) - Number(a.faction_id === node.primary_faction_id) ||
+        a.order - b.order,
+    )
   const label = (id: number) => chapterLabel(id)
 
   const rels = useMemo(() => {
@@ -249,7 +256,6 @@ function PersonCard({
   const chips: { text: string; key?: boolean }[] = []
   if (IMPORTANCE_LABEL[node.importance]) chips.push({ text: IMPORTANCE_LABEL[node.importance], key: true })
   if (node.gender === 'male' || node.gender === 'female') chips.push({ text: GENDER_LABEL[node.gender] })
-  if (faction && faction.faction_id !== UNASSIGNED_FACTION_ID) chips.push({ text: faction.name })
   for (const alias of node.aliases.filter((a) => a !== node.name).slice(0, 3)) chips.push({ text: `又称 ${alias}` })
 
   return (
@@ -268,6 +274,23 @@ function PersonCard({
             </div>
           </div>
         </div>
+
+        {factions.length > 0 && (
+          <section className="sec">
+            <h3>
+              所属势力 <span>{factions.length}</span>
+            </h3>
+            <div className="chips">
+              {factions.map((f) => (
+                <span key={f.faction_id} className="chip faction">
+                  <i style={{ background: factionColor(f) }} />
+                  {f.name}
+                  {factions.length > 1 && f.faction_id === node.primary_faction_id && <em>主</em>}
+                </span>
+              ))}
+            </div>
+          </section>
+        )}
 
         <section className="sec">
           <h3>全书简介</h3>

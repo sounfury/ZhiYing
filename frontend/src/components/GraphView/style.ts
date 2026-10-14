@@ -10,10 +10,11 @@
  *
  * 这里只算样式对象，不碰 G6 实例；主题切换时重新 readPalette 再整体重算即可，无需重建图。
  */
-import { EDGE_LABEL_FONT, nameFontSize } from './layout'
+import { EDGE_LABEL_FONT, nameFontSize } from './geometry'
+import type { LabelLayout } from './labels'
 import { edgeDirection } from '../../relationDirection'
 import { FACTION_SLOTS } from '../../factions'
-import type { Hardness, Scene, SceneCombo, SceneEdge, SceneNode } from './types'
+import type { Hardness, Scene, SceneCombo, SceneEdge, SceneNode, SceneTwin } from './types'
 
 export type Palette = {
   canvas: string
@@ -71,10 +72,11 @@ export type StyleCtx = {
 export type Focus = {
   /** 正在悬停：非高亮元素淡出 */
   dimming: boolean
+  /** 当前关注的人物（悬停优先，其次选中）：他的本体与分身之间显示提示线 */
+  person: string | null
   nodes: Set<string>
   edges: Set<string>
-  /** 显示连线文字的线（悬停或选中相关） */
-  /** 悬停相关的线：文字总显示，放不下也放在线中点 */
+  /** 悬停或直接选中的线：优先安排文字，仍须通过避让。 */
   labelEdges: Set<string>
   /** 选中相关的线：文字只在放得下时显示，避免主角选中时一圈字叠在一起 */
   selectedLabelEdges: Set<string>
@@ -85,11 +87,14 @@ export function computeFocus(scene: Scene, ctx: StyleCtx): Focus {
   const edges = new Set<string>()
   const labelEdges = new Set<string>()
   const selectedLabelEdges = new Set<string>()
-  if (ctx.hoverNode) {
-    nodes.add(ctx.hoverNode)
-    scene.neighbors.get(ctx.hoverNode)?.forEach((id) => nodes.add(id))
+  // 悬停本体或分身都按人物算：他在各势力里的节点、关系与对方一起高亮
+  const hoverPerson = ctx.hoverNode ? (scene.nodes.find((n) => n.id === ctx.hoverNode)?.personId ?? null) : null
+  if (hoverPerson) {
+    for (const n of scene.nodes) if (n.personId === hoverPerson) nodes.add(n.id)
     for (const e of scene.edges) {
-      if (e.source === ctx.hoverNode || e.target === ctx.hoverNode) {
+      if (e.edge.person_a === hoverPerson || e.edge.person_b === hoverPerson) {
+        nodes.add(e.source)
+        nodes.add(e.target)
         edges.add(e.id)
         labelEdges.add(e.id)
       }
@@ -107,12 +112,12 @@ export function computeFocus(scene: Scene, ctx: StyleCtx): Focus {
   if (!dimming) {
     for (const e of scene.edges) {
       if (e.id === ctx.selectedEdge) labelEdges.add(e.id)
-      else if (ctx.selectedNode && (e.source === ctx.selectedNode || e.target === ctx.selectedNode)) {
+      else if (ctx.selectedNode && (e.edge.person_a === ctx.selectedNode || e.edge.person_b === ctx.selectedNode)) {
         selectedLabelEdges.add(e.id)
       }
     }
   }
-  return { dimming, nodes, edges, labelEdges, selectedLabelEdges }
+  return { dimming, person: hoverPerson ?? (dimming ? null : ctx.selectedNode), nodes, edges, labelEdges, selectedLabelEdges }
 }
 
 const DIM = 0.13
@@ -123,28 +128,20 @@ function initialOf(name: string): string {
   return name.slice(0, 1)
 }
 
-/** 名字在当前缩放下是否显示：屏幕字号太小就藏（主角始终显示） */
-function nameVisible(n: SceneNode, zoom: number): boolean {
-  if (n.node.importance === 'main' || n.center) return true
-  const screen = nameFontSize(n.node.importance) * zoom
-  return n.node.importance === 'supporting' ? screen >= 6.5 : screen >= 9
-}
-
-export function nodeStyle(n: SceneNode, ctx: StyleCtx, focus: Focus): Record<string, unknown> {
+export function nodeStyle(n: SceneNode, ctx: StyleCtx, focus: Focus, labels: LabelLayout): Record<string, unknown> {
   const p = ctx.palette
   const imp = n.node.importance
-  const selected = ctx.selectedNode === n.id
+  const selected = ctx.selectedNode === n.personId
   const lit = focus.nodes.has(n.id)
   const dimmed = focus.dimming && !lit
-  const fs = nameFontSize(imp)
-  // 缩小看全貌时主角名字反向放大，保证屏幕上仍有约 11px
-  const grow = imp === 'main' || n.center ? Math.min(2, Math.max(1, 0.75 / ctx.zoom)) : 1
-  const showName = lit || selected || nameVisible(n, ctx.zoom)
+  const name = labels.names.get(n.id)!
+  const grow = name.fontSize / nameFontSize(imp)
   return {
     size: n.r * 2,
     fill: p.factionSoft[n.slot],
     stroke: selected ? p.warn : p.faction[n.slot],
     lineWidth: selected ? 3 : n.center || imp === 'main' ? 2.6 : 2,
+    lineDash: n.ghost ? [4, 3] : undefined,
     halo: selected,
     haloStroke: p.warn,
     haloLineWidth: 22,
@@ -158,12 +155,13 @@ export function nodeStyle(n: SceneNode, ctx: StyleCtx, focus: Focus): Record<str
     iconFontFamily: p.serif,
     iconFontWeight: 700,
     iconFontSize: Math.round(8 + n.r * 0.25),
-    label: showName,
+    label: name.visible,
     labelText: n.node.name,
-    labelPlacement: 'bottom',
-    labelOffsetY: 3,
+    labelPlacement: name.placement,
+    labelOffsetX: name.offsetX,
+    labelOffsetY: name.offsetY,
     labelFontFamily: p.serif,
-    labelFontSize: fs * grow,
+    labelFontSize: name.fontSize,
     labelFontWeight: imp === 'main' || n.center ? 700 : 500,
     labelFill: p.ink,
     labelStroke: p.canvas,
@@ -183,6 +181,7 @@ export function edgeStyle(
   scene: Scene,
   ctx: StyleCtx,
   focus: Focus,
+  labels: LabelLayout,
 ): Record<string, unknown> {
   const p = ctx.palette
   const line = LINE[e.hardness]
@@ -195,18 +194,9 @@ export function edgeStyle(
   let opacity = past ? 0.3 : 1
   if (focus.dimming) opacity = lit ? 1 : DIM * 0.8
 
-  // 连线文字：悬停相关的总显示；选中相关的放得下才显示；其余只给硬 / 中关系，且放得下、字不太小、不是人多的缩小全貌时
-  // 软关系（相识、互动等）默认不标字：点线已表明是软关系，满图「相识」只是噪音
   const related = focus.labelEdges.has(e.id)
-  const screenFont = EDGE_LABEL_FONT * ctx.zoom
-  const readable = e.labelFits && screenFont >= 7.5
-  const showLabel =
-    !!e.labelText &&
-    (related ||
-      (focus.selectedLabelEdges.has(e.id) && readable) ||
-      (!focus.dimming && readable && e.hardness !== 'soft' && (!scene.dense || ctx.zoom >= 0.95)))
-  // 缩小时相关文字反向放大（悬停看人际时不必先放大）
-  const grow = related ? Math.min(2.2, Math.max(1, 0.8 / ctx.zoom)) : 1
+  const label = labels.edges.get(e.id)!
+  const grow = label.fontSize / EDGE_LABEL_FONT
 
   return {
     stroke: selected ? p.warn : p[e.hardness],
@@ -217,24 +207,37 @@ export function edgeStyle(
     endArrow,
     startArrowSize: 8,
     endArrowSize: 8,
-    curveOffset: e.curveOffset,
+    controlPoints: e.controlPoints.map((p) => [p.x, p.y]),
     opacity,
     cursor: 'pointer',
-    increasedLineWidthForHitTesting: 12,
+    increasedLineWidthForHitTesting: 8,
     zIndex: lit || selected ? 3 : now ? 1 : 0,
-    label: showLabel,
+    label: label.visible,
     labelText: e.labelText,
-    labelPlacement: related && !e.labelFits ? 0.5 : e.labelRatio,
+    labelPlacement: label.ratio,
     labelAutoRotate: false,
     labelOffsetX: 0,
+    labelOffsetY: label.offsetY,
     labelFontFamily: p.sans,
-    labelFontSize: EDGE_LABEL_FONT * grow,
+    labelFontSize: label.fontSize,
     labelFontWeight: now || related ? 600 : 400,
     labelFill: now || related ? p.ink : p.ink2,
     labelStroke: p.canvas,
     labelLineWidth: 4 * grow,
     labelLineJoin: 'round',
     labelOpacity: past && !related ? 0.55 : 1,
+  }
+}
+
+/** 本体—分身提示线：平时不可见，关注该人物时才淡淡连上 */
+export function twinStyle(t: SceneTwin, ctx: StyleCtx, focus: Focus): Record<string, unknown> {
+  return {
+    stroke: ctx.palette.ink2,
+    lineWidth: 1,
+    lineDash: [2, 5],
+    opacity: focus.person === t.personId ? 0.45 : 0,
+    pointerEvents: 'none',
+    zIndex: 0,
   }
 }
 

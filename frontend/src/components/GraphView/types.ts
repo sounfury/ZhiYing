@@ -1,5 +1,6 @@
 /** 图谱组件的对外 props 与内部共享类型（布局模式、镜头请求、视图切片、场景模型）。 */
 import type { GraphData, GraphEdge, GraphNode } from '../../api'
+import type { Point } from './geometry'
 
 /**
  * 两种布局模式（PRD §5.7.5 B）：
@@ -52,7 +53,12 @@ export type GraphSlice = {
 
 /** 画布上一个人物（位置已定，样式随交互 / 主题 / 缩放另算） */
 export type SceneNode = {
+  /** 画布节点 id：本体 = 人物 id；分身 = 人物 id@势力 id */
   id: string
+  /** 所代表的人物；选中、悬停、进入中心视图都按它算 */
+  personId: string
+  /** 多势力人物在非主势力块里的分身（PRD §5.7.5） */
+  ghost: boolean
   node: GraphNode
   x: number
   y: number
@@ -71,17 +77,23 @@ export type SceneEdge = {
   edge: GraphEdge
   source: string
   target: string
-  /** 相反端点顺序的边分居连线两侧，避免方向与点击区域重叠；其余为直线。 */
-  curveOffset: number
+  /** 手动安排的中间控制点；G6 用圆角折线绘制并保持箭头方向。 */
+  controlPoints: Point[]
+  /** 包含裁剪端点的曲线采样，供文字避让与选中命中使用。 */
+  path: Point[]
   /** 最强标签的硬度，决定线型 */
   hardness: Hardness
   /** 单章模式下有本章依据（加粗突出）；false 且单章 = 背景淡化 */
   inFocus: boolean
   labelText: string
-  /** 连线文字在线上的位置（0~1） */
-  labelRatio: number
-  /** 默认状态下这条线的文字有空间放（不与人物、名字、其它连线文字重叠） */
-  labelFits: boolean
+}
+
+/** 本体与分身之间的提示线：只在悬停 / 选中该人物时显示，不可点 */
+export type SceneTwin = {
+  id: string
+  personId: string
+  source: string
+  target: string
 }
 
 export type SceneCombo = {
@@ -94,11 +106,10 @@ export type SceneCombo = {
 export type Scene = {
   nodes: SceneNode[]
   edges: SceneEdge[]
+  twins: SceneTwin[]
   combos: SceneCombo[]
   /** 单章模式：本章依据突出、其余淡化 */
   focusSingle: boolean
   /** 人多：默认不显示连线文字，放大或悬停 / 选中时再显示 */
   dense: boolean
-  /** 邻接表（悬停高亮一度邻居用） */
-  neighbors: Map<string, Set<string>>
 }

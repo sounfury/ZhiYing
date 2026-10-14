@@ -8,13 +8,17 @@
  * 其余图上的鼠标移动限流后再交给 G6。高回报率鼠标（1000Hz）下 G6 每个移动都做命中检测，不这样会卡。
  */
 import { useEffect, useRef, type RefObject } from 'react'
+import './curveEdge'
 import { Graph, type IPointerEvent } from '@antv/g6'
 import type { GraphEdge, GraphNode } from '../../api'
 import type { FocusRequest, Scene, ZoomRequest } from './types'
 import { FOCUS, dollyTo, fitPadding } from './camera'
+import { placeLabels } from './labels'
+import { routeEdges } from './routing'
 import { beginPerfPan, endPerfPan, installPerfWatch, perfLog, perfOn, perfTime, recordPerfMove, recordPerfPaint } from './perfLog'
 import {
   comboStyle,
+  twinStyle,
   computeFocus,
   edgeStyle,
   nodeStyle,
@@ -102,6 +106,7 @@ export function useGraphInstance({
       selectedEdge: selectedEdgeRef.current,
     }
     const focus = computeFocus(sc, ctx)
+    const labels = placeLabels(sc, ctx, focus)
     const applied = appliedRef.current
     const changed = <T extends { id: string }>(id: string, style: Record<string, unknown>, out: T[], make: () => T) => {
       const key = JSON.stringify(style)
@@ -113,12 +118,16 @@ export function useGraphInstance({
     const edges: { id: string; style: Record<string, unknown> }[] = []
     const combos: { id: string; style: Record<string, unknown> }[] = []
     for (const n of sc.nodes) {
-      const style = nodeStyle(n, ctx, focus)
+      const style = nodeStyle(n, ctx, focus, labels)
       changed(n.id, style, nodes, () => ({ id: n.id, style }))
     }
     for (const e of sc.edges) {
-      const style = edgeStyle(e, sc, ctx, focus)
+      const style = edgeStyle(e, sc, ctx, focus, labels)
       changed(e.id, style, edges, () => ({ id: e.id, style }))
+    }
+    for (const t of sc.twins) {
+      const style = twinStyle(t, ctx, focus)
+      changed(t.id, style, edges, () => ({ id: t.id, style }))
     }
     for (const c of sc.combos) {
       const style = comboStyle(c, ctx, focus)
@@ -188,6 +197,7 @@ export function useGraphInstance({
       selectedEdge: selectedEdgeRef.current,
     }
     const focus = computeFocus(scene, ctx)
+    const labels = placeLabels(scene, ctx, focus)
     const nodeById = new Map(scene.nodes.map((n) => [n.id, n]))
     const edgeById = new Map(scene.edges.map((e) => [e.id, e]))
 
@@ -203,15 +213,18 @@ export function useGraphInstance({
         nodes: scene.nodes.map((n) => ({
           id: n.id,
           combo: n.combo ?? null,
-          style: { x: n.x, y: n.y, ...nodeStyle(n, ctx, focus) },
+          style: { x: n.x, y: n.y, ...nodeStyle(n, ctx, focus, labels) },
         })),
-        edges: scene.edges.map((e) => ({
-          id: e.id,
-          source: e.source,
-          target: e.target,
-          type: e.curveOffset ? 'quadratic' : 'line',
-          style: edgeStyle(e, scene, ctx, focus),
-        })),
+        edges: [
+          ...scene.edges.map((e) => ({
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            type: 'routed-curve',
+            style: edgeStyle(e, scene, ctx, focus, labels),
+          })),
+          ...scene.twins.map((t) => ({ id: t.id, source: t.source, target: t.target, type: 'line', style: twinStyle(t, ctx, focus) })),
+        ],
         combos: scene.combos.map((c) => ({ id: c.id, style: comboStyle(c, ctx, focus) })),
       },
       node: { type: 'circle' },
@@ -225,6 +238,19 @@ export function useGraphInstance({
           key: 'drag-element',
           enable: (e: IPointerEvent) => e.targetType === 'node',
           dropEffect: 'none',
+          onFinish: (ids: string[]) => {
+            requestAnimationFrame(() => {
+              if (graph.destroyed || graphRef.current !== graph) return
+              for (const id of ids) {
+                const n = nodeById.get(id)!
+                const [x, y] = graph.getElementPosition(id)
+                n.x = x
+                n.y = y
+              }
+              routeEdges(scene.nodes, scene.edges)
+              schedule(true)
+            })
+          },
         },
       ],
     })
@@ -340,8 +366,8 @@ export function useGraphInstance({
       cb.current.onSelectEdge?.(null)
     })
     graph.on('node:dblclick', (evt: unknown) => {
-      const id = idOf(evt)
-      if (id && nodeById.has(id)) cb.current.onEnterEgo?.(id)
+      const n = nodeById.get(idOf(evt) ?? '')
+      if (n) cb.current.onEnterEgo?.(n.personId)
     })
     graph.on('edge:click', (evt: unknown) => {
       const e = edgeById.get(idOf(evt) ?? '')
