@@ -50,8 +50,8 @@ class SpringAiRelationRechecker(
         val outcome = executor.ask<RecheckReply>(
             system = RecheckPrompts.SYSTEM,
             user = RecheckPrompts.user(request),
-            model = AnalysisPromptText.modelOf(config.model),
-            thinking = config.thinking,
+            model = request.control.models?.postProcess?.model ?: AnalysisPromptText.modelOf(config.model),
+            thinking = request.control.models?.postProcess?.thinking ?: config.thinking,
             control = request.control,
         )
         if (outcome is StructuredOutcome.Failed) {

@@ -55,8 +55,8 @@ class SpringAiAffiliationInducer(
         val outcome = executor.ask<AffiliationReply>(
             system = AffiliationPrompts.system(config.minGroups, config.maxGroups),
             user = AffiliationPrompts.user(request),
-            model = config.model.ifBlank { null },
-            thinking = config.thinking,
+            model = control.models?.affiliation?.model ?: config.model.ifBlank { null },
+            thinking = control.models?.affiliation?.thinking ?: config.thinking,
             control = control,
         ) { reply -> validate(reply, refs, request.forbiddenNames) }
         return when (outcome) {

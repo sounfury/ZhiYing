@@ -1,3 +1,4 @@
+// 模型连接诊断编排：按指定模型与思考开关检查协议，报告不含连接凭据。
 package com.zhiying.application.diagnostics
 
 import org.springframework.stereotype.Service
@@ -26,11 +27,11 @@ data class ModelProbeReport(
 class ModelDiagnostics(private val probe: ModelProbe) {
 
     /** 以指定思考模式执行全部检查。 */
-    fun run(thinking: ThinkingMode): ModelProbeReport {
+    fun run(thinking: ThinkingMode, model: String? = null): ModelProbeReport {
         val results = ProbeCheck.entries.map { check ->
-            val (outcome, elapsed) = measureTimedValue { probe.run(check, thinking) }
+            val (outcome, elapsed) = measureTimedValue { probe.run(check, thinking, model) }
             CheckResult(check, outcome, elapsed)
         }
-        return ModelProbeReport(probe.target(), thinking, results)
+        return ModelProbeReport(probe.target(model), thinking, results)
     }
 }

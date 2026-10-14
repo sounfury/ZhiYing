@@ -66,8 +66,8 @@ class SpringAiRelationTypeResolver(
         val outcome = executor.ask<TypeReply>(
             system = TypeResolutionPrompts.SYSTEM,
             user = TypeResolutionPrompts.user(candidates, request.questions),
-            model = AnalysisPromptText.modelOf(config.model),
-            thinking = config.thinking,
+            model = request.control.models?.postProcess?.model ?: AnalysisPromptText.modelOf(config.model),
+            thinking = request.control.models?.postProcess?.thinking ?: config.thinking,
             control = request.control,
         )
         return when (outcome) {

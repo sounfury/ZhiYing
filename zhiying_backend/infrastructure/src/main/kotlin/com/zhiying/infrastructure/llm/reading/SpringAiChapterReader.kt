@@ -8,6 +8,7 @@ import com.zhiying.application.analyze.reading.ChapterReader
 import com.zhiying.application.diagnostics.ModelFailure
 import com.zhiying.application.llm.ModelCallBudget
 import com.zhiying.application.llm.ModelCallControl
+import com.zhiying.application.llm.ModelSnapshot
 import com.zhiying.domain.extraction.ExtractionProvenance
 import com.zhiying.domain.library.TextRevision
 import com.zhiying.infrastructure.config.ZhiYingProperties
@@ -51,8 +52,8 @@ class SpringAiChapterReader(
                 ),
                 tools = ChapterTools.of(session),
                 maxSteps = maxStepsFor(range.last - range.first + 1),
-                model = config.model.ifBlank { null },
-                thinking = config.thinking,
+                model = request.control.models?.reading?.model ?: config.model.ifBlank { null },
+                thinking = request.control.models?.reading?.thinking ?: config.thinking,
                 control = chapterControl(request.control),
                 nudge = SUBMIT_NUDGE,
                 nudges = config.submitNudges,
@@ -75,8 +76,11 @@ class SpringAiChapterReader(
     }
 
     /** 当前所用模型（章阅读专用模型，空则取默认）与提示词版本。 */
-    override fun provenanceFor(textRevision: TextRevision) =
-        ExtractionProvenance(textRevision, config.model.ifBlank { invoker.defaultModel() }, ChapterReadingPrompts.VERSION)
+    override fun provenanceFor(textRevision: TextRevision, models: ModelSnapshot?): ExtractionProvenance {
+        val model = models?.reading?.model ?: config.model.ifBlank { invoker.defaultModel() }
+        val thinking = models?.reading?.thinking ?: config.thinking
+        return ExtractionProvenance(textRevision, model, ChapterReadingPrompts.VERSION + if (thinking) "/thinking" else "")
+    }
 
     /** 单章预算挂在任务级预算之下，两级都受限；取消信号沿用任务级。 */
     private fun chapterControl(task: ModelCallControl) =
@@ -104,7 +108,7 @@ class SpringAiChapterReader(
         }
         if (needsFinalize) session.finalizeWithoutSubmit(outcome.lastText.take(SUMMARY_FALLBACK_CHARS))
         return try {
-            val provenance = provenanceFor(request.chapter.revision)
+            val provenance = provenanceFor(request.chapter.revision, request.control.models)
             val extraction = session.build(provenance.model, provenance.promptVersion)
             ChapterReadResult.Completed(extraction, outcome.stats, session.warnings())
         } catch (e: IllegalArgumentException) {

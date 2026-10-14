@@ -13,6 +13,7 @@ import com.zhiying.application.library.ChapterRecord
 import com.zhiying.application.library.ShelfItem
 import com.zhiying.application.library.ShelfItemStore
 import com.zhiying.application.library.ShelfItems
+import com.zhiying.application.llm.ModelSettings
 import com.zhiying.application.quota.QuotaUsage
 import com.zhiying.domain.account.Account
 import com.zhiying.domain.library.Book
@@ -99,6 +100,7 @@ class ImportBook(
     private val revisions: RevisionStore,
     private val method: AnalysisMethod,
     private val runner: AnalysisRunner,
+    private val models: ModelSettings,
 ) {
     fun import(
         fileName: String,
@@ -115,9 +117,10 @@ class ImportBook(
             val source = SourceFileRef(MessageDigest.getInstance("SHA-256").digest(content).joinToString("") { "%02x".format(it) })
             shelves.findExisting(user.id, source)?.let { return@withRegistrationLock ImportResult(items.overview(it.id), existing = true) }
             quota.requireAllowed(usage.checkUpload(content.size.toLong()))
+            val currentMethod = method.version(models.snapshot())
             val candidate =
                 shelves.candidates(source, IMPORT_VERSION).firstOrNull {
-                    !runner.hasUnsettledTask(it) && revisions.findPublished(it)?.reusableFor(method.version) == true
+                    !runner.hasUnsettledTask(it) && revisions.findPublished(it)?.reusableFor(currentMethod) == true
                 }
             if (candidate != null) {
                 val item = ShelfItem(BookId(UUID.randomUUID().toString()), user.id, candidate, null, fileName, Instant.now())

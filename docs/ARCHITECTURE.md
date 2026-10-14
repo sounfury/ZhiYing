@@ -63,14 +63,14 @@ flowchart TD
 
 基础约定：
 - **错误码**：对外错误统一登记在 `application` 的 `ErrorCode`，用例拒绝请求时抛 `AppException(code)`；`web` 的 `ApiExceptionHandler` 是错误码到 HTTP 状态的唯一映射，响应为带 `code` 字段的 ProblemDetail。模型调用的执行失败（`ModelFailure`）是业务结果，不是错误码。
-- **配置**：项目自有可调参数统一放在 `zhiying.*`，由 `infrastructure` 的 `ZhiYingProperties` 类型化绑定并在启动时校验，不使用散落的 `@Value`；应用层需要的参数由基础设施组装成应用层自己的设置对象注入。
+- **配置**：项目自有可调参数统一放在 `zhiying.*`，由 `infrastructure` 的 `ZhiYingProperties` 类型化绑定并在启动时校验，不使用散落的 `@Value`；应用层需要的参数由基础设施组装成应用层自己的设置对象注入。唯一例外是后台的模型名与思考开关存于 `model_settings`，部署值作缺省；服务地址与密钥仍只由部署配置提供（DESIGN §5.7）。
 - **不建 common 模块**：值对象放 `domain`，错误码放 `application`，技术工具放 `infrastructure`。
 
 ### web · HTTP 接口与启动
 
 - **实现状态**：已完成。
 - **覆盖范围**：`com/zhiying/web`、`com/zhiying/ZhiYingApplication`。
-- **职责**：Spring Boot 启动与依赖装配、路由、请求 / 响应 DTO、错误映射；账号注册、登录 / 退出、管理员邀请码与密码重置接口。请求边界读取会话 Cookie、传递当前账号、设置或清除 Cookie，非安全方法检查 CSRF 请求头；书籍与任务权限由应用层判定。本人额度接口 `GET /api/me/usage` 仅向当前账号返回用量。书籍上传、查询、删除与清空分析，分析启动 / 取消 / 单章重跑、任务快照、进度推送（SSE）、章抽取结果、图与导出、人名册与人物详情、关系类型、团体、模型诊断接口。
+- **职责**：Spring Boot 启动与依赖装配、路由、请求 / 响应 DTO、错误映射；账号注册、登录 / 退出、管理员邀请码与密码重置接口。请求边界读取会话 Cookie、传递当前账号、设置或清除 Cookie，非安全方法检查 CSRF 请求头；书籍与任务权限由应用层判定。本人额度接口 `GET /api/me/usage` 仅返回书数和字数；管理员用量、模型覆盖接口沿用现有角色校验，书列表 / 详情、任务快照与 SSE 的 token 字段只向管理员输出。书籍上传、查询、删除与清空分析，分析启动 / 取消 / 单章重跑、任务快照、进度推送（SSE）、章抽取结果、图与导出、人名册与人物详情、关系类型、团体、模型诊断接口。
 - **对应位置**：`web/`（`com.zhiying.web.books`、`web.analysis`、`web.graph`、`web.cast`、`web.types`、`web.factions`、`web.diagnostics`、`web.error`）。
 
 [探索这个子系统](#module=com/zhiying/web)
@@ -81,7 +81,7 @@ flowchart TD
 - **domain**：账号身份、角色及用户名 / 密码格式规则属于领域；不读取 Cookie、不执行密码算法、不访问数据库。
 - **application**：编排注册、登录、退出、邀请码创建、密码重置及首次管理员引导，生成随机会话 token；定义所需存储与密码算法接口。先查会话身份、书主或已发布示例，再执行查询或操作；章、任务、SSE 与导出入口都沿关联书检查权限。管理员角色仅增加维护能力，不授予他人私有书权限。
 - **infrastructure**：实现 SQLite 账号、邀请码、会话与书主存储，以及 JDK 密码派生与会话哈希；配置通过 `ZhiYingProperties` 绑定并装配应用层设置。管理员引导保留已有数据，只补齐无主书的归属。
-- **web / frontend**：web 处理 HTTP 会话与 CSRF 边界；前端提供登录、邀请码注册、退出、管理员邀请码与密码重置入口，按角色展示维护操作。前端与 API 使用同一站点，不开放 CORS；部署命令见 README。
+- **web / frontend**：web 处理 HTTP 会话与 CSRF 边界；前端提供登录、邀请码注册、退出；管理员入口统一为 `/admin` 的用量、模型、评测与账号页签，旧 `/eval` 跳转后台，按角色展示维护操作。前端与 API 使用同一站点，不开放 CORS；部署命令见 README。
 - **对应位置**：`domain/…/account`、`application/…/account`、`application/…/library/BookAccess.kt`、`infrastructure/…/persistence/account`、`infrastructure/…/config/AccountConfiguration.kt`。
 
 ### quota · 用量上限
@@ -124,7 +124,7 @@ flowchart TD
 
 - **实现状态**：已完成。
 - **覆盖范围**：`com/zhiying/infrastructure/llm`、`com/zhiying/application/llm`。
-- **职责**：通过 Spring AI 以 OpenAI 兼容协议调用模型；提供单次请求入口（并发、预算、取消、重试退避、用量统计、失败归类）、结构化调用执行器（解析失败自动重答）与工具循环执行器；应用层用 `ModelCallControl` 传入预算与取消信号。也包含模型连通性探针。
+- **职责**：通过 Spring AI 以 OpenAI 兼容协议调用模型；提供单次请求入口（并发、预算、取消、重试退避、用量统计、失败归类）、结构化调用执行器（解析失败自动重答）与工具循环执行器；应用层用 `ModelCallControl` 传入预算、取消信号与任务启动时固定的 `ModelSnapshot`。`ModelSettings` 读取后台覆盖与部署缺省，读章、后处理、团体归纳按快照传入请求级模型 / thinking options；发布方法版本按任务快照计算，秒传按当前生效配置计算。也包含模型连通性探针。
 - **对应位置**：`infrastructure/…/llm`、`application/…/llm`。
 
 [探索这个子系统](#module=com/zhiying/infrastructure/llm)
@@ -140,7 +140,7 @@ flowchart TD
 ### diagnostics · 模型诊断
 
 - **实现状态**：已完成。
-- **职责**：仅管理员可检查模型服务能否完成对话、工具调用与结构化输出，供部署和调试时确认配置可用。
+- **职责**：仅管理员可指定模型名与思考开关，检查模型服务能否完成对话、工具调用与结构化输出；后台复用原诊断接口，报告不返回服务地址或密钥。
 - **对应位置**：`application/`（`com.zhiying.application.diagnostics`）。
 
 [探索这个子系统](#module=com/zhiying/application/diagnostics)
@@ -223,7 +223,7 @@ flowchart TD
 
 ## 数据模型
 
-账号拥有 `shelf_items` 书架条目，对外书 ID 即条目 ID；条目用 `book_id` 指向当前结果书，分叉首次发布前用 `pending_book_id` 指向任务书。一本书可被多个条目共享并有多个章节，写操作先分叉，发布事务内切换条目。已有归属迁移时条目 ID = 原书 ID。`books.import_version` 与结果的 `method_version`、`full_book` 判定秒传资格，方法版本由各调用点模型 ID 和提示版本自动生成；旧结果保留可读但不可秒传。每章每次分析产生一份章抽取记录。抽取中的人物提及经身份映射归到书内人物，关系候选经类型归一与语义判断形成章账本记录，通过准入的记录按「人物 A、人物 B、关系类型」聚合成关系事实。人物可属于多个团体。一次分析构建一个结果版本，发布后成为出图的唯一来源。字段与不变量见 [DESIGN §2](./DESIGN.md)，共享与分叉见 [DESIGN §5.4](./DESIGN.md#54-秒传与共享结果)，账号见 [DESIGN §5.5](./DESIGN.md#55-账号会话与书籍归属)。用量流水记发起者与条目、字数和输入 / 输出 / 总 token、请求数，独立保留，累计 token 仅按本人条目查询（[DESIGN §5.6](./DESIGN.md#56-用量上限)）。
+账号拥有 `shelf_items` 书架条目，对外书 ID 即条目 ID；条目用 `book_id` 指向当前结果书，分叉首次发布前用 `pending_book_id` 指向任务书。一本书可被多个条目共享并有多个章节，写操作先分叉，发布事务内切换条目。已有归属迁移时条目 ID = 原书 ID。`books.import_version` 与结果的 `method_version`、`full_book` 判定秒传资格，方法版本由生效模型 ID、思考开关和提示版本自动生成；旧结果保留可读但不可秒传。每章每次分析产生一份章抽取记录。抽取中的人物提及经身份映射归到书内人物，关系候选经类型归一与语义判断形成章账本记录，通过准入的记录按「人物 A、人物 B、关系类型」聚合成关系事实。人物可属于多个团体。一次分析构建一个结果版本，发布后成为出图的唯一来源。字段与不变量见 [DESIGN §2](./DESIGN.md)，共享与分叉见 [DESIGN §5.4](./DESIGN.md#54-秒传与共享结果)，账号见 [DESIGN §5.5](./DESIGN.md#55-账号会话与书籍归属)。用量流水记发起者与条目、字数和输入 / 输出 / 总 token、请求数，独立保留，累计 token 仅按本人条目查询且仅管理员可见；后台通过独立流水聚合全站、用户与条目用量，不授予私人书读取权限（[DESIGN §5.6](./DESIGN.md#56-用量上限)）。`model_settings` 仅保存三个环节的模型名、思考开关与修改元数据，不保存地址、密钥，生效快照见 [DESIGN §5.7](./DESIGN.md#57-后台管理与生效模型配置)。
 
 ## 技术栈
 

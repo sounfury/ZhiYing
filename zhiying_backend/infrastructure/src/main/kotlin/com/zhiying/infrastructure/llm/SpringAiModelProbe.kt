@@ -1,3 +1,4 @@
+// 模型协议探针：使用部署连接和指定模型，不把连接地址与密钥返回后台。
 package com.zhiying.infrastructure.llm
 
 import com.zhiying.application.diagnostics.CheckOutcome
@@ -30,31 +31,32 @@ class SpringAiModelProbe(
     private val chatClient = chatClientBuilder.build()
 
     /** 当前探测目标。 */
-    override fun target() = ModelTarget(properties.llm.baseUrl, properties.llm.model)
+    override fun target(model: String?) = ModelTarget(model ?: properties.llm.model)
 
     /** 执行一项检查；任何调用异常都归类为执行失败，不向上抛出。 */
-    override fun run(check: ProbeCheck, thinking: ThinkingMode): CheckOutcome = try {
+    override fun run(check: ProbeCheck, thinking: ThinkingMode, model: String?): CheckOutcome = try {
         when (check) {
-            ProbeCheck.CHAT -> chat(thinking)
-            ProbeCheck.TOOL_CALL -> toolCall(thinking)
-            ProbeCheck.STRUCTURED_OUTPUT -> structuredOutput(thinking)
+            ProbeCheck.CHAT -> chat(thinking, model)
+            ProbeCheck.TOOL_CALL -> toolCall(thinking, model)
+            ProbeCheck.STRUCTURED_OUTPUT -> structuredOutput(thinking, model)
         }
     } catch (e: Exception) {
-        CheckOutcome.Failed(classifyFailure(e), e.message ?: e.javaClass.name)
+        val failure = classifyFailure(e)
+        CheckOutcome.Failed(failure, "模型连接检查失败（${failure.name}）")
     }
 
     /** 普通对话：要求模型原样复述一段随机校验码（与回复语言无关，避免被意译）。 */
-    private fun chat(thinking: ThinkingMode): CheckOutcome {
+    private fun chat(thinking: ThinkingMode, model: String?): CheckOutcome {
         val code = newProbeCode()
-        val response = request(thinking).user("原样回复这段校验码，不要添加其他内容：$code").call().chatResponse()
+        val response = request(thinking, model).user("原样回复这段校验码，不要添加其他内容：$code").call().chatResponse()
         val reply = replyOf(response)
         return expect(code in reply, "回复：$reply", response)
     }
 
     /** 工具调用：模型必须调用校验码工具，并在最终回复中带回工具返回的校验码。 */
-    private fun toolCall(thinking: ThinkingMode): CheckOutcome {
+    private fun toolCall(thinking: ThinkingMode, model: String?): CheckOutcome {
         val tool = ProbeCodeTool(newProbeCode())
-        val response = request(thinking)
+        val response = request(thinking, model)
             .user("先调用 probe_code 工具取得校验码，然后只回复这个校验码。")
             .tools(tool)
             .call()
@@ -64,8 +66,8 @@ class SpringAiModelProbe(
     }
 
     /** 结构化输出：回复必须能解析为指定结构，且计算结果正确。 */
-    private fun structuredOutput(thinking: ThinkingMode): CheckOutcome {
-        val result = request(thinking)
+    private fun structuredOutput(thinking: ThinkingMode, model: String?): CheckOutcome {
+        val result = request(thinking, model)
             .user("计算 17 加 25，给出结果数字与它的中文读法。")
             .call()
             .responseEntity(ArithmeticAnswer::class.java)
@@ -73,18 +75,13 @@ class SpringAiModelProbe(
     }
 
     /** 按思考模式构造请求；DeepSeek 通过请求体的 thinking 字段开关思考模式。 */
-    private fun request(thinking: ThinkingMode): ChatClient.ChatClientRequestSpec {
-        val spec = chatClient.prompt()
-        return when (thinking) {
-            ThinkingMode.DEFAULT -> spec
-            ThinkingMode.ENABLED -> spec.options(thinkingOptions("enabled"))
-            ThinkingMode.DISABLED -> spec.options(thinkingOptions("disabled"))
+    private fun request(thinking: ThinkingMode, model: String?): ChatClient.ChatClientRequestSpec {
+        val options = OpenAiChatOptions.builder().model(model ?: properties.llm.model)
+        if (thinking != ThinkingMode.DEFAULT) {
+            options.extraBody(mapOf("thinking" to mapOf("type" to if (thinking == ThinkingMode.ENABLED) "enabled" else "disabled")))
         }
+        return chatClient.prompt().options(options)
     }
-
-    /** 生成只携带 thinking 字段的请求选项，其余选项沿用全局配置。 */
-    private fun thinkingOptions(type: String): OpenAiChatOptions.Builder =
-        OpenAiChatOptions.builder().extraBody(mapOf("thinking" to mapOf("type" to type)))
 
     /** 生成一次探测用的随机校验码。 */
     private fun newProbeCode(): String = UUID.randomUUID().toString().take(8)

@@ -68,6 +68,7 @@ class ModelCallBudget(
 data class ModelCallControl(
     val budget: ModelCallBudget = ModelCallBudget(),
     val cancel: CancelSignal = CancelSignal.NEVER,
+    val models: ModelSnapshot? = null,
 )
 
 /**

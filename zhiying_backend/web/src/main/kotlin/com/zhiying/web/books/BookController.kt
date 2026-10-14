@@ -1,6 +1,7 @@
 // 书籍接口：上传 EPUB、书目列表、书详情、章节列表、删除书、清空分析；字段名沿用前端现有的 snake_case 约定。
 package com.zhiying.web.books
 
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.zhiying.application.account.Accounts
 import com.zhiying.application.analyze.run.AnalysisQueries
@@ -74,6 +75,7 @@ class BookController(
         val publicView = examples.isPublished(id) && user?.role != AccountRole.ADMIN
         val status = if (publicView) examples.publishedStatus(id) else analysis.bookStatus(id)
         return BookResponse.from(overview, status, if (publicView) TaskUsage() else usage).copy(
+            tokenUsage = if (user?.role == AccountRole.ADMIN) TokenUsageResponse(usage.inputTokens, usage.outputTokens, usage.totalTokens, usage.requests) else null,
             exampleSlug = examples.slug(id),
             sourceFile = if (publicView) "" else overview.originalName,
         )
@@ -147,7 +149,8 @@ data class BookResponse(
     @JsonProperty("median_chapter_words") val medianChapterWords: Int,
     @JsonProperty("analysis_chapter_count") val analysisChapterCount: Int,
     @JsonProperty("analysis_progress") val analysisProgress: AnalysisProgressResponse,
-    @JsonProperty("token_usage") val tokenUsage: TokenUsageResponse,
+    @get:JsonInclude(JsonInclude.Include.NON_NULL)
+    @JsonProperty("token_usage") val tokenUsage: TokenUsageResponse?,
     @JsonProperty("example_slug") val exampleSlug: String? = null,
 ) {
     companion object {

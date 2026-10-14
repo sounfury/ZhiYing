@@ -102,8 +102,8 @@ export function BookShelf({ open, books, publicOnly, isAdmin, userId, onLogin, b
           <p className="hint">上传自己的书需要登录，并凭邀请码注册。</p>
           <button type="button" className="btn primary" onClick={() => { onClose(); onLogin() }}>登录后上传</button>
         </div>}
-        {isAdmin && <a className="shelf-eval hint" href={apiUrl('/eval')}>
-          评测（开发者工具）→
+        {isAdmin && <a className="shelf-eval hint" href={apiUrl('/admin')}>
+          后台 →
         </a>}
       </aside>
     </div>

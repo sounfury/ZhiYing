@@ -150,12 +150,12 @@ function Usage({ task, seconds, live }: { task: AnalysisTaskSnapshot | null; sec
       <span>
         {live ? '已用时' : '用时'} <b>{live ? clock(seconds) : duration(seconds)}</b>
       </span>
-      <span>
-        请求 <b>{task?.llm_requests ?? 0}</b> 次
-      </span>
-      <span title={tokenTitle}>
+      {task?.llm_requests != null && <span>
+        请求 <b>{task.llm_requests}</b> 次
+      </span>}
+      {task?.total_tokens != null && <span title={tokenTitle}>
         token <b>{formatTokens(total)}</b>
-      </span>
+      </span>}
     </>
   )
 }
@@ -236,7 +236,7 @@ export function AnalysisProgress({
           {head}
           <span className="sub">
             {' '}
-            · 用时 {duration(seconds)} · {formatTokens(task?.total_tokens ?? 0)} token
+            · 用时 {duration(seconds)}{task?.total_tokens != null && <> · {formatTokens(task.total_tokens)} token</>}
           </span>
         </span>
         <button type="button" className="btn ghost" onClick={onDismiss} aria-label="关闭提示">

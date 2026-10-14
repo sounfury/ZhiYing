@@ -14,7 +14,8 @@
 | [04-evidence-and-review.feature](04-evidence-and-review.feature) | 基础证据、摘录反馈、清晰关系直接准入、有限补查、逐项保存 | §5.6 |
 | [05-graph-and-export.feature](05-graph-and-export.feature) | 按章过滤、章节聚焦、例外保留、聚焦、证据详情、JSON 导出；PNG 导出 | §5.7；PNG 见 PRD-beta §5 |
 | [06-groups.feature](06-groups.feature) | 团体与边正交、多归属、百人分区、降级提示 | §3.1、§4.4、§5.7.4 |
-| [07-instant-reuse.feature](07-instant-reuse.feature) | 秒传命中与不命中、额度、分叉后互不影响、重复上传、隐私 | PRD-beta §4.4 |
+| [07-instant-reuse.feature](07-instant-reuse.feature) | 秒传命中与不命中、额度、分叉后互不影响、重复上传、隐私 | §5.14 |
+| [08-admin.feature](08-admin.feature) | 后台角色权限、用量聚合、token 隐藏、模型快照与恢复、连接凭据边界 | §5.9、§5.15 |
 
 这是一组核心行为规格，不声称穷尽 PRD。完整高频类型库、精细亲属类型、书内新增类型、JSON 重新导入、进度与取消等已确定能力，实施对应故事时还需补充场景。首批之外的已确认场景也应保留，避免把尚未排期误认为产品已取消。
 

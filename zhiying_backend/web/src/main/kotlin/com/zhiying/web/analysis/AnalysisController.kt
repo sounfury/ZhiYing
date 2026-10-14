@@ -8,6 +8,7 @@ import com.zhiying.application.analyze.run.AnalysisQueries
 import com.zhiying.application.analyze.run.AnalysisRunner
 import com.zhiying.application.analyze.run.AnalysisTask
 import com.zhiying.domain.account.Account
+import com.zhiying.domain.account.AccountRole
 import com.zhiying.domain.library.BookId
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -62,7 +63,8 @@ class AnalysisController(
     @GetMapping("/analysis/task")
     fun task(
         @PathVariable bookId: String,
-    ): Map<String, Any?> = AnalysisPayloads.snapshot(queries.currentTask(BookId(bookId)))
+        @RequestAttribute("user") user: Account,
+    ): Map<String, Any?> = AnalysisPayloads.snapshot(queries.currentTask(BookId(bookId)), user.role == AccountRole.ADMIN)
 
     /**
      * SSE 进度流。事件 progress（逐章 / 阶段变化）与 done（任务终结，之后连接关闭）；每条事件带单调递增的 id，
@@ -74,10 +76,11 @@ class AnalysisController(
         @PathVariable bookId: String,
         @RequestHeader("Last-Event-ID", required = false) lastEventId: String?,
         @CookieValue("zhiying_session") token: String,
+        @RequestAttribute("user") user: Account,
     ): SseEmitter {
         val id = BookId(bookId)
         queries.currentTask(id) // 条目不存在返回 404，而不是一个空的事件流
-        val sender = SseSender(SseEmitter(0L), json, keepalive) { accounts.currentUser(token) != null }
+        val sender = SseSender(SseEmitter(0L), json, keepalive, user.role == AccountRole.ADMIN) { accounts.currentUser(token) != null }
         val emitter = sender.emitter
         val subscription = runner.subscribe(id, lastEventId?.toLongOrNull() ?: 0L, sender::onEvent)
         if (subscription != null) sender.attach(subscription) else sender.sendFinal(queries.currentTask(id))

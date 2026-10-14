@@ -5,6 +5,7 @@ package com.zhiying.application.analyze.run
 import com.zhiying.application.llm.CancelSignal
 import com.zhiying.application.llm.ModelCallBudget
 import com.zhiying.application.llm.ModelCallControl
+import com.zhiying.application.llm.ModelSnapshot
 import com.zhiying.domain.library.ChapterId
 import com.zhiying.domain.revision.RevisionId
 import java.time.Instant
@@ -22,7 +23,7 @@ fun interface AnalysisSubscription : AutoCloseable {
  * 入参：[initial] 初始快照；[tasks] 快照存储；[maxRequests]、[maxTokens] 整个任务的模型预算（0 不限）。
  * 取消只是置位 [cancelRequested]，由 [control] 的取消信号传给每一次模型调用；取消信号不被通用异常吞掉。
  */
-class AnalysisRun(initial: AnalysisTask, private val tasks: AnalysisTaskStore, maxRequests: Long, maxTokens: Long, val userId: String) {
+class AnalysisRun(initial: AnalysisTask, private val tasks: AnalysisTaskStore, maxRequests: Long, maxTokens: Long, val userId: String, models: ModelSnapshot) {
     private val lock = Any()
     private var task = initial
     private var sequence = 0L
@@ -43,7 +44,7 @@ class AnalysisRun(initial: AnalysisTask, private val tasks: AnalysisTaskStore, m
     }
 
     /** 任务级预算与取消信号，传给读章、后处理与团体归纳的全部调用，任务用量即取自该预算。 */
-    val control = ModelCallControl(ModelCallBudget(maxRequests, maxTokens), CancelSignal { cancelRequested })
+    val control = ModelCallControl(ModelCallBudget(maxRequests, maxTokens), CancelSignal { cancelRequested }, models)
 
     /** 当前快照。 */
     val snapshot: AnalysisTask get() = synchronized(lock) { task }

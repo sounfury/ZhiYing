@@ -1,3 +1,4 @@
+// 管理员模型连接诊断接口：可指定模型名，不返回服务地址或密钥。
 package com.zhiying.web.diagnostics
 
 import com.zhiying.application.diagnostics.CheckOutcome
@@ -25,10 +26,10 @@ class DiagnosticsController(private val diagnostics: ModelDiagnostics) {
      * 全部通过返回 200；任一项失败返回 502，响应体同样是完整报告；thinking 取值非法时返回 INVALID_ARGUMENT。
      */
     @GetMapping("/model")
-    fun probeModel(@RequestParam(defaultValue = "default") thinking: String): ResponseEntity<ModelProbeResponse> {
+    fun probeModel(@RequestParam(defaultValue = "default") thinking: String, @RequestParam(required = false) model: String?): ResponseEntity<ModelProbeResponse> {
         val mode = ThinkingMode.entries.firstOrNull { it.name.equals(thinking, ignoreCase = true) }
             ?: throw AppException(ErrorCode.INVALID_ARGUMENT, "thinking 只能是 default、enabled 或 disabled")
-        val report = diagnostics.run(mode)
+        val report = diagnostics.run(mode, model?.trim()?.ifBlank { null })
         val status = if (report.passed) HttpStatus.OK else HttpStatus.BAD_GATEWAY
         return ResponseEntity.status(status).body(ModelProbeResponse.from(report))
     }
@@ -37,7 +38,6 @@ class DiagnosticsController(private val diagnostics: ModelDiagnostics) {
 /** 模型探测报告的 HTTP 表示。 */
 data class ModelProbeResponse(
     val passed: Boolean,
-    val baseUrl: String,
     val model: String,
     val thinking: String,
     val checks: List<CheckResponse>,
@@ -46,7 +46,6 @@ data class ModelProbeResponse(
         /** 由应用层报告转换。 */
         fun from(report: ModelProbeReport) = ModelProbeResponse(
             passed = report.passed,
-            baseUrl = report.target.baseUrl,
             model = report.target.model,
             thinking = report.thinking.name.lowercase(),
             checks = report.results.map(CheckResponse::from),

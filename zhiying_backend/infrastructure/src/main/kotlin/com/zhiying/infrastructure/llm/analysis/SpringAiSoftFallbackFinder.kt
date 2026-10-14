@@ -66,8 +66,8 @@ class SpringAiSoftFallbackFinder(
         val outcome = executor.ask<FallbackReply>(
             system = FallbackPrompts.SYSTEM,
             user = FallbackPrompts.user(softTypes, request.strongTypes, request.items, config.fallbackInteractionsPerPair),
-            model = AnalysisPromptText.modelOf(config.model),
-            thinking = config.thinking,
+            model = request.control.models?.postProcess?.model ?: AnalysisPromptText.modelOf(config.model),
+            thinking = request.control.models?.postProcess?.thinking ?: config.thinking,
             control = request.control,
         )
         if (outcome is StructuredOutcome.Failed) {

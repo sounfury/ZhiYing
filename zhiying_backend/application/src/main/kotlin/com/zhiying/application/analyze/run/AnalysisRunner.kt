@@ -13,6 +13,8 @@ import com.zhiying.application.graphquery.RevisionStore
 import com.zhiying.application.library.LibraryQueries
 import com.zhiying.application.library.ForkBook
 import com.zhiying.application.library.ShelfItems
+import com.zhiying.application.llm.ModelSettings
+import com.zhiying.application.llm.ModelSnapshot
 import com.zhiying.application.quota.QuotaUsage
 import com.zhiying.application.quota.UsageLedger
 import com.zhiying.domain.account.Account
@@ -53,6 +55,7 @@ class AnalysisRunner(
     private val shelfItems: ShelfItems,
     private val forks: ForkBook,
     private val method: AnalysisMethod,
+    private val models: ModelSettings,
 ) : SmartInitializingSingleton, DisposableBean {
 
     private val log = LogFactory.getLog(AnalysisRunner::class.java)
@@ -129,6 +132,9 @@ class AnalysisRunner(
     /** 上传命中、分叉、删除与任务登记共用此锁。 */
     fun <T> withRegistrationLock(block: () -> T): T = synchronized(runs) { block() }
 
+    /** 用量看板与结算共用登记锁，避免重复统计刚结算的 token。 */
+    fun unsettledTokens(): Long = runs.values.filter { !it.quotaSettled }.sumOf { it.control.budget.usedTokens }
+
     fun hasUnsettledTask(bookId: BookId): Boolean = runs[bookId]?.quotaSettled == false
 
     fun requireIdle(bookId: BookId) {
@@ -160,9 +166,10 @@ class AnalysisRunner(
         body: (AnalysisRun, List<ReadItem>) -> Unit,
     ): AnalysisTask = synchronized(runs) {
         if (runs[bookId]?.quotaSettled == false) throw AppException(ErrorCode.ANALYSIS_ALREADY_RUNNING)
+        val modelSnapshot = models.snapshot()
         val items = outlines.map { outline ->
             val chapter = library.readChapter(outline.id)
-            ReadItem(chapter, if (force) null else reusable(chapter))
+            ReadItem(chapter, if (force) null else reusable(chapter, modelSnapshot))
         }
         val chars = outlines.zip(items).sumOf { (outline, item) -> if (item.reused == null) outline.wordCount.toLong() else 0L }
         val now = Instant.now()
@@ -182,7 +189,7 @@ class AnalysisRunner(
             chapters = outlines.map { ChapterRun(it.id, it.order, it.title) },
         )
         ledger.reserve(task, user.id, chars, itemId)
-        val run = AnalysisRun(task, tasks, settings.maxRequests, settings.maxTokens, user.id)
+        val run = AnalysisRun(task, tasks, settings.maxRequests, settings.maxTokens, user.id, modelSnapshot)
         runs[bookId] = run
         try {
             Thread.ofPlatform().name("analysis-${bookId.value}").start { execute(run, outlines) { body(it, items) } }
@@ -239,8 +246,8 @@ class AnalysisRunner(
     }
 
     /** 已存抽取在正文修订、模型、提示词版本都未变时可沿用。 */
-    private fun reusable(chapter: Chapter): StoredExtraction? =
-        extractions.findCurrent(chapter.id)?.takeIf { it.extraction.provenance == reader.provenanceFor(chapter.revision) }
+    private fun reusable(chapter: Chapter, models: ModelSnapshot): StoredExtraction? =
+        extractions.findCurrent(chapter.id)?.takeIf { it.extraction.provenance == reader.provenanceFor(chapter.revision, models) }
 
     // ───────────────────────── 单章重跑 ─────────────────────────
 
@@ -319,7 +326,7 @@ class AnalysisRunner(
         if (cancelled(run)) return
         run.setPhase(TaskPhase.INDUCING_AFFILIATIONS)
         val induction = affiliations.run(processed.revision, input.extractions, run.control)
-        val revision = induction.revision.withMethod(method.version, fullBook)
+        val revision = induction.revision.withMethod(method.version(requireNotNull(run.control.models)), fullBook)
         if (cancelled(run)) return
         run.setPhase(TaskPhase.PUBLISHING)
         revisions.save(revision)

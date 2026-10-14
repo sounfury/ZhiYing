@@ -240,7 +240,7 @@ export function resetApiSession(): void {
   window.dispatchEvent(new Event('zhiying:session-changed'))
 }
 
-async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+export async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
   const version = sessionVersion
   const headers = new Headers(init?.headers)
   if (!['GET', 'HEAD', 'OPTIONS'].includes((init?.method ?? 'GET').toUpperCase())) {
@@ -258,6 +258,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const version = sessionVersion
   const res = await apiFetch(path, init)
   if (!res.ok) throw new Error(await readError(res))
+  if (res.status === 204) return undefined as T
   const data = await res.json() as T
   if (version !== sessionVersion) throw new Error('账号已变化，请重新操作')
   return data
@@ -617,7 +618,7 @@ export function startRerun(bookId: string, chapterId: number): Promise<AnalyzeSt
 
 // ── Export ──
 
-async function readError(res: Response): Promise<string> {
+export async function readError(res: Response): Promise<string> {
   let detail = res.statusText
   try {
     const body = await res.json()

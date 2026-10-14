@@ -17,7 +17,7 @@
 | §4.1–4.2 | 账号与按用户隔离 | 已实现，见 DESIGN §5.5 |
 | §4.3 | 用量上限 | 已实现，见 DESIGN §5.6 |
 | §4.4 | 秒传 | 已实现第一版，见 DESIGN §5.4；按章正文跨书复用仍待做 → §2.5 |
-| §8 | 后台管理 | **未实现** → §5 |
+| §8 | 后台管理 | 已实现，见 DESIGN §5.7；反馈页签留给 §3 |
 | §6 | 反馈 | **未实现** → §3 |
 | §7 | TXT 上传 | **未实现** → §4 |
 
@@ -124,44 +124,3 @@ shortcut：不做提交频率限制。内测是邀请制，滥用的风险低；
 - 前端：上传 `accept` 加 `.txt`；书详情显示当前方案和「换一种分章」，弹窗里列出预览，已有分析结果时确认文案写明「会清空现有分析，已用额度不退还」
 
 shortcut：不支持用户自定义正则与多方案组合（PRD-beta §7「不做」）；以后要做，就是在资源文件之外再读一份用户规则，接口不变。
-
----
-
-## 5. 后台管理
-
-产品规则见 PRD-beta §8。都是管理员接口，沿用 `accounts.requireAdministrator`，挂在 `/api/admin/*` 下。
-
-### 5.1 页面
-
-前端新增 `/admin`，按页签挂载：用量、模型、评测（现 `EvalPage` 原样搬入，`/eval` 跳转到 `/admin?tab=eval`）、账号（现 `AdminPanel` 搬入，账号弹窗里的入口改成跳转）、反馈（反馈任务时再加）。书架上的「评测」入口改为「后台」。
-
-token 隐藏：书详情接口的 `token_usage` 只对管理员返回，前端三处显示（`HeaderBar`、`DetailPanel` 概况、`BookShelf` 卡片）没有该字段就不显示，不再按角色额外判断。
-
-### 5.2 用量看板
-
-只读 `usage_ledger`（DESIGN §5.6），不新建表：
-
-- `GET /api/admin/usage/daily?days=30`：按 `zhiying.quota.time-zone` 的自然日汇总 token；今日另加运行中任务的实时 token（与额度检查同一口径）
-- `GET /api/admin/usage/users`：按 `user_id` 汇总字数、token，连同书架条目数
-- `GET /api/admin/usage/books`：按条目汇总 token，带书名与所有者用户名
-
-查询按需聚合，内测数据量下不做缓存或预汇总表。
-
-### 5.3 模型配置
-
-新表 `model_settings`：
-
-| 列 | 说明 |
-|---|---|
-| `call_point` | 主键：`READING` / `POST_PROCESS` / `AFFILIATION` |
-| `model` | 模型名；空表示用 `zhiying.llm.model` |
-| `thinking` | 是否开思考 |
-| `updated_at`、`updated_by` | — |
-
-- 读取顺序：表里有行用表，否则用 `zhiying.reading` / `post-process` / `affiliation` 里现有的 `model`、`thinking`。表只覆盖这两项，地址与密钥仍只来自 `zhiying.llm.*`。这是「可调参数统一放 `ZhiYingProperties`」的唯一例外，ARCHITECTURE 里写明
-- 生效时机：任务启动时取一次当前配置，放进本次任务的调用上下文，整个任务用同一份；不在任务中途换模型。目前各调用点的模型在启动时装配，改为按调用传入模型名与思考开关（Spring AI 的请求级 options 支持）
-- 方法版本（DESIGN §5.4）改为按当前生效配置计算，所以后台换模型后旧结果自然不能秒传
-- `GET /api/admin/models` 返回三个调用点的生效值与来源（后台 / 配置文件）；`PUT /api/admin/models/{callPoint}` 修改；`DELETE` 恢复配置文件的值
-- 「测试连接」复用 `/api/diagnostics/model`，加一个可选的模型名参数
-
-shortcut：模型名不校验是否存在于服务商（没有统一的列模型接口），靠保存后点「测试连接」确认。

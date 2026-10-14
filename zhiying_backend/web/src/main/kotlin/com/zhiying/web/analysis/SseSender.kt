@@ -21,6 +21,7 @@ internal class SseSender(
     val emitter: SseEmitter,
     private val json: JsonMapper,
     keepalive: ScheduledExecutorService,
+    private val includeUsage: Boolean,
     private val sessionValid: () -> Boolean,
 ) {
     private val queue: ExecutorService = Executors.newSingleThreadExecutor(Thread.ofVirtual().name("sse-sender-", 0).factory())
@@ -47,7 +48,7 @@ internal class SseSender(
     /** 作为订阅回调：把一条任务事件排入队列（非阻塞）。队列已关闭时抛异常，订阅方据此移除本订阅。 */
     fun onEvent(event: AnalysisEvent) {
         val kind = if (event.kind == AnalysisEventKind.DONE) "done" else "progress"
-        val data = if (event.kind == AnalysisEventKind.DONE) AnalysisPayloads.done(event.task) else AnalysisPayloads.progress(event)
+        val data = if (event.kind == AnalysisEventKind.DONE) AnalysisPayloads.done(event.task, includeUsage) else AnalysisPayloads.progress(event, includeUsage)
         enqueue {
             emitter.send(
                 SseEmitter
@@ -63,7 +64,7 @@ internal class SseSender(
     /** 没有内存中的任务时，用持久化的最近一次任务（或 idle）合成一条 done 事件并结束连接。 */
     fun sendFinal(task: AnalysisTask?) {
         enqueue {
-            emitter.send(SseEmitter.event().name("done").data(json.writeValueAsString(AnalysisPayloads.done(task))))
+            emitter.send(SseEmitter.event().name("done").data(json.writeValueAsString(AnalysisPayloads.done(task, includeUsage))))
             finish()
         }
     }

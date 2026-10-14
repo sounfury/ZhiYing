@@ -1,6 +1,8 @@
-// 当前分析方法的摘要，由基础设施从各调用点的模型与提示版本装配。
+// 分析方法摘要按任务或当前生效模型快照计算，由基础设施提供提示版本。
 package com.zhiying.application.analyze.run
 
-data class AnalysisMethod(
-    val version: String,
-)
+import com.zhiying.application.llm.ModelSnapshot
+
+fun interface AnalysisMethod {
+    fun version(models: ModelSnapshot): String
+}
