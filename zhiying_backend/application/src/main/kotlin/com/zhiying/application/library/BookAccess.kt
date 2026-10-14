@@ -29,6 +29,13 @@ class BookAccess(
         if (items.get(id).userId != account.id) throw AppException(ErrorCode.NOT_FOUND)
     }
 
+    fun requireRead(user: Account?, id: BookId) {
+        if (!examples.isPublished(id)) {
+            if (examples.slug(id) != null) accounts.requireAdministrator(user)
+            requireOwner(user, id)
+        }
+    }
+
     fun requireWrite(
         user: Account?,
         id: BookId,

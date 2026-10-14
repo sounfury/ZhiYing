@@ -6,7 +6,7 @@ ZhiYing 面向想读中长篇小说、但被人物和称呼绕晕的读者：上
 
 系统由两部分组成：Kotlin 后端 `zhiying_backend/`（模块化单体）负责书籍导入、调用大模型逐章分析、汇总人物与关系、按结果版本发布，并通过 HTTP 提供给 React 前端 `frontend/`；前端负责书架、关系图浏览与分析进度展示。本文主要写后端，前端见末尾「前端」一节。产品范围见 [PRD](./PRD.md)，领域模型与分析流程细节见 [DESIGN](./DESIGN.md)。
 
-当前进度（2026-10-14）：从上传、整书分析（阅读单元调度、滚动人名册、后处理模型判断、团体归纳）到发布、出图与人物 / 类型 / 团体查询已全链路打通，并用真实模型跑通过单章重跑；账号、会话、邀请码、按用户隔离、用量上限与秒传第一版已完成，前端已接入，旧 Python 后端已删除。反馈、TXT 上传仍待实现；按章正文跨书复用留待后续；验收场景尚未落为测试。
+当前进度（2026-10-14）：从上传、整书分析（阅读单元调度、滚动人名册、后处理模型判断、团体归纳）到发布、出图与人物 / 类型 / 团体查询已全链路打通，并用真实模型跑通过单章重跑；账号、会话、邀请码、按用户隔离、用量上限、秒传第一版、后台管理与反馈已完成，前端已接入，旧 Python 后端已删除。TXT 上传仍待实现；按章正文跨书复用留待后续；验收场景尚未落为测试。
 
 ## 数据流
 
@@ -81,7 +81,7 @@ flowchart TD
 - **domain**：账号身份、角色及用户名 / 密码格式规则属于领域；不读取 Cookie、不执行密码算法、不访问数据库。
 - **application**：编排注册、登录、退出、邀请码创建、密码重置及首次管理员引导，生成随机会话 token；定义所需存储与密码算法接口。先查会话身份、书主或已发布示例，再执行查询或操作；章、任务、SSE 与导出入口都沿关联书检查权限。管理员角色仅增加维护能力，不授予他人私有书权限。
 - **infrastructure**：实现 SQLite 账号、邀请码、会话与书主存储，以及 JDK 密码派生与会话哈希；配置通过 `ZhiYingProperties` 绑定并装配应用层设置。管理员引导保留已有数据，只补齐无主书的归属。
-- **web / frontend**：web 处理 HTTP 会话与 CSRF 边界；前端提供登录、邀请码注册、退出；管理员入口统一为 `/admin` 的用量、模型、评测与账号页签，旧 `/eval` 跳转后台，按角色展示维护操作。前端与 API 使用同一站点，不开放 CORS；部署命令见 README。
+- **web / frontend**：web 处理 HTTP 会话与 CSRF 边界；前端提供登录、邀请码注册、退出；管理员入口统一为 `/admin` 的用量、模型、评测、账号与反馈页签，旧 `/eval` 跳转后台，按角色展示维护操作。前端与 API 使用同一站点，不开放 CORS；部署命令见 README。
 - **对应位置**：`domain/…/account`、`application/…/account`、`application/…/library/BookAccess.kt`、`infrastructure/…/persistence/account`、`infrastructure/…/config/AccountConfiguration.kt`。
 
 ### quota · 用量上限
@@ -92,6 +92,15 @@ flowchart TD
 - **infrastructure**：`zhiying.quota.*` 由 `ZhiYingProperties` 绑定，`QuotaConfiguration` 校验 multipart 上限；SQLite 流水每任务一行，不对书建外键，删除书和清空分析不删除；首次读取标记支持服务重启结算，启动补齐已有数据库的标记列。
 - **web / frontend**：`/api/me/usage` 仅返回当前登录账号的书数和字数，书架顶部显示启用额度，直接展示后端超限提示。
 - **对应位置**：`domain/…/quota`、`application/…/quota`、`infrastructure/…/persistence/quota`、`infrastructure/…/config/QuotaConfiguration.kt`、`web/…/account/UsageController.kt`。
+
+### feedback · 用户反馈
+
+- **实现状态**：已完成；产品规则见 PRD §5.16，模型与接口见 DESIGN §5.8。
+- **domain**：`Feedback` 保存不可变提交快照并校验对象引用、范围、关系键和说明长度，不改变分析结果。
+- **application**：`Feedbacks` 确认登录、条目读权限与真实结果版本后保存；管理员仅查看和导出反馈，私人书不加载结果、不放开读权限。
+- **infrastructure**：`SqliteFeedbackStore` 追加并读取独立 `feedback` 表；保存书名和对象名称，删除书或清空结果不级联删除反馈。
+- **web / frontend**：两个提交入口成功返回 204；管理员列表与 JSONL 导出仅管理员可用。人物、关系、势力和通用反馈共用表单；管理页面接入 `/admin?tab=feedback`。
+- **对应位置**：`domain/…/feedback`、`application/…/feedback`、`infrastructure/…/persistence/feedback`、`web/…/feedback`、`frontend/src/feedback`、`frontend/src/admin/FeedbackPanel.tsx`。
 
 ### importbook · 书籍导入与书库
 
@@ -262,7 +271,8 @@ flowchart TD
 | `src/components/GraphView/`、`src/graphLayout.ts`、`src/graphPlacement.ts`、`src/factions.ts` | 关系图：场景编排、布局与拓扑细化、势力配色、相机、样式与图例，基于 G6 渲染 |
 | `src/components/` 其余 | 登录、邀请码注册、账号与管理员操作，顶栏、书架与上传、本人额度展示、章节聚焦条、图工具栏与筛选、侧栏（人物、章节、详情）、分析进度 |
 | `src/styles/`、`src/theme.ts` | 设计变量与样式；主题在跟随系统 / 浅 / 深之间切换 |
-| `src/Root.tsx`、`src/eval/` | 页面路由；`/eval` 为管理员评测页（按需加载），自带评测接口客户端 `evalApi.ts` |
+| `src/Root.tsx`、`src/admin/`、`src/eval/` | 页面路由；管理员后台统一用量、模型、评测、账号与反馈页签，旧 `/eval` 跳转 `/admin?tab=eval`；评测自带客户端 `evalApi.ts` |
+| `src/feedback/` | 登录后的对象与通用反馈表单、真实版本与范围快照、提交提示及反馈接口客户端 |
 
 图谱绘制按场景编排、几何计算、渲染分工：`layout.ts` 生成初始位置，再由 `graphPlacement.ts` 在势力内细化并按实际足迹重新装箱；亲疏视图保留扇区和径向档位。`routing.ts` 优先保留直线，存在遮挡或明显重叠时计算曲线绕行路径，`curveGeometry.ts` 统一生成贝塞尔曲线及采样，`curveEdge.ts` 接入 G6。`labels.ts` 按缩放与关注对象共同安排姓名和关系文字，空间不足时隐藏文字，内容仍由浮窗和详情提供；拖动结束后刷新路径与文字。可见行为见 PRD §5.7.2。
 

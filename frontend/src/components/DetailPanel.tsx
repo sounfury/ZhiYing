@@ -21,6 +21,7 @@ import { UNASSIGNED_FACTION_ID, factionColor } from '../factions'
 import { edgeDirection } from '../relationDirection'
 import { GENDER_LABEL, IMPORTANCE_LABEL, formatTokens, shortTitle } from '../labels'
 import { Avatar, HardnessSymbol, PersonRow } from './PersonParts'
+import { FeedbackButton } from '../feedback/FeedbackButton'
 import {
   HARDNESS_LABEL,
   HARDNESS_ORDER,
@@ -265,6 +266,7 @@ function PersonCard({
           <Avatar name={node.name} color={color} />
           <div className="who-text">
             <h2>{node.name}</h2>
+            <FeedbackButton target={{ targetKind: 'PERSON', targetRef: node.person_id, targetLabel: node.name }} />
             <div className="chips">
               {chips.map((c) => (
                 <span key={c.text} className={`chip${c.key ? ' k' : ''}`}>
@@ -585,6 +587,7 @@ function EdgeCard({ edge, graph, chapterLabel, onFocusPerson }: DetailPanelProps
                 </p>
               )}
               <Evidences tag={t} chapterLabel={label} />
+              <FeedbackButton target={{ targetKind: 'RELATION', targetRef: `${edge.person_a}/${edge.person_b}/${t.key}`, targetLabel: `${nameOf(edge.person_a)}—${nameOf(edge.person_b)}：${t.label}` }} />
             </section>
           )
         })}

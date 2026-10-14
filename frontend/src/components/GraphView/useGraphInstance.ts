@@ -51,6 +51,7 @@ type Args = {
   onSelectEdge?: (edge: GraphEdge | null) => void
   onSelectNode?: (node: GraphNode | null) => void
   onEnterEgo?: (personId: string) => void
+  onSelectGroup?: (group: { id: string; x: number; y: number } | null) => void
   onHover?: (info: HoverInfo | null) => void
 }
 
@@ -69,6 +70,7 @@ export function useGraphInstance({
   onSelectEdge,
   onSelectNode,
   onEnterEgo,
+  onSelectGroup,
   onHover,
 }: Args) {
   const graphRef = useRef<Graph | null>(null)
@@ -79,8 +81,8 @@ export function useGraphInstance({
   const dollyCancelRef = useRef<(() => void) | null>(null)
 
   // 回调存 ref：调用方常传内联箭头函数，放进建图依赖会让任何状态变化都重建图
-  const cb = useRef({ onSelectEdge, onSelectNode, onEnterEgo, onHover })
-  cb.current = { onSelectEdge, onSelectNode, onEnterEgo, onHover }
+  const cb = useRef({ onSelectEdge, onSelectNode, onEnterEgo, onSelectGroup, onHover })
+  cb.current = { onSelectEdge, onSelectNode, onEnterEgo, onSelectGroup, onHover }
 
   // 交互态存 ref：变化时只重算样式
   const paletteRef = useRef<Palette | null>(null)
@@ -358,6 +360,7 @@ export function useGraphInstance({
       if (client && Math.hypot(client.x - down.x, client.y - down.y) > 4) return
       cb.current.onSelectEdge?.(null)
       cb.current.onSelectNode?.(null)
+      cb.current.onSelectGroup?.(null)
     }
 
     graph.on('node:click', (evt: unknown) => {
@@ -377,7 +380,13 @@ export function useGraphInstance({
       cb.current.onSelectNode?.(null)
     })
     graph.on('canvas:click', clear)
-    graph.on('combo:click', clear)
+    graph.on('combo:click', (evt: unknown) => {
+      const client = (evt as { client?: { x: number; y: number } }).client
+      if (client && Math.hypot(client.x - down.x, client.y - down.y) > 4) return
+      clear(evt)
+      const id = idOf(evt)
+      if (id) cb.current.onSelectGroup?.({ id, ...local(evt) })
+    })
 
     // 浮卡跟随鼠标：以「当前指着谁」为准，不等高亮生效
     let pointedNode: string | null = null

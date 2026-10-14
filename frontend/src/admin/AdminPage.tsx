@@ -1,14 +1,15 @@
-/** 后台统一入口：用量、模型、现有评测与账号工具，仅由管理员路由挂载。 */
+/** 后台统一入口：用量、模型、评测、账号与反馈，仅由管理员路由挂载。 */
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { apiUrl } from '../api'
 import { AccountButton } from '../components/AccountDialog'
 import { AdminPanel } from '../components/AdminPanel'
 import UsagePanel from './UsagePanel'
 import ModelsPanel from './ModelsPanel'
+import FeedbackPanel from './FeedbackPanel'
 import './admin.css'
 
 const EvalPage = lazy(() => import('../eval/EvalPage'))
-const TABS = { usage: '用量', models: '模型', eval: '评测', accounts: '账号' }
+const TABS = { usage: '用量', models: '模型', eval: '评测', accounts: '账号', feedback: '反馈' }
 type Tab = keyof typeof TABS
 const currentTab = (): Tab => {
   const value = new URLSearchParams(window.location.search).get('tab')
@@ -34,6 +35,7 @@ export default function AdminPage() {
     </header>
     {tab === 'usage' && <UsagePanel />}
     {tab === 'models' && <ModelsPanel />}
+    {tab === 'feedback' && <FeedbackPanel />}
     {tab === 'accounts' && <section className="admin-content" aria-label="账号管理"><h2>账号</h2><AdminPanel /></section>}
     {tab === 'eval' && <Suspense fallback={<p role="status">正在加载评测…</p>}><EvalPage /></Suspense>}
   </main>

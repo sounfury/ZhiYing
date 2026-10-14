@@ -4,6 +4,7 @@
  * 通过 ref 对外提供 PNG 导出（PRD-beta §5）：按当前场景与人物的当前位置重画整张图。
  */
 import { useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
+import { FeedbackButton } from '../../feedback/FeedbackButton'
 import { UNASSIGNED_FACTION_ID } from '../../factions'
 import type { GraphViewHandle, GraphViewProps } from './types'
 import { downloadBlob, pngFilename, renderGraphPng } from './exportPng'
@@ -32,6 +33,7 @@ export function GraphView({
   const wrapRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const [hover, setHover] = useState<HoverInfo | null>(null)
+  const [groupPick, setGroupPick] = useState<{ id: string; x: number; y: number } | null>(null)
 
   const defaultCenterId = useMemo(() => pickCenter(data.nodes, data.edges), [data.nodes, data.edges])
   const isEgoMode = !!egoPersonId && data.nodes.some((n) => n.person_id === egoPersonId)
@@ -98,6 +100,7 @@ export function GraphView({
     onSelectEdge,
     onSelectNode,
     onEnterEgo,
+    onSelectGroup: setGroupPick,
     onHover: setHover,
   })
 
@@ -138,10 +141,18 @@ export function GraphView({
   }
 
   const wrap = wrapRef.current
+  const pickedGroup = useFactionLayout && groupPick && scene?.combos.some((c) => c.id === groupPick.id)
+    ? viewFactions.find((f) => f.faction_id === groupPick.id && f.faction_id !== UNASSIGNED_FACTION_ID)
+    : undefined
 
   return (
     <div className="graph-wrap" ref={wrapRef}>
       <div className="graph-canvas" ref={containerRef} />
+      {pickedGroup && groupPick && <div className="float feedback-group" style={{ left: Math.max(8, Math.min(groupPick.x, (wrap?.clientWidth ?? 800) - 240)), top: Math.max(8, Math.min(groupPick.y, (wrap?.clientHeight ?? 600) - 100)) }}>
+        <strong>{pickedGroup.name}</strong>
+        <FeedbackButton target={{ targetKind: 'GROUP', targetRef: pickedGroup.faction_id, targetLabel: pickedGroup.name }} />
+        <button type="button" className="btn ghost" aria-label="关闭势力反馈入口" onClick={() => setGroupPick(null)}>✕</button>
+      </div>}
       <GraphLegend
         factions={viewFactions}
         showFactions

@@ -46,6 +46,10 @@ class ExampleAccessConfiguration(
                             accounts.requireAdministrator(user)
                             return true
                         }
+                        if (route == "/api/feedback") {
+                            accounts.requireUser(user)
+                            return true
+                        }
                         if (route == "/api/me/usage") {
                             accounts.requireUser(user)
                             return true
@@ -59,7 +63,10 @@ class ExampleAccessConfiguration(
                         val variables = request.getAttribute(HandlerMapping.URI_TEMPLATE_VARIABLES_ATTRIBUTE) as Map<String, String>
                         val id = variables["bookId"]?.let(::BookId) ?: throw AppException(ErrorCode.NOT_FOUND)
                         val suffix = route.removePrefix("/api/books/{bookId}")
-                        if (request.method in setOf("GET", "HEAD")) {
+                        if (suffix == "/feedback") {
+                            accounts.requireUser(user)
+                            books.requireRead(user, id)
+                        } else if (request.method in setOf("GET", "HEAD")) {
                             if (suffix !in READ_ROUTES || !examples.isPublished(id)) {
                                 if (examples.slug(id) != null) accounts.requireAdministrator(user)
                                 books.requireOwner(user, id)

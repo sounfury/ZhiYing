@@ -117,6 +117,8 @@ export type ChapterFocusParam = { chapter: number; mode: ChapterMode }
 
 export type GraphData = {
   book_id: string
+  /** 本次图查询固定读取的真实结果版本；尚无已发布结果时为空。 */
+  revision_id: string | null
   /** 当前章节聚焦范围；null / 缺省 = 全书视图 */
   chapter_focus?: ChapterFocusParam | null
   chapter_range: number[]

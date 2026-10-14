@@ -4,7 +4,8 @@
  * Esc 退出中心视图由 App 全局处理，这里不重复绑定。
  */
 import type { GraphFaction, GraphNode } from '../../api'
-import { factionColor } from '../../factions'
+import { factionColor, UNASSIGNED_FACTION_ID } from '../../factions'
+import { FeedbackButton } from '../../feedback/FeedbackButton'
 import { edgeDirection } from '../../relationDirection'
 import { edgeHardness, tagHardness } from './layout'
 import type { HoverInfo } from './useGraphInstance'
@@ -77,6 +78,7 @@ export function GraphLegend({
             <div key={f.faction_id} title={`${f.name} · ${f.member_ids.length} 人`}>
               <span className="dot" style={{ background: factionColor(f) }} />
               <span className="nm">{f.name}</span>
+              {f.faction_id !== UNASSIGNED_FACTION_ID && <FeedbackButton target={{ targetKind: 'GROUP', targetRef: f.faction_id, targetLabel: f.name }} />}
             </div>
           ))}
         </div>

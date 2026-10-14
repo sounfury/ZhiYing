@@ -17,7 +17,7 @@ export function readBookLink(search: string) {
   }
 }
 
-export function bookLink(base: string, book: BookMeta, chapterFocus: ChapterFocusState, person: string | null): string {
+export function bookLink(base: string, book: Pick<BookMeta, 'book_id' | 'example_slug'>, chapterFocus: ChapterFocusState, person: string | null): string {
   let url: URL
   try {
     url = new URL(base)

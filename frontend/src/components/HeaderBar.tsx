@@ -9,6 +9,7 @@ import { THEME_LABEL, useTheme } from '../theme'
 import { PersonSearch, type PersonHit } from './PersonSearch'
 import { AccountButton } from './AccountDialog'
 import { useAuth } from '../useAuth'
+import { FeedbackButton } from '../feedback/FeedbackButton'
 
 interface HeaderBarProps {
   selectedBook?: BookMeta
@@ -120,6 +121,7 @@ export function HeaderBar({
         />
       )}
 
+      <FeedbackButton target={{ targetKind: 'GENERAL' }}>反馈</FeedbackButton>
       <AccountButton />
       <ThemeToggle />
     </header>

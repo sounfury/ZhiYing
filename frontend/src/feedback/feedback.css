@@ -1,0 +1,9 @@
+/* 反馈入口、提交提示与后台快照列表，沿用已有按钮、弹窗和主题变量。 */
+.feedback-button { white-space: nowrap; }
+.lg-factions .feedback-button { padding: 2px 6px; font-size: 11px; }
+.feedback-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; align-items: center; gap: 20px; padding: 12px 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); box-shadow: 0 4px 20px #0002; }
+.feedback-toast button { border: 0; background: transparent; color: inherit; cursor: pointer; }
+.feedback-group { z-index: 5; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; max-width: min(232px, calc(100% - 16px)); padding: 8px; }
+.feedback-group strong { overflow-wrap: anywhere; }
+.feedback-record { border-bottom: 1px solid var(--line); padding: 16px 0; overflow-wrap: anywhere; }
+.feedback-record p { white-space: pre-wrap; }
