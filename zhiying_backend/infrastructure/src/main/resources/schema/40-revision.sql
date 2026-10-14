@@ -15,3 +15,20 @@ CREATE TABLE IF NOT EXISTS published_revision (
     revision_id  TEXT NOT NULL REFERENCES analysis_revision (revision_id),
     published_at TEXT NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%fZ', 'now'))
 );
+
+-- 把章抽取固定到结果版本；重读期间仍可查看上一版的摘要与证据。
+CREATE TABLE IF NOT EXISTS revision_extraction (
+    revision_id TEXT NOT NULL REFERENCES analysis_revision (revision_id) ON DELETE CASCADE,
+    chapter_id TEXT NOT NULL,
+    extraction_id TEXT NOT NULL REFERENCES chapter_extraction (extraction_id),
+    PRIMARY KEY (revision_id, chapter_id)
+);
+
+-- 兼容已有结果：只在没有运行中任务时补齐旧版本的抽取快照。
+INSERT OR IGNORE INTO revision_extraction (revision_id, chapter_id, extraction_id)
+SELECT p.revision_id, c.chapter_id, c.extraction_id
+FROM published_revision p
+JOIN chapter_extraction_current c ON c.book_id = p.book_id
+WHERE NOT EXISTS (
+    SELECT 1 FROM analysis_task t WHERE t.book_id = p.book_id AND t.status = 'RUNNING'
+);

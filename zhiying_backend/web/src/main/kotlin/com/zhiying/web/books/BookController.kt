@@ -8,6 +8,7 @@ import com.zhiying.application.analyze.run.TaskUsage
 import com.zhiying.application.importbook.ImportBook
 import com.zhiying.application.library.BookOverview
 import com.zhiying.application.library.LibraryQueries
+import com.zhiying.application.library.ExampleBooks
 import com.zhiying.application.removal.BookRemoval
 import com.zhiying.domain.library.BookId
 import com.zhiying.domain.library.ChapterInclusion
@@ -32,6 +33,7 @@ class BookController(
     private val library: LibraryQueries,
     private val analysis: AnalysisQueries,
     private val removal: BookRemoval,
+    private val examples: ExampleBooks,
 ) {
 
     /** 上传 EPUB（表单字段 file）：解析并保存，返回 201 与新书摘要；无法解析返回 UNREADABLE_BOOK。 */
@@ -44,9 +46,19 @@ class BookController(
     /** 书目列表，新导入的在前。 */
     @GetMapping
     fun list(): BookListResponse {
-        val books = library.listBooks()
+        val books = library.listBooks().filter { !examples.publicOnly || examples.isPublished(it.book.id) }
         val usage = analysis.bookUsage(books.map { it.book.id })
-        return BookListResponse(books.map { BookResponse.from(it, analysis.bookStatus(it.book.id), usage.getValue(it.book.id)) })
+        return BookListResponse(books.map { response(it, usage.getValue(it.book.id)) }, examples.publicOnly)
+    }
+
+    private fun response(overview: BookOverview, usage: TaskUsage): BookResponse {
+        val id = overview.book.id
+        val publishedExample = examples.isPublished(id)
+        val status = if (publishedExample) examples.publishedStatus(id) else analysis.bookStatus(id)
+        return BookResponse.from(overview, status, if (publishedExample) TaskUsage() else usage).copy(
+            exampleSlug = examples.slug(id),
+            sourceFile = if (examples.publicOnly) "" else overview.originalName,
+        )
     }
 
     /** 单本书详情；不存在返回 NOT_FOUND。 */
@@ -54,7 +66,7 @@ class BookController(
     fun detail(@PathVariable bookId: String): BookResponse {
         val overview = library.getBook(BookId(bookId))
         val id = overview.book.id
-        return BookResponse.from(overview, analysis.bookStatus(id), analysis.bookUsage(listOf(id)).getValue(id))
+        return response(overview, analysis.bookUsage(listOf(id)).getValue(id))
     }
 
     /** 章节列表（不含正文），含不参与分析的章节及原因；书不存在返回 NOT_FOUND。 */
@@ -108,6 +120,7 @@ data class BookResponse(
     @JsonProperty("analysis_chapter_count") val analysisChapterCount: Int,
     @JsonProperty("analysis_progress") val analysisProgress: AnalysisProgressResponse,
     @JsonProperty("token_usage") val tokenUsage: TokenUsageResponse,
+    @JsonProperty("example_slug") val exampleSlug: String? = null,
 ) {
     companion object {
         /** 由书概览与分析状态构造；作者缺失时给空串，与前端类型一致。 */
@@ -139,7 +152,7 @@ data class TokenUsageResponse(
 )
 
 /** 书目列表响应。 */
-data class BookListResponse(val books: List<BookResponse>)
+data class BookListResponse(val books: List<BookResponse>, @JsonProperty("public_only") val publicOnly: Boolean)
 
 /**
  * 章节概要的 HTTP 表示。

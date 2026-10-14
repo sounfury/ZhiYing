@@ -18,6 +18,7 @@ interface LedgerPanelProps {
   rerunningChapterId: number | null
   /** 分析进行中：禁止重读 */
   disabled: boolean
+  readOnly: boolean
   nameOf: (personId: string) => string
   onFocusChapter: (chapterId: number) => void
   onRerun: (chapterId: number) => void
@@ -32,6 +33,7 @@ export function LedgerPanel({
   onRequest,
   rerunningChapterId,
   disabled,
+  readOnly,
   nameOf,
   onFocusChapter,
   onRerun,
@@ -60,6 +62,7 @@ export function LedgerPanel({
           onRequest={onRequest}
           rerunning={rerunningChapterId === c.chapter_id}
           rerunBlocked={disabled || rerunningChapterId != null}
+          readOnly={readOnly}
           nameOf={nameOf}
           onFocusChapter={onFocusChapter}
           onRerun={onRerun}
@@ -79,6 +82,7 @@ function ChapterCard({
   onRequest,
   rerunning,
   rerunBlocked,
+  readOnly,
   nameOf,
   onFocusChapter,
   onRerun,
@@ -92,6 +96,7 @@ function ChapterCard({
   onRequest: (chapterId: number) => void
   rerunning: boolean
   rerunBlocked: boolean
+  readOnly: boolean
   nameOf: (personId: string) => string
   onFocusChapter: (chapterId: number) => void
   onRerun: (chapterId: number) => void
@@ -179,7 +184,7 @@ function ChapterCard({
           </button>
         )}
         <span className="grow" />
-        <button
+        {!readOnly && <button
           type="button"
           className="btn ghost sm"
           disabled={rerunBlocked}
@@ -191,7 +196,7 @@ function ChapterCard({
         >
           {rerunning && <span className="spin" aria-hidden="true" />}
           {rerunning ? '重读中…' : '重读本章'}
-        </button>
+        </button>}
       </div>
     </div>
   )

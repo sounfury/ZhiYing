@@ -11,6 +11,7 @@ import { EpubDropZone } from './EpubDropZone'
 interface BookShelfProps {
   open: boolean
   books: BookMeta[]
+  publicOnly: boolean
   bookId: string
   onClose: () => void
   onSelect: (bookId: string) => void
@@ -19,7 +20,7 @@ interface BookShelfProps {
   onClearAnalysis: (bookId: string) => Promise<void>
 }
 
-export function BookShelf({ open, books, bookId, onClose, onSelect, onUpload, onDelete, onClearAnalysis }: BookShelfProps) {
+export function BookShelf({ open, books, publicOnly, bookId, onClose, onSelect, onUpload, onDelete, onClearAnalysis }: BookShelfProps) {
   const closeRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -43,8 +44,14 @@ export function BookShelf({ open, books, bookId, onClose, onSelect, onUpload, on
           </button>
         </h2>
         <div className="shelf-list">
-          {books.length === 0 && <p className="hint">书架还是空的，拖一本 EPUB 进来吧。</p>}
-          {books.map((b) => (
+          {books.length === 0 && <p className="hint">{publicOnly ? '示例书正在准备中，请稍后再来。' : '书架还是空的，拖一本 EPUB 进来吧。'}</p>}
+          {[
+            { title: '示例', books: books.filter((b) => b.example_slug) },
+            { title: '我的书', books: books.filter((b) => !b.example_slug) },
+          ].filter((group) => group.books.length > 0).map((group) => (
+            <section key={group.title} aria-label={group.title}>
+              <h3>{group.title}</h3>
+              {group.books.map((b) => (
             <BookCard
               key={b.book_id}
               book={b}
@@ -56,17 +63,19 @@ export function BookShelf({ open, books, bookId, onClose, onSelect, onUpload, on
               onDelete={() => void onDelete(b.book_id)}
               onClearAnalysis={() => void onClearAnalysis(b.book_id)}
             />
+              ))}
+            </section>
           ))}
         </div>
-        <EpubDropZone
+        {!publicOnly && <EpubDropZone
           onUpload={async (f) => {
             await onUpload(f)
             onClose()
           }}
-        />
-        <a className="shelf-eval hint" href="/eval">
+        />}
+        {!publicOnly && <a className="shelf-eval hint" href="/eval">
           评测（开发者工具）→
-        </a>
+        </a>}
       </aside>
     </div>
   )
@@ -133,7 +142,7 @@ function BookCard({ book, current, onClick, onDelete, onClearAnalysis }: BookCar
           </p>
         </span>
       </button>
-      <div className="bk-actions">
+      {!book.example_slug && <div className="bk-actions">
         <button
           type="button"
           className="btn ghost"
@@ -152,7 +161,7 @@ function BookCard({ book, current, onClick, onDelete, onClearAnalysis }: BookCar
         >
           删除
         </button>
-      </div>
+      </div>}
     </div>
   )
 }

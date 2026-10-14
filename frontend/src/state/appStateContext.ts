@@ -17,6 +17,8 @@ import type { AnalysisUi, ChapterFocusState, SideTab } from '../types'
 
 export type AppStateValue = {
   books: BookMeta[]
+  publicOnly: boolean
+  onShare: () => Promise<void>
   bookId: string
   selectedBook: BookMeta | undefined
   handleBookChange: (bookId: string) => void

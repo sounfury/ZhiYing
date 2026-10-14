@@ -6,20 +6,22 @@ import { EpubDropZone } from './EpubDropZone'
 
 interface EmptyStateProps {
   books: BookMeta[]
+  publicOnly: boolean
   onSelectBook: (bookId: string) => void
   onUpload: (file: File | null) => Promise<void>
 }
 
-export function EmptyState({ books, onSelectBook, onUpload }: EmptyStateProps) {
+export function EmptyState({ books, publicOnly, onSelectBook, onUpload }: EmptyStateProps) {
   return (
     <div className="empty-state">
       <p className="empty-kicker">织影 ZHIYING</p>
       <h2>把一本小说织成人物关系图</h2>
       <p className="empty-lead">
-        导入 EPUB，系统逐章阅读、自动归并人物与关系，出图后可按章节翻看、点人物看原文依据。
+        {publicOnly ? '直接打开示例书，按章节翻看人物关系，点人物查看原文依据，无需上传或等待。' : '导入 EPUB，系统逐章阅读、自动归并人物与关系，出图后可按章节翻看、点人物看原文依据。'}
       </p>
 
-      <EpubDropZone onUpload={onUpload} className="empty-drop" />
+      {!publicOnly && <EpubDropZone onUpload={onUpload} className="empty-drop" />}
+      {publicOnly && books.length === 0 && <p className="hint">示例书正在准备中，请稍后再来。</p>}
 
       {books.length > 0 && (
         <div className="empty-shelf">

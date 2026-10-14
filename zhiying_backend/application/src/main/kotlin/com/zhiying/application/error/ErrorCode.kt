@@ -7,7 +7,9 @@ package com.zhiying.application.error
  * 只登记需要调用方区分处理的错误；HTTP 状态映射由 web 层负责，新增错误码时编译器会提示补齐映射。
  * 模型调用的执行失败（[com.zhiying.application.diagnostics.ModelFailure]）是业务结果而非错误码，不在此登记。
  */
-enum class ErrorCode(val defaultMessage: String) {
+enum class ErrorCode(
+    val defaultMessage: String,
+) {
     /** 请求参数缺失、格式错误或取值不合法。 */
     INVALID_ARGUMENT("请求参数不合法"),
 
@@ -22,6 +24,9 @@ enum class ErrorCode(val defaultMessage: String) {
 
     /** 请求方法、内容类型等不被接口支持。 */
     REQUEST_NOT_SUPPORTED("不支持该请求"),
+
+    /** 公开示例站点或示例书拒绝写操作。 */
+    READ_ONLY("当前资源只允许浏览"),
 
     /** 未预期的内部错误，详情只记日志，不返回给调用方。 */
     INTERNAL_ERROR("服务内部错误"),

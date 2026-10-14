@@ -3,6 +3,8 @@ package com.zhiying.application.analyze.run
 
 import com.zhiying.application.error.AppException
 import com.zhiying.application.error.ErrorCode
+import com.zhiying.application.graphquery.RevisionStore
+import com.zhiying.application.library.ExampleBooks
 import com.zhiying.application.library.LibraryQueries
 import com.zhiying.domain.library.BookId
 import org.springframework.stereotype.Service
@@ -14,6 +16,8 @@ class AnalysisQueries(
     private val runner: AnalysisRunner,
     private val tasks: AnalysisTaskStore,
     private val extractions: ExtractionStore,
+    private val examples: ExampleBooks,
+    private val revisions: RevisionStore,
 ) {
     /** 该书当前任务快照：有运行中的任务取其实时快照，否则取最近一次任务；从未分析过返回 null。书不存在抛 NOT_FOUND。 */
     fun currentTask(bookId: BookId): AnalysisTask? {
@@ -31,10 +35,24 @@ class AnalysisQueries(
     fun bookUsage(bookIds: Collection<BookId>): Map<BookId, TaskUsage> = tasks.usageByBook(bookIds)
 
     /** 某章（阅读序号）当前的抽取结果；该章尚未分析抛 NOT_FOUND。 */
-    fun chapterExtraction(bookId: BookId, order: Int): StoredExtraction {
-        val chapter = library.listChapters(bookId).firstOrNull { it.order == order }
-            ?: throw AppException(ErrorCode.NOT_FOUND, "章节不存在：${bookId.value} 第 $order 章")
-        return extractions.findCurrent(chapter.id)
-            ?: throw AppException(ErrorCode.NOT_FOUND, "第 $order 章尚未分析")
+    fun chapterExtraction(
+        bookId: BookId,
+        order: Int,
+    ): StoredExtraction {
+        val chapter =
+            library.listChapters(bookId).firstOrNull { it.order == order }
+                ?: throw AppException(ErrorCode.NOT_FOUND, "章节不存在：${bookId.value} 第 $order 章")
+        val stored =
+            if (examples.slug(bookId) != null) {
+                val revision = revisions.findPublished(bookId)
+                if (revision == null || chapter.id !in revision.analyzedChapters) {
+                    null
+                } else {
+                    extractions.findPublished(bookId, chapter.id)
+                }
+            } else {
+                extractions.findCurrent(chapter.id)
+            }
+        return stored ?: throw AppException(ErrorCode.NOT_FOUND, "第 $order 章尚未分析")
     }
 }

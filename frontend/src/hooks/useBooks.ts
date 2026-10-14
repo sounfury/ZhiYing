@@ -1,3 +1,4 @@
+/** 书架加载与公开模式读取；加载失败时保持只读。 */
 import { useCallback, useEffect, useState } from 'react'
 import { listBooks, type BookMeta } from '../api'
 
@@ -9,12 +10,21 @@ import { listBooks, type BookMeta } from '../api'
 export function useBooks() {
   const [books, setBooks] = useState<BookMeta[]>([])
   const [booksLoaded, setBooksLoaded] = useState(false)
+  const [publicOnly, setPublicOnly] = useState(true)
+  const [booksError, setBooksError] = useState('')
 
   const refreshBooks = useCallback(async (): Promise<BookMeta[]> => {
-    const list = await listBooks()
-    setBooks(list)
-    setBooksLoaded(true)
-    return list
+    try {
+      const data = await listBooks()
+      setBooks(data.books ?? [])
+      setPublicOnly(data.public_only)
+      setBooksError('')
+      setBooksLoaded(true)
+      return data.books ?? []
+    } catch (e) {
+      setBooksError(e instanceof Error ? e.message : String(e))
+      throw e
+    }
   }, [])
 
   useEffect(() => {
@@ -23,5 +33,5 @@ export function useBooks() {
     })
   }, [refreshBooks])
 
-  return { books, booksLoaded, refreshBooks }
+  return { books, booksLoaded, publicOnly, booksError, refreshBooks }
 }

@@ -17,7 +17,10 @@ interface AnalysisTaskStore {
      * 整书任务同时刷新书的分析状态；单章重跑不改写书的分析状态。
      * 写入是短事务，调用方不得在模型调用期间持有事务；章数很多时不能每次都重写全部章。
      */
-    fun update(task: AnalysisTask, changed: ChapterRun? = null)
+    fun update(
+        task: AnalysisTask,
+        changed: ChapterRun? = null,
+    )
 
     /** 按任务 ID 取快照。 */
     fun find(id: TaskId): AnalysisTask?
@@ -48,10 +51,21 @@ data class StoredExtraction(
  */
 interface ExtractionStore {
     /** 保存一份章抽取并把该章当前指针切到它（同一短事务）；[bookId] 用于按书列出。 */
-    fun save(bookId: BookId, taskId: TaskId, extraction: ChapterExtraction, warnings: List<String>)
+    fun save(
+        bookId: BookId,
+        taskId: TaskId,
+        extraction: ChapterExtraction,
+        warnings: List<String>,
+    )
 
     /** 取某章当前的抽取；该章尚无抽取返回 null。 */
     fun findCurrent(chapterId: ChapterId): StoredExtraction?
+
+    /** 已发布结果对应的章抽取；维护重读不会改变返回内容。 */
+    fun findPublished(
+        bookId: BookId,
+        chapterId: ChapterId,
+    ): StoredExtraction?
 
     /** 列出某本书各章当前的抽取（顺序不保证，调用方按阅读序号排列）。 */
     fun listCurrent(bookId: BookId): List<StoredExtraction>

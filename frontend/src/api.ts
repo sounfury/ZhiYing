@@ -7,6 +7,8 @@ export function apiUrl(path: string): string {
 
 export type BookMeta = {
   book_id: string
+  /** 固定公开链接名称；有值的书只提供浏览操作。 */
+  example_slug?: string | null
   title: string
   author: string
   total_chapters: number
@@ -236,9 +238,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>
 }
 
-export async function listBooks(): Promise<BookMeta[]> {
-  const data = await request<{ books: BookMeta[] }>('/api/books')
-  return data.books ?? []
+export function listBooks(): Promise<{ books: BookMeta[]; public_only: boolean }> {
+  return request('/api/books')
 }
 
 export function getBook(bookId: string): Promise<BookMeta> {

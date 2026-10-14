@@ -81,6 +81,8 @@ function AppLayout() {
     <div className="app">
       <HeaderBar
         selectedBook={s.selectedBook}
+        publicOnly={s.publicOnly}
+        onShare={s.onShare}
         contentChapters={s.contentChapters}
         isRunning={s.isRunning}
         graph={s.graph}
@@ -97,7 +99,7 @@ function AppLayout() {
       <main className={`main${hasBook ? '' : ' solo'}`}>
         <section className="stage" aria-label="人物关系图">
           {!hasBook ? (
-            <EmptyState books={s.books} onSelectBook={s.handleBookChange} onUpload={s.onUpload} />
+            <EmptyState books={s.books} publicOnly={s.publicOnly} onSelectBook={s.handleBookChange} onUpload={s.onUpload} />
           ) : s.graph && s.graph.nodes.length > 0 ? (
             <GraphView
               ref={graphRef}
@@ -176,7 +178,7 @@ function AppLayout() {
             />
           )}
 
-          {hasBook && (
+          {hasBook && !s.publicOnly && !s.selectedBook?.example_slug && (
             <AnalysisProgress
               analysis={s.analysis}
               bookTitle={s.selectedBook?.title ?? ''}
@@ -235,6 +237,7 @@ function AppLayout() {
                 onRequest={s.requestChapterLedger}
                 rerunningChapterId={s.rerunningChapterId}
                 disabled={s.isRunning}
+                readOnly={s.publicOnly || Boolean(s.selectedBook?.example_slug)}
                 nameOf={s.personName}
                 onFocusChapter={(chapter) => s.setChapterFocus({ mode: 'single', chapter })}
                 onRerun={(chapterId) => void s.onRerunChapter(chapterId)}
@@ -248,6 +251,7 @@ function AppLayout() {
       <BookShelf
         open={shelfOpen}
         books={s.books}
+        publicOnly={s.publicOnly}
         bookId={s.bookId}
         onClose={closeShelf}
         onSelect={s.handleBookChange}
