@@ -28,6 +28,12 @@ enum class ErrorCode(
     /** 公开示例站点或示例书拒绝写操作。 */
     READ_ONLY("当前资源只允许浏览"),
 
+    UNAUTHENTICATED("请先登录"),
+    INVALID_CREDENTIALS("用户名或密码错误"),
+    FORBIDDEN("没有权限执行此操作"),
+    INVALID_INVITATION("邀请码无效或已用完"),
+    USERNAME_TAKEN("用户名已被使用"),
+
     /** 未预期的内部错误，详情只记日志，不返回给调用方。 */
     INTERNAL_ERROR("服务内部错误"),
 }

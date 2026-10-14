@@ -1,4 +1,4 @@
-// 示例书目录与访问规则：公开站点只读已发布示例；维护部署可上传、分析，示例不能删除或清空。
+// 示例书目录与访问规则：公开已发布版本，管理员维护分析，示例不能删除或清空。
 package com.zhiying.application.library
 
 import com.zhiying.application.analyze.run.BookAnalysisStatus
@@ -10,7 +10,6 @@ import org.springframework.stereotype.Service
 
 /** 由基础设施装配；固定 slug 对应书 ID，调整书 ID 不改变宣传链接。 */
 data class ExampleSettings(
-    val publicOnly: Boolean,
     val books: Map<String, String>,
 ) {
     init {
@@ -24,18 +23,14 @@ class ExampleBooks(
     private val settings: ExampleSettings,
     private val revisions: RevisionStore,
 ) {
-    val publicOnly: Boolean get() = settings.publicOnly
-
     fun slug(id: BookId): String? =
         settings.books.entries
             .firstOrNull { it.value == id.value }
             ?.key
 
-    fun isPublished(id: BookId): Boolean = slug(id) != null && revisions.publishedId(id) != null
+    fun ids(): List<BookId> = settings.books.values.map(::BookId)
 
-    fun requireReadable(id: BookId) {
-        if (publicOnly && !isPublished(id)) throw AppException(ErrorCode.NOT_FOUND)
-    }
+    fun isPublished(id: BookId): Boolean = slug(id) != null && revisions.publishedId(id) != null
 
     fun requireRemovable(id: BookId) {
         if (slug(id) != null) throw AppException(ErrorCode.READ_ONLY, "示例书不能删除或清空分析")

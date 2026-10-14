@@ -232,10 +232,35 @@ export type DoneEvent = {
   total_tokens?: number
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(apiUrl(path), init)
+let sessionVersion = 0
+
+/** 身份变化时作废旧响应并立即关闭进度连接。 */
+export function resetApiSession(): void {
+  sessionVersion += 1
+  window.dispatchEvent(new Event('zhiying:session-changed'))
+}
+
+async function apiFetch(path: string, init?: RequestInit): Promise<Response> {
+  const version = sessionVersion
+  const headers = new Headers(init?.headers)
+  if (!['GET', 'HEAD', 'OPTIONS'].includes((init?.method ?? 'GET').toUpperCase())) {
+    headers.set('X-Requested-With', 'XMLHttpRequest')
+  }
+  const res = await fetch(apiUrl(path), { ...init, headers })
+  if (version !== sessionVersion) throw new Error('账号已变化，请重新操作')
+  if (res.status === 401 && path !== '/api/auth/login' && path !== '/api/auth/register') {
+    window.dispatchEvent(new Event('zhiying:session-expired'))
+  }
+  return res
+}
+
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  const version = sessionVersion
+  const res = await apiFetch(path, init)
   if (!res.ok) throw new Error(await readError(res))
-  return res.json() as Promise<T>
+  const data = await res.json() as T
+  if (version !== sessionVersion) throw new Error('账号已变化，请重新操作')
+  return data
 }
 
 export function listBooks(): Promise<{ books: BookMeta[]; public_only: boolean }> {
@@ -323,8 +348,8 @@ export async function uploadBook(file: File): Promise<{ book_id: string; title: 
 }
 
 /** 无响应体的请求（204）：只检查状态，失败抛出后端说明。 */
-async function send(path: string, init: RequestInit): Promise<void> {
-  const res = await fetch(apiUrl(path), init)
+export async function send(path: string, init: RequestInit): Promise<void> {
+  const res = await apiFetch(path, init)
   if (!res.ok) throw new Error(await readError(res))
 }
 
@@ -351,13 +376,16 @@ export function subscribeAnalysisProgress(
   },
 ): () => void {
   const es = new EventSource(apiUrl(`/api/books/${bookId}/progress`))
+  const version = sessionVersion
   let closed = false
 
   const close = () => {
     if (closed) return
     closed = true
     es.close()
+    window.removeEventListener('zhiying:session-changed', close)
   }
+  window.addEventListener('zhiying:session-changed', close)
 
   es.addEventListener('progress', (ev) => {
     try {
@@ -382,6 +410,10 @@ export function subscribeAnalysisProgress(
   let warned = false
   es.onerror = () => {
     if (closed) return
+    // EventSource 不提供 HTTP 状态，断线后核对 cookie 会话。
+    void request<{ user: unknown | null }>('/api/auth/me').then(({ user }) => {
+      if (version === sessionVersion && !user) window.dispatchEvent(new Event('zhiying:session-expired'))
+    }).catch(() => {})
     if (es.readyState === EventSource.CLOSED) {
       // 服务端拒绝（如 404）时浏览器不再重连
       close()
@@ -593,9 +625,11 @@ async function readError(res: Response): Promise<string> {
  */
 export async function downloadExport(bookId: string, focus?: ChapterFocusParam | null): Promise<string> {
   const qs = focus ? `?chapter=${focus.chapter}&chapter_mode=${focus.mode}` : ''
-  const res = await fetch(apiUrl(`/api/books/${bookId}/export${qs}`))
+  const version = sessionVersion
+  const res = await apiFetch(`/api/books/${bookId}/export${qs}`)
   if (!res.ok) throw new Error(await readError(res))
   const blob = await res.blob()
+  if (version !== sessionVersion) throw new Error('账号已变化，请重新操作')
   const cd = res.headers.get('Content-Disposition') ?? ''
   const match = /filename\*?=(?:UTF-8''|")?([^";]+)/i.exec(cd)
   const filename = decodeURIComponent(match?.[1]?.replace(/"/g, '') ?? `zhiying-${bookId}.json`)

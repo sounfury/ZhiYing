@@ -26,13 +26,28 @@ data class ZhiYingProperties(
     val analysis: AnalysisProperties = AnalysisProperties(),
     val eval: EvalProperties = EvalProperties(),
     val examples: ExampleProperties = ExampleProperties(),
+    val accounts: AccountProperties = AccountProperties(),
 )
 
-/** 示例书固定链接目录；publicOnly=false 仅用于受信任的本地维护部署。 */
+/** 示例书固定链接目录；访问权限统一由账号与书籍归属决定。 */
 data class ExampleProperties(
-    val publicOnly: Boolean = true,
     val books: Map<String, String> = emptyMap(),
 )
+
+/** 首次启动的管理员凭据与持久登录配置，密码不进入配置日志。 */
+data class AccountProperties(
+    val adminUsername: String = "admin",
+    val adminPassword: String = "",
+    val sessionLifetime: Duration = Duration.ofDays(30),
+    val secureCookie: Boolean = false,
+) {
+    init {
+        require(!sessionLifetime.isNegative && !sessionLifetime.isZero) { "zhiying.accounts.session-lifetime 必须为正" }
+    }
+
+    override fun toString() =
+        "AccountProperties(adminUsername=$adminUsername, sessionLifetime=$sessionLifetime, secureCookie=$secureCookie)"
+}
 
 /**
  * 模型服务连接（OpenAI 兼容协议）。`spring.ai.openai.*` 从这里取值，保证只有一处来源。

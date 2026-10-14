@@ -1,4 +1,4 @@
-# Spring 与织影配置：存储、模型调用、示例书目录及公开访问模式。
+# Spring 与织影配置：存储、模型调用、示例书目录与账号认证。
 spring:
   application:
     name: zhiying
@@ -41,9 +41,14 @@ spring:
 
 # 项目自有配置，类型化绑定见 infrastructure 的 ZhiYingProperties；新增可调参数统一加在这里
 zhiying:
+  accounts:
+    admin-username: ${ZHIYING_ADMIN_USERNAME:admin}
+    # 仅首次建库使用；必须设置，不提供默认密码
+    admin-password: ${ZHIYING_ADMIN_PASSWORD:}
+    session-lifetime: 30d
+    # 本地 HTTP 为 false；公网 HTTPS 部署须设为 true
+    secure-cookie: ${ZHIYING_COOKIE_SECURE:false}
   examples:
-    # 公网只开放已发布示例；false 仅供本地或受保护的维护部署使用
-    public-only: ${ZHIYING_PUBLIC_ONLY:true}
     books:
       portrait-of-the-artist: >-
         ${ZHIYING_EXAMPLE_PORTRAIT_ID:332b960c-564b-4a7f-8195-245689c0a90c}

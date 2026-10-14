@@ -137,6 +137,7 @@ type JsProfiler = { stop(): Promise<Trace> }
 let profiler: JsProfiler | null = null
 
 function startProfiler() {
+  // SAFETY: Profiler 是浏览器可选的实验 API，调用前检查存在，构造失败由下方 catch 处理。
   const Ctor = (window as unknown as { Profiler?: new (o: { sampleInterval: number; maxBufferSize: number }) => JsProfiler }).Profiler
   if (!Ctor) return false
   try {
@@ -204,7 +205,7 @@ function flushReport() {
   const entries = pending.splice(0)
   void fetch('/__zy_perf', {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     body: JSON.stringify({ session, userAgent: navigator.userAgent, entries }),
   }).catch(() => { /* 开发日志发送失败不影响图谱交互。 */ })
 }

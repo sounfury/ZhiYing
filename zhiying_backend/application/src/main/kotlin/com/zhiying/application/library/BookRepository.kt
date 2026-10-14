@@ -28,10 +28,14 @@ data class ChapterRecord(val outline: ChapterOutline, val text: String)
 /** 书库仓储：书与章节的持久化。 */
 interface BookRepository {
     /** 在同一事务中保存书及其全部章节；任一失败则整体不保存。 */
-    fun save(overview: BookOverview, chapters: List<ChapterRecord>)
+    fun save(overview: BookOverview, chapters: List<ChapterRecord>, ownerId: String)
 
     /** 按导入时间倒序列出全部书。 */
     fun listBooks(): List<BookOverview>
+
+    fun listBooks(ownerId: String): List<BookOverview>
+
+    fun ownerId(bookId: BookId): String?
 
     /** 取书概览；不存在返回 null。 */
     fun findBook(id: BookId): BookOverview?

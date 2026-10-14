@@ -9,6 +9,7 @@ import com.zhiying.application.error.AppException
 import com.zhiying.application.error.ErrorCode
 import com.zhiying.application.graphquery.RevisionStore
 import com.zhiying.application.importbook.ImportBook
+import com.zhiying.application.library.BookRepository
 import com.zhiying.application.library.LibraryQueries
 import com.zhiying.application.removal.BookRemoval
 import com.zhiying.domain.evaluation.EvaluationReport
@@ -107,13 +108,14 @@ class Evaluations(
     private val revisions: RevisionStore,
     private val tasks: AnalysisTaskStore,
     private val settings: EvaluationSettings,
+    private val books: BookRepository,
 ) {
 
     /** 列出评测集；某个评测集标注读不出来时照常列出并附原因。 */
-    fun listSuites(): List<SuiteOverview> = suites.names().map { name ->
+    fun listSuites(ownerId: String): List<SuiteOverview> = suites.names().map { name ->
         try {
             val suite = suites.load(name)
-            SuiteOverview(name, suite.book, suite.chapterCount, findBook(suite)?.value, runs.list(name).firstOrNull())
+            SuiteOverview(name, suite.book, suite.chapterCount, findBook(suite, ownerId)?.value, runs.list(name).firstOrNull())
         } catch (e: AppException) {
             SuiteOverview(name, null, null, null, null, e.message)
         }
@@ -123,10 +125,10 @@ class Evaluations(
      * 准备并发起整书分析：书库里没有这本书就从源文件导入，已有则清空分析；随后全部章重读。
      * 该书正在分析时抛 ANALYSIS_ALREADY_RUNNING。分析进度沿用普通的分析进度推送，完成后由调用方发起评分。
      */
-    fun prepare(name: String): PreparedEvaluation {
+    fun prepare(name: String, ownerId: String): PreparedEvaluation {
         val suite = suites.load(name)
-        val existing = findBook(suite)
-        val bookId = existing ?: suites.source(name).let { importBook.import(it.fileName, it.content).book.id }
+        val existing = findBook(suite, ownerId)
+        val bookId = existing ?: suites.source(name).let { importBook.import(it.fileName, it.content, ownerId).book.id }
         if (existing != null) removal.clearAnalysis(bookId)
         val task = runner.startFull(bookId, toChapter = null, force = true)
         return PreparedEvaluation(bookId, task, imported = existing == null)
@@ -136,9 +138,9 @@ class Evaluations(
      * 给该书当前已发布的结果评分并保存运行记录。不调用模型。
      * 书未导入或尚无结果抛 NOT_FOUND，正在分析抛 ANALYSIS_ALREADY_RUNNING。
      */
-    fun score(name: String): EvaluationRun {
+    fun score(name: String, ownerId: String): EvaluationRun {
         val suite = suites.load(name)
-        val bookId = findBook(suite) ?: throw AppException(ErrorCode.NOT_FOUND, "书库里没有《${suite.book}》，请先重新分析并评测")
+        val bookId = findBook(suite, ownerId) ?: throw AppException(ErrorCode.NOT_FOUND, "书库里没有《${suite.book}》，请先重新分析并评测")
         if (runner.activeTask(bookId) != null) throw AppException(ErrorCode.ANALYSIS_ALREADY_RUNNING, "该书正在分析，完成后再评测")
         val revision = revisions.findPublished(bookId) ?: throw AppException(ErrorCode.NOT_FOUND, "《${suite.book}》还没有分析结果")
         val chapters = library.listAnalyzableChapters(bookId).sortedBy { it.order }.map { library.readChapter(it.id) }
@@ -166,8 +168,8 @@ class Evaluations(
     fun getRun(name: String, id: String): EvaluationRun =
         runs.find(name, id) ?: throw AppException(ErrorCode.NOT_FOUND, "运行记录不存在：$name/$id")
 
-    /** 按书名与正文章数在书库里认书；有多本时取最近导入的。 */
-    private fun findBook(suite: GoldSuite): BookId? = library.listBooks()
+    /** 只在当前管理员自己的书架按书名与正文章数认书。 */
+    private fun findBook(suite: GoldSuite, ownerId: String): BookId? = books.listBooks(ownerId)
         .filter { it.book.title == suite.book && it.profile.analysisChapters == suite.chapterCount }
         .maxByOrNull { it.importedAt }?.book?.id
 

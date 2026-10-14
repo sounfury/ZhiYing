@@ -3,7 +3,7 @@
  * 每本书可清空分析或删除（PRD §5.10），先弹窗确认；分析中两者都不可用。
  */
 import { useEffect, useRef } from 'react'
-import type { BookMeta } from '../api'
+import { apiUrl, type BookMeta } from '../api'
 import { formatTokens, formatWords, shortTitle, statusIsWarn, statusLabel } from '../labels'
 import { coverGradient } from '../bookCover'
 import { EpubDropZone } from './EpubDropZone'
@@ -12,6 +12,8 @@ interface BookShelfProps {
   open: boolean
   books: BookMeta[]
   publicOnly: boolean
+  isAdmin: boolean
+  onLogin: () => void
   bookId: string
   onClose: () => void
   onSelect: (bookId: string) => void
@@ -20,7 +22,7 @@ interface BookShelfProps {
   onClearAnalysis: (bookId: string) => Promise<void>
 }
 
-export function BookShelf({ open, books, publicOnly, bookId, onClose, onSelect, onUpload, onDelete, onClearAnalysis }: BookShelfProps) {
+export function BookShelf({ open, books, publicOnly, isAdmin, onLogin, bookId, onClose, onSelect, onUpload, onDelete, onClearAnalysis }: BookShelfProps) {
   const closeRef = useRef<HTMLButtonElement>(null)
 
   useEffect(() => {
@@ -73,7 +75,11 @@ export function BookShelf({ open, books, publicOnly, bookId, onClose, onSelect, 
             onClose()
           }}
         />}
-        {!publicOnly && <a className="shelf-eval hint" href="/eval">
+        {publicOnly && <div>
+          <p className="hint">上传自己的书需要登录，并凭邀请码注册。</p>
+          <button type="button" className="btn primary" onClick={() => { onClose(); onLogin() }}>登录后上传</button>
+        </div>}
+        {isAdmin && <a className="shelf-eval hint" href={apiUrl('/eval')}>
           评测（开发者工具）→
         </a>}
       </aside>

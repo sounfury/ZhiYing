@@ -71,7 +71,10 @@ internal fun statusOf(code: ErrorCode): HttpStatus =
         ErrorCode.UNREADABLE_BOOK -> HttpStatus.UNPROCESSABLE_CONTENT
         ErrorCode.ANALYSIS_ALREADY_RUNNING -> HttpStatus.CONFLICT
         ErrorCode.REQUEST_NOT_SUPPORTED -> HttpStatus.METHOD_NOT_ALLOWED
-        ErrorCode.READ_ONLY -> HttpStatus.FORBIDDEN
+        ErrorCode.READ_ONLY, ErrorCode.FORBIDDEN -> HttpStatus.FORBIDDEN
+        ErrorCode.UNAUTHENTICATED, ErrorCode.INVALID_CREDENTIALS -> HttpStatus.UNAUTHORIZED
+        ErrorCode.INVALID_INVITATION -> HttpStatus.BAD_REQUEST
+        ErrorCode.USERNAME_TAKEN -> HttpStatus.CONFLICT
         ErrorCode.INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR
     }
 

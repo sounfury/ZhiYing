@@ -16,6 +16,7 @@ import { BookShelf } from './components/BookShelf'
 import { AppStateProvider } from './state/AppStateProvider'
 import { ALL_BOOK_FOCUS } from './types'
 import { useAppState } from './state/useAppState'
+import { useAuth } from './useAuth'
 import './App.css'
 import './styles/graph.css'
 import './styles/progress.css'
@@ -34,6 +35,9 @@ const MSG_TTL_MS = 6000
 
 function AppLayout() {
   const s = useAppState()
+  const auth = useAuth()
+  const isAdmin = auth.user?.role === 'ADMIN'
+  const onLogin = () => auth.openAccount('login')
   const hasBook = Boolean(s.bookId)
   const [shelfOpen, setShelfOpen] = useState(false)
   const closeShelf = useCallback(() => setShelfOpen(false), [])
@@ -99,7 +103,7 @@ function AppLayout() {
       <main className={`main${hasBook ? '' : ' solo'}`}>
         <section className="stage" aria-label="人物关系图">
           {!hasBook ? (
-            <EmptyState books={s.books} publicOnly={s.publicOnly} onSelectBook={s.handleBookChange} onUpload={s.onUpload} />
+            <EmptyState books={s.books} publicOnly={s.publicOnly} onLogin={onLogin} onSelectBook={s.handleBookChange} onUpload={s.onUpload} />
           ) : s.graph && s.graph.nodes.length > 0 ? (
             <GraphView
               ref={graphRef}
@@ -144,7 +148,7 @@ function AppLayout() {
                 <>
                   尚未成图。
                   <br />
-                  <span className="hint">点右上角「开始分析」，把人物织进关系图。</span>
+                  <span className="hint">{s.publicOnly || (s.selectedBook?.example_slug && !isAdmin) ? '这本书尚未发布可浏览的关系图。' : '点右上角「开始分析」，把人物织进关系图。'}</span>
                 </>
               )}
             </div>
@@ -178,7 +182,7 @@ function AppLayout() {
             />
           )}
 
-          {hasBook && !s.publicOnly && !s.selectedBook?.example_slug && (
+          {hasBook && !s.publicOnly && (!s.selectedBook?.example_slug || isAdmin) && (
             <AnalysisProgress
               analysis={s.analysis}
               bookTitle={s.selectedBook?.title ?? ''}
@@ -237,7 +241,7 @@ function AppLayout() {
                 onRequest={s.requestChapterLedger}
                 rerunningChapterId={s.rerunningChapterId}
                 disabled={s.isRunning}
-                readOnly={s.publicOnly || Boolean(s.selectedBook?.example_slug)}
+                readOnly={s.publicOnly || (Boolean(s.selectedBook?.example_slug) && !isAdmin)}
                 nameOf={s.personName}
                 onFocusChapter={(chapter) => s.setChapterFocus({ mode: 'single', chapter })}
                 onRerun={(chapterId) => void s.onRerunChapter(chapterId)}
@@ -252,6 +256,8 @@ function AppLayout() {
         open={shelfOpen}
         books={s.books}
         publicOnly={s.publicOnly}
+        isAdmin={isAdmin}
+        onLogin={onLogin}
         bookId={s.bookId}
         onClose={closeShelf}
         onSelect={s.handleBookChange}

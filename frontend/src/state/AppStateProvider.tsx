@@ -26,6 +26,7 @@ import { ALL_BOOK_FOCUS, type ChapterFocusState, type GraphFilters, type SideTab
 import { chapterShortName } from '../chapterNames'
 import { shortTitle } from '../labels'
 import { AppStateContext, type AppStateValue } from './appStateContext'
+import { useAuth } from '../useAuth'
 
 const BOOK_KEY = 'zhiying.bookId'
 
@@ -42,9 +43,13 @@ function initialBookId(): string {
 }
 
 export function AppStateProvider({ children }: { children: ReactNode }) {
+  const { user, openAccount } = useAuth()
+  const isAdmin = user?.role === 'ADMIN'
   const { books, booksLoaded, publicOnly, booksError, refreshBooks } = useBooks()
   const [initialLink, setInitialLink] = useState(() => readBookLink(window.location.search))
   const [bookId, setBookId] = useState(initialBookId)
+  // 先按当前会话的书架确认归属，再加载记忆或链接中的书。
+  const readableBookId = booksLoaded && books.some((book) => book.book_id === bookId) ? bookId : ''
 
   // 记住当前书，刷新后直接回到它
   useEffect(() => {
@@ -74,7 +79,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [bookId, books, booksLoaded, initialLink])
   const [bookDetail, setBookDetail] = useState<BookMeta | undefined>(undefined)
 
-  const { contentChapters, chapterLabel } = useChapters(bookId, (list) => {
+  const { contentChapters, chapterLabel } = useChapters(readableBookId, (list) => {
     const allowed = new Set(analysisChapters(list).map((c) => c.chapter_id))
     setToChapter((prev) => (prev !== '' && allowed.has(prev) ? prev : ''))
   })
@@ -93,8 +98,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     categoryFilter,
   }
 
-  const { graph, graphLoading, loadGraph } = useGraphData(bookId, filters, chapterLabel)
-  const relationTypes = useRelationTypes(bookId, graph)
+  const { graph, graphLoading, loadGraph } = useGraphData(readableBookId, filters, chapterLabel)
+  const relationTypes = useRelationTypes(readableBookId, graph)
 
   /** 切换章节聚焦：从「全书」切到单章/前 N 章时，章节缺省取已有选择或第一章；章节不在可选范围时回落第一章 */
   const setChapterFocus = useCallback(
@@ -134,7 +139,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     ledger: focusLedger,
     loading: focusLedgerLoading,
     refresh: refreshFocusLedger,
-  } = useLedger(bookId, chapterFocus.mode === 'single' ? chapterFocus.chapter : '')
+  } = useLedger(readableBookId, chapterFocus.mode === 'single' ? chapterFocus.chapter : '')
 
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('faction')
   const [selectedFactions, setSelectedFactions] = useState<string[]>([])
@@ -201,13 +206,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     )
   }, [graph])
 
-  const { cast, loading: castLoading, refresh: refreshCast } = useCast(bookId)
+  const { cast, loading: castLoading, refresh: refreshCast } = useCast(readableBookId)
 
   const {
     entries: chapterLedgers,
     request: requestChapterLedger,
     invalidate: invalidateChapterLedgers,
-  } = useChapterLedgers(bookId)
+  } = useChapterLedgers(readableBookId)
 
   const {
     analysis, start: startAnalysis, stop: stopAnalysis, resume: resumeAnalysis,
@@ -230,13 +235,13 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   // 选中的书：详情优先（含 analysis_progress），否则用列表项
   useEffect(() => {
-    if (!bookId) {
+    if (!readableBookId) {
       setBookDetail(undefined)
       return
     }
     let cancelled = false
     setBookDetail(undefined)
-    void getBook(bookId)
+    void getBook(readableBookId)
       .then((b) => {
         if (!cancelled) setBookDetail(b)
       })
@@ -246,19 +251,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     return () => {
       cancelled = true
     }
-  }, [bookId, books])
+  }, [readableBookId, books])
 
   const selectedBook = bookDetail ?? books.find((b) => b.book_id === bookId)
   const serverRunning = selectedBook?.status === 'analyzing' || selectedBook?.status === 'reconciling'
-  const effectiveRunning = !selectedBook?.example_slug && (isRunning || serverRunning)
+  const effectiveRunning = (!selectedBook?.example_slug || isAdmin) && (isRunning || serverRunning)
 
   // 运行中则接上进度；最近一次失败则展示失败章与原因（PRD §5.9）
   useEffect(() => {
-    if (!bookId || !bookDetail || bookDetail.example_slug) return
+    if (!bookId || !bookDetail || (bookDetail.example_slug && !isAdmin)) return
     if (['analyzing', 'reconciling', 'failed'].includes(bookDetail.status)) {
       void resumeAnalysis(bookId)
     }
-  }, [bookId, bookDetail, resumeAnalysis])
+  }, [bookId, bookDetail, isAdmin, resumeAnalysis])
 
   useEffect(() => {
     document.title = selectedBook?.title
@@ -276,13 +281,19 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const onUpload = useCallback(
     async (file: File | null) => {
       if (!file) return
+      if (!user || publicOnly) {
+        openAccount('login')
+        return
+      }
       setError('')
       setMsg('')
       try {
         const res = await uploadBook(file)
         pushLog('ok', `已上传：${res.title}`)
         setMsg(`已上传「${res.title}」，可以启动分析`)
-        await refreshBooks()
+        const uploaded = (await refreshBooks()).find((b) => b.book_id === res.book_id)
+        if (uploaded) window.history.replaceState(null, '', bookLink(window.location.href, uploaded, ALL_BOOK_FOCUS, null))
+        setInitialLink({ example: '', book: res.book_id, person: '', chapterFocus: ALL_BOOK_FOCUS })
         setBookId(res.book_id)
         setChapterFocusRaw(ALL_BOOK_FOCUS)
         setTypeFilter([])
@@ -294,29 +305,29 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setError(e instanceof Error ? e.message : String(e))
       }
     },
-    [pushLog, refreshBooks],
+    [user, publicOnly, openAccount, pushLog, refreshBooks],
   )
 
   const onAnalyze = useCallback(async (opts?: { force?: boolean }) => {
-    if (!bookId) return
+    if (!bookId || publicOnly || (selectedBook?.example_slug && !isAdmin)) return
     await startAnalysis(bookId, toChapter, opts?.force ?? false)
-  }, [bookId, startAnalysis, toChapter])
+  }, [bookId, publicOnly, selectedBook, isAdmin, startAnalysis, toChapter])
 
   const onStop = useCallback(async () => {
-    if (!bookId) return
+    if (!bookId || publicOnly || (selectedBook?.example_slug && !isAdmin)) return
     await stopAnalysis(bookId)
-  }, [bookId, stopAnalysis])
+  }, [bookId, publicOnly, selectedBook, isAdmin, stopAnalysis])
 
   /** 失败后的补救：整书分析 = 再次启动（不 force，只补读失败章）；单章重跑 = 再重跑那一章 */
   const onRetryFailed = useCallback(async () => {
-    if (!bookId) return
+    if (!bookId || publicOnly || (selectedBook?.example_slug && !isAdmin)) return
     const task = analysis.task
     if (task?.kind === 'rerun' && task.chapters[0]) {
       await rerunAnalysis(bookId, task.chapters[0].chapter_id)
       return
     }
     await startAnalysis(bookId, toChapter, false)
-  }, [bookId, analysis.task, rerunAnalysis, startAnalysis, toChapter])
+  }, [bookId, publicOnly, selectedBook, isAdmin, analysis.task, rerunAnalysis, startAnalysis, toChapter])
 
   const handleBookChange = useCallback((newBookId: string) => {
     disconnectAnalysis()
@@ -336,6 +347,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const onDeleteBook = useCallback(
     async (id: string) => {
+      if (publicOnly || !books.some((b) => b.book_id === id && !b.example_slug)) return
       const title = books.find((b) => b.book_id === id)?.title ?? ''
       setError('')
       setMsg('')
@@ -348,11 +360,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setError(e instanceof Error ? e.message : String(e))
       }
     },
-    [books, bookId, handleBookChange, refreshBooks],
+    [publicOnly, books, bookId, handleBookChange, refreshBooks],
   )
 
   const onClearAnalysis = useCallback(
     async (id: string) => {
+      if (publicOnly || !books.some((b) => b.book_id === id && !b.example_slug)) return
       const title = books.find((b) => b.book_id === id)?.title ?? ''
       setError('')
       setMsg('')
@@ -377,7 +390,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setError(e instanceof Error ? e.message : String(e))
       }
     },
-    [books, bookId, disconnectAnalysis, invalidateChapterLedgers, refreshBooks, refreshCast, refreshFocusLedger],
+    [publicOnly, books, bookId, disconnectAnalysis, invalidateChapterLedgers, refreshBooks, refreshCast, refreshFocusLedger],
   )
 
   const onExport = useCallback(async () => {
@@ -480,7 +493,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   /** 单章重跑：进度与提示走分析任务（useAnalysis），完成后由 onAnalysisDone 刷新图、人名册与章节结果 */
   const onRerunChapter = useCallback(
     async (chapterId: number) => {
-      if (!bookId || rerunningChapterId != null) return
+      if (!bookId || publicOnly || (selectedBook?.example_slug && !isAdmin) || rerunningChapterId != null) return
       setRerunningChapterId(chapterId)
       try {
         await rerunAnalysis(bookId, chapterId)
@@ -488,7 +501,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setRerunningChapterId(null)
       }
     },
-    [bookId, rerunningChapterId, rerunAnalysis],
+    [bookId, publicOnly, selectedBook, isAdmin, rerunningChapterId, rerunAnalysis],
   )
 
   const personName = useCallback(
@@ -511,6 +524,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
     setInitialLink((prev) => ({ ...prev, person: '' }))
   }, [initialLink.person, graph, bookId, graphLoading])
+
+  // 身份变化会重建状态树；示例链接保留当前章节与人物，登录后仍回到这张图。
+  useEffect(() => {
+    if (!selectedBook?.example_slug || !graph || graphLoading) return
+    window.history.replaceState(null, '', bookLink(window.location.href, selectedBook, chapterFocus, egoPersonId ?? selectedNode?.person_id ?? null))
+  }, [selectedBook, graph, graphLoading, chapterFocus, egoPersonId, selectedNode])
 
   const onShare = useCallback(async () => {
     if (!selectedBook) return

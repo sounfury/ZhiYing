@@ -7,11 +7,12 @@ import { EpubDropZone } from './EpubDropZone'
 interface EmptyStateProps {
   books: BookMeta[]
   publicOnly: boolean
+  onLogin: () => void
   onSelectBook: (bookId: string) => void
   onUpload: (file: File | null) => Promise<void>
 }
 
-export function EmptyState({ books, publicOnly, onSelectBook, onUpload }: EmptyStateProps) {
+export function EmptyState({ books, publicOnly, onLogin, onSelectBook, onUpload }: EmptyStateProps) {
   return (
     <div className="empty-state">
       <p className="empty-kicker">织影 ZHIYING</p>
@@ -21,6 +22,7 @@ export function EmptyState({ books, publicOnly, onSelectBook, onUpload }: EmptyS
       </p>
 
       {!publicOnly && <EpubDropZone onUpload={onUpload} className="empty-drop" />}
+      {publicOnly && <button type="button" className="btn primary" onClick={onLogin}>登录后上传自己的书</button>}
       {publicOnly && books.length === 0 && <p className="hint">示例书正在准备中，请稍后再来。</p>}
 
       {books.length > 0 && (

@@ -3,7 +3,8 @@
  * 页面只负责编排：发起准备 → 订阅分析进度 → 完成后评分 → 刷新运行列表；报告展示在 ReportView。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { getAnalysisTask, getRelationTypes, subscribeAnalysisProgress, type ProgressEvent } from '../api'
+import { apiUrl, getAnalysisTask, getRelationTypes, subscribeAnalysisProgress, type ProgressEvent } from '../api'
+import { AccountButton } from '../components/AccountDialog'
 import { getRun, listRuns, listSuites, prepareSuite, scoreSuite, type EvalRun, type EvalRunSummary, type EvalSuite } from './evalApi'
 import { ReportView, type Pane } from './ReportView'
 import { formatDuration, formatTime, formatTokens } from './format'
@@ -205,7 +206,8 @@ export default function EvalPage() {
               </button>
             </>
           )}
-          <a className="btn ghost" href="/">
+          <AccountButton />
+          <a className="btn ghost" href={apiUrl('/')}>
             ← 返回图谱
           </a>
         </div>

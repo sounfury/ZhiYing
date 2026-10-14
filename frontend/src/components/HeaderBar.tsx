@@ -7,6 +7,8 @@ import type { BookMeta, ChapterBrief, GraphData } from '../api'
 import { formatTokens, formatWords, shortTitle, statusIsWarn, statusLabel } from '../labels'
 import { THEME_LABEL, useTheme } from '../theme'
 import { PersonSearch, type PersonHit } from './PersonSearch'
+import { AccountButton } from './AccountDialog'
+import { useAuth } from '../useAuth'
 
 interface HeaderBarProps {
   selectedBook?: BookMeta
@@ -41,6 +43,7 @@ export function HeaderBar({
   onStop,
   onExport,
 }: HeaderBarProps) {
+  const { user } = useAuth()
   const usage = selectedBook?.token_usage
   const words = contentChapters.reduce((n, c) => n + (c.word_count || 0), 0)
   const meta = selectedBook
@@ -102,7 +105,7 @@ export function HeaderBar({
         </>
       )}
 
-      {selectedBook && !selectedBook.example_slug && !publicOnly && (
+      {selectedBook && (!selectedBook.example_slug || user?.role === 'ADMIN') && !publicOnly && (
         <AnalyzeButton
           book={selectedBook}
           contentChapters={contentChapters}
@@ -117,6 +120,7 @@ export function HeaderBar({
         />
       )}
 
+      <AccountButton />
       <ThemeToggle />
     </header>
   )

@@ -1,4 +1,4 @@
-// 示例书配置装配：公开模式与固定链接目录集中绑定到 zhiying.examples。
+// 示例书配置装配：固定链接目录集中绑定到 zhiying.examples。
 package com.zhiying.infrastructure.config
 
 import com.zhiying.application.library.ExampleSettings
@@ -10,7 +10,6 @@ class ExampleSettingsConfiguration {
     @Bean
     fun exampleSettings(properties: ZhiYingProperties) =
         ExampleSettings(
-            properties.examples.publicOnly,
             properties.examples.books,
         )
 }

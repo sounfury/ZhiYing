@@ -434,8 +434,9 @@ export function useAnalysis({ chapterLabel, onAnalysisDone, onBanner }: UseAnaly
       unsubRef.current?.()
       unsubRef.current = null
       genRef.current += 1
+      settleWaiter(false)
     },
-    [],
+    [settleWaiter],
   )
 
   return {
