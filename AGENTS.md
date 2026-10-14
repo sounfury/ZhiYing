@@ -48,6 +48,7 @@ Never cut: validation at trust boundaries, error handling that prevents data los
 - `PRD.md`：做什么、给谁、用户可见行为与范围。不写系统内部怎么实现（数据结构、公式、调用流程）。
 - `PRD-beta.md`：内测要补的能力（示例书、账号与隔离、用量上限、PNG 导出、反馈、TXT 上传），写法同 PRD；做完后并入 `PRD.md` 并从这里删除。
 - `PRD-commons.md`：商业化不成立时的公益版需求思路（公共关系库、用户自带 API Key），未排期，不写设计。
+- `DESIGN-beta.md`：PRD-beta 中未实现能力的设计，写法同 DESIGN；做完后并入 `DESIGN.md` 并从这里删除。
 - `DESIGN.md`：领域模型、分析流程、模型调用点、存储与重跑。产品规则只引用 PRD 章节，不重复抄写。
 - `ARCHITECTURE.md`：模块分层、依赖规则、技术选型、目录。
 - `acceptance/`：Gherkin 验收场景；新产品决定先写 PRD 再同步场景。
