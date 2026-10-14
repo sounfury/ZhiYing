@@ -19,6 +19,7 @@ import com.zhiying.domain.library.BookId
 import com.zhiying.domain.library.Chapter
 import com.zhiying.domain.library.ChapterId
 import com.zhiying.domain.relations.RelationTypeLibrary
+import java.time.Instant
 import java.util.UUID
 import java.util.concurrent.ExecutorCompletionService
 import java.util.concurrent.Executors
@@ -79,8 +80,13 @@ class ReadingPhase(
         announcePlan(slots)
         try {
             drive(pending, library)
+        } catch (e: Exception) {
+            run.requestCancel()
+            throw e
         } finally {
             pool.shutdownNow()
+            // 意外失败也等在途读取退出，结算后不能再增加本任务 token。
+            pool.close()
         }
         slots.filterNot { it.settled }.forEach { abandon(it) }
         return settled
@@ -154,7 +160,7 @@ class ReadingPhase(
     private fun begin(slot: Slot) {
         if (slot.started) return
         slot.started = true
-        run.updateChapter(slot.item.chapter.id) { it.copy(status = ChapterRunStatus.RUNNING) }
+        run.updateChapter(slot.item.chapter.id) { it.copy(status = ChapterRunStatus.RUNNING, startedAt = Instant.now()) }
     }
 
     /** 沿用已存抽取：直接计入结果与滚动人名册，章标记为 REUSED。 */

@@ -15,77 +15,12 @@
 | §5 | PNG 导出 | 已实现：`frontend/src/components/GraphView/exportPng.ts`（按当前场景用 Canvas 重画，带书名、范围、图例、水印，按画布上限自动降倍数） |
 | §3 | 示例书 | 已实现：`ExampleBooks`、`bookLinks.ts`（`?example=slug&focus=&chapter=&chapter_mode=`），书架「示例」分组，访客只读 |
 | §4.1–4.2 | 账号与按用户隔离 | 已实现，见 DESIGN §5.5 |
-| §4.3 | 用量上限 | **未实现** → §1 |
+| §4.3 | 用量上限 | 已实现，见 DESIGN §5.6 |
 | §4.4 | 秒传 | **未实现**，原 DESIGN §5.4 方案移入并补全 → §2 |
 | §6 | 反馈 | **未实现** → §3 |
 | §7 | TXT 上传 | **未实现** → §4 |
 
 评审结论（2026-10-14）已写入正文与 PRD-beta v0.5。
-
----
-
-## 1. 用量上限
-
-### 1.1 配置
-
-全部放 `zhiying.quota.*`（`ZhiYingProperties`），不设管理界面：
-
-| 键 | 含义 | 0 表示 |
-|---|---|---|
-| `max-books` | 每人书数（不含示例条目） | 不限 |
-| `max-analysis-chars` | 每人累计分析字数 | 不限 |
-| `max-file-size` | 单个上传文件（`DataSize`） | — |
-| `max-concurrent-tasks` | 每人同时运行的任务（整书 + 单章重跑） | 不限 |
-| `daily-token-budget` | 全站每日 token | 不限 |
-| `time-zone` | 「当天」的时区，默认 `Asia/Shanghai` | — |
-
-`spring.servlet.multipart.max-file-size`（现为 200MB）作为硬上限，须不小于 `max-file-size`；应用层先按 `max-file-size` 拒绝，返回可读的提示。
-
-### 1.2 存储：用量流水
-
-新表 `usage_ledger`，只追加、结算时更新一次，**不对书建外键、删书和清空分析时不删**，这样就实现了「删除不退还」。如果改成在 `analysis_task` 上加列，删书时任务会一起被删掉，用量也就跟着退回了，所以单独建表。
-
-| 列 | 说明 |
-|---|---|
-| `task_id` | 主键，一个任务一行 |
-| `user_id` | 发起者 |
-| `item_id` | 书 ID；秒传上线后改为书架条目 ID（迁移后旧条目 ID = 书 ID，列不用改） |
-| `chars` | 计入额度的字数 |
-| `tokens` | 本任务总 token |
-| `started_at` / `settled_at` | 结算前 `settled_at` 为空 |
-
-- 每人已用字数 = `SUM(chars) WHERE user_id = ?`
-- 今日 token = 当天 `started_at` 的 `SUM(tokens)`，加上内存中运行任务的实时 token（`ModelCallControl` 已在累计）
-- 书数 = 本人书架条目数（不含示例）
-
-### 1.3 领域对象
-
-`domain/quota`：`QuotaLimits`（各上限）与 `UsageSnapshot`（已用书数、已用字数、本人运行中任务数、今日 token）。判断规则写在 `UsageSnapshot` 上，均为纯函数，结果是 `sealed interface QuotaCheck { Allowed; Exceeded(item, needed, remaining) }`：
-
-- `checkUpload(fileBytes, isReuse)`：文件大小 → 书数（秒传同样计书数）
-- `checkAnalysis(chars)`：全站预算 → 同时任务数 → 剩余字数；整本超出就整本拒绝，不做部分分析
-
-### 1.4 用例顺序
-
-**上传**（`ImportBook`）：读本人用量 → `checkUpload` → 解析 / 秒传判定 → 保存。自己书架上已有同一个文件时直接返回那本，不检查额度。
-
-**启动分析**（`AnalysisRunner.launch`，在已有的 `synchronized(runs)` 登记锁内完成，避免同一用户并发启动时超额）：
-
-1. 算待读字数：整书分析为「没有可沿用抽取的章」的 `wordCount` 之和（现在 `reusable()` 在任务线程里才算，需要提到启动前；它只读数据，可以提前），`force` 时为全部章；单章重跑为该章字数
-2. 读本人用量与今日 token → `checkAnalysis`
-3. 写流水行，`chars` = 待读字数（先预占）
-4. 起任务线程
-5. 任务结束时结算：`chars` 改为实际计费字数：已开始读的章（含读失败、被取消时正在读的）计入，没开始读的不计，复用的章不计，`tokens` 写本任务总量
-
-`AnalysisRun` 记录发起者 ID，用来统计「本人运行中任务数」。服务重启时，`interruptRunning` 一并结算未结算的流水（按 `analysis_task_chapter` 已开始读的章重算）。
-
-**全站预算**只在启动时判断，运行中的任务不中断（PRD-beta §4.3）。
-
-### 1.5 接口与前端
-
-- `GET /api/me/usage` → `{books: {used, limit}, chars: {used, limit}}`；书架顶部显示「已用 / 总额」，limit 为 0 时不显示该项
-- 新增错误码：`QUOTA_EXCEEDED`（消息写明哪一项超出、还剩多少，例如「分析字数不足：本书需 16.1 万字，剩余 3.2 万字」）、`DAILY_BUDGET_EXHAUSTED`（「今日分析名额已满，请明天再试」）、`FILE_TOO_LARGE`；前端直接展示消息
-- 管理员跳过书数、字数、同时任务数三项检查，文件大小与全站预算照常检查；流水照常写
 
 ---
 
@@ -135,7 +70,7 @@
 一本书被不止一个条目引用就算共享。只有一个条目时，所有操作原地进行，和现在一样。共享书上的写操作要先分叉：
 
 1. 从同一源文件重新导入为新书（新章节 ID）。同一文件、同一导入版本，章节一一对应，按顺序复制原书各章的当前抽取（清空分析时不复制）。每条抽取只引用本章（`ChapterExtraction` 和 `EvidenceRef` 都校验「属于本章」），复制时把章节 ID 换成新章的 ID 即可。全程不调模型
-2. 整书分析 / 单章重跑在新书上进行，按 DESIGN §5.2 的复用规则决定重读哪些章；用量按实际读取记在发起者名下（§1）
+2. 整书分析 / 单章重跑在新书上进行，按 DESIGN §5.2 的复用规则决定重读哪些章；按 DESIGN §5.6 的用量规则记在发起者名下
 3. 新书首次发布前，条目仍指向原书（用户看到的是上一版），新书 ID 记在 `pending_book_id`；在发布事务内把条目改指新书。失败或取消时条目不动，分叉书保留，下次启动时复用已读的章。清空分析不产生发布，直接切换
 4. 删除条目时，书已没有任何条目（含 `pending_book_id`）引用才真正删书；源文件仍按 DESIGN §5.1 处理
 

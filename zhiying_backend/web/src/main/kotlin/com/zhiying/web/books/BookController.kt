@@ -48,7 +48,7 @@ class BookController(
         @RequestParam("file") file: MultipartFile,
         @RequestAttribute("user") user: Account,
     ): ResponseEntity<UploadResponse> {
-        val overview = importBook.import(file.originalFilename.orEmpty(), file.bytes, accounts.requireUser(user).id)
+        val overview = importBook.import(file.originalFilename.orEmpty(), file.bytes, accounts.requireUser(user))
         return ResponseEntity.status(HttpStatus.CREATED).body(UploadResponse.from(overview))
     }
 

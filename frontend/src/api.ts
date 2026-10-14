@@ -267,6 +267,15 @@ export function listBooks(): Promise<{ books: BookMeta[]; public_only: boolean }
   return request('/api/books')
 }
 
+export type PersonalUsage = {
+  books: { used: number; limit: number }
+  chars: { used: number; limit: number }
+}
+
+export function getUsage(): Promise<PersonalUsage> {
+  return request('/api/me/usage')
+}
+
 export function getBook(bookId: string): Promise<BookMeta> {
   return request<BookMeta>(`/api/books/${bookId}`)
 }
@@ -613,6 +622,7 @@ async function readError(res: Response): Promise<string> {
   try {
     const body = await res.json()
     detail = body.message || body.detail || body.title || JSON.stringify(body)
+    if (['QUOTA_EXCEEDED', 'DAILY_BUDGET_EXHAUSTED', 'FILE_TOO_LARGE'].includes(body.code)) return detail
   } catch {
     /* ignore */
   }

@@ -46,6 +46,10 @@ class ExampleAccessConfiguration(
                             accounts.requireAdministrator(user)
                             return true
                         }
+                        if (route == "/api/me/usage") {
+                            accounts.requireUser(user)
+                            return true
+                        }
                         if (route == "/api/books" && request.method in setOf("GET", "HEAD")) return true
                         if (route == "/api/books/upload") {
                             accounts.requireUser(user)

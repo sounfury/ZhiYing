@@ -22,7 +22,7 @@ fun interface AnalysisSubscription : AutoCloseable {
  * 入参：[initial] 初始快照；[tasks] 快照存储；[maxRequests]、[maxTokens] 整个任务的模型预算（0 不限）。
  * 取消只是置位 [cancelRequested]，由 [control] 的取消信号传给每一次模型调用；取消信号不被通用异常吞掉。
  */
-class AnalysisRun(initial: AnalysisTask, private val tasks: AnalysisTaskStore, maxRequests: Long, maxTokens: Long) {
+class AnalysisRun(initial: AnalysisTask, private val tasks: AnalysisTaskStore, maxRequests: Long, maxTokens: Long, val userId: String) {
     private val lock = Any()
     private var task = initial
     private var sequence = 0L
@@ -32,6 +32,15 @@ class AnalysisRun(initial: AnalysisTask, private val tasks: AnalysisTaskStore, m
     @Volatile
     var cancelRequested: Boolean = false
         private set
+
+    /** 结算前仍占运行名额，防止终态广播与结算之间被删除或被新任务覆盖。 */
+    @Volatile
+    var quotaSettled: Boolean = false
+        private set
+
+    fun markQuotaSettled() {
+        quotaSettled = true
+    }
 
     /** 任务级预算与取消信号，传给读章、后处理与团体归纳的全部调用，任务用量即取自该预算。 */
     val control = ModelCallControl(ModelCallBudget(maxRequests, maxTokens), CancelSignal { cancelRequested })

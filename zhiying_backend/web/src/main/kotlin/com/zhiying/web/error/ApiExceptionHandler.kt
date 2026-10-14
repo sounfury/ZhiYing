@@ -43,7 +43,11 @@ class ApiExceptionHandler : ResponseEntityExceptionHandler() {
         request: WebRequest,
     ): ResponseEntity<Any>? {
         val response = super.handleExceptionInternal(ex, body, headers, statusCode, request)
-        (response?.body as? ProblemDetail)?.setProperty(CODE, codeOf(statusCode).name)
+        (response?.body as? ProblemDetail)?.apply {
+            val code = codeOf(statusCode)
+            setProperty(CODE, code.name)
+            if (code == ErrorCode.FILE_TOO_LARGE) detail = code.defaultMessage
+        }
         return response
     }
 
@@ -75,12 +79,15 @@ internal fun statusOf(code: ErrorCode): HttpStatus =
         ErrorCode.UNAUTHENTICATED, ErrorCode.INVALID_CREDENTIALS -> HttpStatus.UNAUTHORIZED
         ErrorCode.INVALID_INVITATION -> HttpStatus.BAD_REQUEST
         ErrorCode.USERNAME_TAKEN -> HttpStatus.CONFLICT
+        ErrorCode.QUOTA_EXCEEDED, ErrorCode.DAILY_BUDGET_EXHAUSTED -> HttpStatus.TOO_MANY_REQUESTS
+        ErrorCode.FILE_TOO_LARGE -> HttpStatus.CONTENT_TOO_LARGE
         ErrorCode.INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR
     }
 
 /** 框架请求错误的状态码反查错误码：404 为资源不存在，405 / 406 / 415 为不支持，其余 4xx 为参数错误。 */
 internal fun codeOf(status: HttpStatusCode): ErrorCode =
     when {
+        status.value() == 413 -> ErrorCode.FILE_TOO_LARGE
         status.value() == 404 -> ErrorCode.NOT_FOUND
         status.value() in setOf(405, 406, 415) -> ErrorCode.REQUEST_NOT_SUPPORTED
         status.is4xxClientError -> ErrorCode.INVALID_ARGUMENT

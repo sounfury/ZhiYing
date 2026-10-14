@@ -28,6 +28,7 @@ CREATE TABLE IF NOT EXISTS analysis_task_chapter (
     units_total  INTEGER NOT NULL,           -- 阅读单元数（长章切段）
     units_done   INTEGER NOT NULL,
     error        TEXT,                       -- 失败原因
+    started_at   TEXT,                       -- 首次开始读章，复用 / 未启动为空，供用量结算
     warnings     TEXT NOT NULL DEFAULT '[]', -- 读章警告，JSON 数组
     PRIMARY KEY (task_id, chapter_id)
 );

@@ -257,6 +257,7 @@ function AppLayout() {
         books={s.books}
         publicOnly={s.publicOnly}
         isAdmin={isAdmin}
+        userId={auth.user?.id}
         onLogin={onLogin}
         bookId={s.bookId}
         onClose={closeShelf}

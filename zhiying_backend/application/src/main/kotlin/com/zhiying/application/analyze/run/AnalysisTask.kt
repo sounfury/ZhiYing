@@ -42,6 +42,7 @@ data class ChapterRun(
     val unitsDone: Int = 0,
     val error: String? = null,
     val warnings: List<String> = emptyList(),
+    val startedAt: Instant? = null,
 ) {
     /** 已有可用抽取（新读完或沿用）。 */
     val succeeded: Boolean get() = status == ChapterRunStatus.DONE || status == ChapterRunStatus.REUSED

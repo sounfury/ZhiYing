@@ -12,6 +12,7 @@ import com.zhiying.application.importbook.ImportBook
 import com.zhiying.application.library.BookRepository
 import com.zhiying.application.library.LibraryQueries
 import com.zhiying.application.removal.BookRemoval
+import com.zhiying.domain.account.Account
 import com.zhiying.domain.evaluation.EvaluationReport
 import com.zhiying.domain.evaluation.EvaluationScorer
 import com.zhiying.domain.evaluation.GoldSuite
@@ -125,12 +126,12 @@ class Evaluations(
      * 准备并发起整书分析：书库里没有这本书就从源文件导入，已有则清空分析；随后全部章重读。
      * 该书正在分析时抛 ANALYSIS_ALREADY_RUNNING。分析进度沿用普通的分析进度推送，完成后由调用方发起评分。
      */
-    fun prepare(name: String, ownerId: String): PreparedEvaluation {
+    fun prepare(name: String, user: Account): PreparedEvaluation {
         val suite = suites.load(name)
-        val existing = findBook(suite, ownerId)
-        val bookId = existing ?: suites.source(name).let { importBook.import(it.fileName, it.content, ownerId).book.id }
+        val existing = findBook(suite, user.id)
+        val bookId = existing ?: suites.source(name).let { importBook.import(it.fileName, it.content, user).book.id }
         if (existing != null) removal.clearAnalysis(bookId)
-        val task = runner.startFull(bookId, toChapter = null, force = true)
+        val task = runner.startFull(bookId, toChapter = null, force = true, user = user)
         return PreparedEvaluation(bookId, task, imported = existing == null)
     }
 

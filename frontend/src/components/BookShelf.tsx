@@ -2,8 +2,8 @@
  * 书架抽屉：从左侧滑出，列出所有书（封面色块、作者、章数字数、状态、用量），点书切换，底部拖放上传；Esc 或点遮罩关闭。
  * 每本书可清空分析或删除（PRD §5.10），先弹窗确认；分析中两者都不可用。
  */
-import { useEffect, useRef } from 'react'
-import { apiUrl, type BookMeta } from '../api'
+import { useEffect, useRef, useState } from 'react'
+import { apiUrl, getUsage, type BookMeta, type PersonalUsage } from '../api'
 import { formatTokens, formatWords, shortTitle, statusIsWarn, statusLabel } from '../labels'
 import { coverGradient } from '../bookCover'
 import { EpubDropZone } from './EpubDropZone'
@@ -13,6 +13,7 @@ interface BookShelfProps {
   books: BookMeta[]
   publicOnly: boolean
   isAdmin: boolean
+  userId?: string
   onLogin: () => void
   bookId: string
   onClose: () => void
@@ -22,8 +23,23 @@ interface BookShelfProps {
   onClearAnalysis: (bookId: string) => Promise<void>
 }
 
-export function BookShelf({ open, books, publicOnly, isAdmin, onLogin, bookId, onClose, onSelect, onUpload, onDelete, onClearAnalysis }: BookShelfProps) {
+export function BookShelf({ open, books, publicOnly, isAdmin, userId, onLogin, bookId, onClose, onSelect, onUpload, onDelete, onClearAnalysis }: BookShelfProps) {
   const closeRef = useRef<HTMLButtonElement>(null)
+  const [usage, setUsage] = useState<PersonalUsage | null>(null)
+  const [usageError, setUsageError] = useState('')
+
+  useEffect(() => {
+    if (!open || publicOnly || !userId) return
+    let active = true
+    setUsage(null)
+    setUsageError('')
+    void getUsage().then((data) => {
+      if (active) setUsage(data)
+    }).catch((error: unknown) => {
+      if (active) setUsageError(error instanceof Error ? error.message : String(error))
+    })
+    return () => { active = false }
+  }, [open, publicOnly, userId, books])
 
   useEffect(() => {
     if (!open) return
@@ -45,6 +61,13 @@ export function BookShelf({ open, books, publicOnly, isAdmin, onLogin, bookId, o
             ✕
           </button>
         </h2>
+        {!publicOnly && usage && (usage.books.limit > 0 || usage.chars.limit > 0) && <p className="hint" aria-label="本人用量">
+          {[
+            usage.books.limit > 0 ? `书数 ${usage.books.used} / ${usage.books.limit} 本` : '',
+            usage.chars.limit > 0 ? `分析字数 ${usage.chars.used.toLocaleString()} / ${usage.chars.limit.toLocaleString()} 字` : '',
+          ].filter(Boolean).join(' · ')}
+        </p>}
+        {!publicOnly && usageError && <p className="hint" role="alert">用量读取失败：{usageError}</p>}
         <div className="shelf-list">
           {books.length === 0 && <p className="hint">{publicOnly ? '示例书正在准备中，请稍后再来。' : '书架还是空的，拖一本 EPUB 进来吧。'}</p>}
           {[
@@ -114,7 +137,7 @@ function BookCard({ book, current, onClick, onDelete, onClearAnalysis }: BookCar
     const ok = window.confirm(
       `清空「${fullTitle}」的分析结果？
 
-关系图、各章结果与用量记录都会清除，不可恢复。再次分析会从头读每一章，重新消耗 token。`,
+关系图、各章结果与任务记录都会清除，不可恢复。已用分析额度不退还；再次分析会从头读每一章，重新消耗 token。`,
     )
     if (ok) onClearAnalysis()
   }
@@ -122,7 +145,7 @@ function BookCard({ book, current, onClick, onDelete, onClearAnalysis }: BookCar
     const ok = window.confirm(
       `删除「${fullTitle}」？
 
-书、章节与全部分析结果都会删除，不可恢复；要再分析须重新上传。`,
+书、章节与全部分析结果都会删除，不可恢复；已用分析额度不退还。要再分析须重新上传。`,
     )
     if (ok) onDelete()
   }

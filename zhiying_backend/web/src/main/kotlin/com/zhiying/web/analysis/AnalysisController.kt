@@ -8,6 +8,7 @@ import com.zhiying.application.analyze.run.AnalysisQueries
 import com.zhiying.application.analyze.run.AnalysisRunner
 import com.zhiying.application.analyze.run.AnalysisTask
 import com.zhiying.application.library.LibraryQueries
+import com.zhiying.domain.account.Account
 import com.zhiying.domain.library.BookId
 import org.springframework.http.MediaType
 import org.springframework.http.ResponseEntity
@@ -15,6 +16,7 @@ import org.springframework.web.bind.annotation.CookieValue
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.PostMapping
+import org.springframework.web.bind.annotation.RequestAttribute
 import org.springframework.web.bind.annotation.RequestHeader
 import org.springframework.web.bind.annotation.RequestMapping
 import org.springframework.web.bind.annotation.RequestParam
@@ -54,8 +56,9 @@ class AnalysisController(
         @PathVariable bookId: String,
         @RequestParam("to_chapter", required = false) toChapter: Int?,
         @RequestParam("force", defaultValue = "false") force: Boolean,
+        @RequestAttribute("user") user: Account,
     ): ResponseEntity<StartResponse> =
-        ResponseEntity.accepted().body(StartResponse.from("started", runner.startFull(BookId(bookId), toChapter, force)))
+        ResponseEntity.accepted().body(StartResponse.from("started", runner.startFull(BookId(bookId), toChapter, force, user)))
 
     /** 任务快照：运行中返回实时快照，否则返回最近一次任务；从未分析过返回 idle。用于页面刷新与断线恢复。 */
     @GetMapping("/analysis/task")
@@ -102,8 +105,9 @@ class AnalysisController(
     fun rerun(
         @PathVariable bookId: String,
         @PathVariable cid: Int,
+        @RequestAttribute("user") user: Account,
     ): ResponseEntity<StartResponse> =
-        ResponseEntity.accepted().body(StartResponse.from("started", runner.rerunChapter(BookId(bookId), cid)))
+        ResponseEntity.accepted().body(StartResponse.from("started", runner.rerunChapter(BookId(bookId), cid, user)))
 
     /** 某章当前的抽取结果（人物、关系候选及首次判断、交流观察、摘要、读章警告）；该章尚未分析返回 404。 */
     @GetMapping("/chapters/{cid}/result")

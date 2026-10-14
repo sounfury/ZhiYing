@@ -34,6 +34,15 @@ enum class ErrorCode(
     INVALID_INVITATION("邀请码无效或已用完"),
     USERNAME_TAKEN("用户名已被使用"),
 
+    /** 个人额度不足。 */
+    QUOTA_EXCEEDED("用量额度不足"),
+
+    /** 全站当天模型预算已用尽。 */
+    DAILY_BUDGET_EXHAUSTED("今日分析名额已满，请明天再试"),
+
+    /** 上传文件超过大小上限。 */
+    FILE_TOO_LARGE("上传文件超过大小上限"),
+
     /** 未预期的内部错误，详情只记日志，不返回给调用方。 */
     INTERNAL_ERROR("服务内部错误"),
 }

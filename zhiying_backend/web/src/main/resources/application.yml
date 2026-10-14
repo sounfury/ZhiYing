@@ -6,7 +6,7 @@ spring:
     multipart:
       # EPUB 上传大小上限（Spring 默认仅 1MB）
       max-file-size: 200MB
-      max-request-size: 200MB
+      max-request-size: 201MB
   config:
     # 本机密钥放在工程根目录 .env（不入库）；同名环境变量优先于 .env
     import: optional:file:.env[.properties]
@@ -41,6 +41,14 @@ spring:
 
 # 项目自有配置，类型化绑定见 infrastructure 的 ZhiYingProperties；新增可调参数统一加在这里
 zhiying:
+  quota:
+    # 0 表示不限；每人上限和全站预算初始值由运营方设置
+    max-books: 0
+    max-analysis-chars: 0
+    max-file-size: 200MB
+    max-concurrent-tasks: 0
+    daily-token-budget: 0
+    time-zone: Asia/Shanghai
   accounts:
     admin-username: ${ZHIYING_ADMIN_USERNAME:admin}
     # 仅首次建库使用；必须设置，不提供默认密码
@@ -57,7 +65,7 @@ zhiying:
     api-key: ${LLM_API_KEY:}
     model: ${LLM_MODEL:deepseek-flash}
   storage:
-    # 数据库与书籍文件所在目录；不兼容旧 Python 数据，结构变更时可直接删除重建
+    # 数据库与书籍文件所在目录；启动保留已有数据并补齐新增表 / 列
     data-dir: ${ZHIYING_DATA_DIR:data}
   import:
     # 章节字数（中文按字、英文按词）低于该值时，章节保留但标记为「过短」不参与分析（旧后端同阈值 200，且直接丢弃）

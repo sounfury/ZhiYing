@@ -42,7 +42,7 @@ class EvaluationController(
         @PathVariable name: String,
         @RequestAttribute("user") user: Account,
     ): ResponseEntity<String> {
-        val prepared = evaluations.prepare(name, user.id)
+        val prepared = evaluations.prepare(name, user)
         val body =
             mapOf(
                 "book_id" to prepared.bookId.value,

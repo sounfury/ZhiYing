@@ -4,8 +4,10 @@ package com.zhiying.infrastructure.config
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Configuration
+import org.springframework.util.unit.DataSize
 import java.nio.file.Path
 import java.time.Duration
+import java.time.ZoneId
 
 /**
  * 项目配置根，对应 application.yml 中的 `zhiying.*`。
@@ -27,7 +29,24 @@ data class ZhiYingProperties(
     val eval: EvalProperties = EvalProperties(),
     val examples: ExampleProperties = ExampleProperties(),
     val accounts: AccountProperties = AccountProperties(),
+    val quota: QuotaProperties = QuotaProperties(),
 )
+
+/** 用量上限；0 表示不限，初始每人额度与全站预算由运营方配置。 */
+data class QuotaProperties(
+    val maxBooks: Long = 0,
+    val maxAnalysisChars: Long = 0,
+    val maxFileSize: DataSize = DataSize.ofMegabytes(200),
+    val maxConcurrentTasks: Long = 0,
+    val dailyTokenBudget: Long = 0,
+    val timeZone: ZoneId = ZoneId.of("Asia/Shanghai"),
+) {
+    init {
+        require(listOf(maxBooks, maxAnalysisChars, maxFileSize.toBytes(), maxConcurrentTasks, dailyTokenBudget).all { it >= 0 }) {
+            "zhiying.quota 上限不能为负"
+        }
+    }
+}
 
 /** 示例书固定链接目录；访问权限统一由账号与书籍归属决定。 */
 data class ExampleProperties(

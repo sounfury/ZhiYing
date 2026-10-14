@@ -7,6 +7,8 @@ import com.zhiying.application.library.BookOverview
 import com.zhiying.application.library.BookRepository
 import com.zhiying.application.library.BookSourceStore
 import com.zhiying.application.library.ChapterRecord
+import com.zhiying.application.quota.QuotaUsage
+import com.zhiying.domain.account.Account
 import com.zhiying.domain.library.Book
 import com.zhiying.domain.library.BookId
 import com.zhiying.domain.library.BookProfile
@@ -49,6 +51,7 @@ class ImportBook(
     private val parser: EpubParser,
     private val sources: BookSourceStore,
     private val books: BookRepository,
+    private val quota: QuotaUsage,
 ) {
     /**
      * 导入一本 EPUB。
@@ -56,10 +59,13 @@ class ImportBook(
      * 入参：[fileName] 上传文件名（须以 .epub 结尾）；[content] 文件字节。出参：新书概览。
      * 文件名不合法抛 INVALID_ARGUMENT；解析失败抛 UNREADABLE_BOOK。
      */
-    fun import(fileName: String, content: ByteArray, ownerId: String): BookOverview {
+    // 检查与保存共用导入锁，避免并发上传越过书数上限。
+    @Synchronized
+    fun import(fileName: String, content: ByteArray, user: Account): BookOverview {
         if (!fileName.endsWith(".epub", ignoreCase = true)) {
             throw AppException(ErrorCode.INVALID_ARGUMENT, "只接受 .epub 文件")
         }
+        quota.requireAllowed(quota.snapshot(user).checkUpload(content.size.toLong()))
         // 1. 解析（纯计算，失败则什么都不落地）
         val parsed = parser.parse(content)
         // 2. 保存源文件（副作用：写文件）
@@ -79,7 +85,7 @@ class ImportBook(
             importedAt = Instant.now(),
             profile = BookProfile.of(records.map { it.outline }),
         )
-        books.save(overview, records, ownerId)
+        books.save(overview, records, user.id)
         return overview
     }
 }

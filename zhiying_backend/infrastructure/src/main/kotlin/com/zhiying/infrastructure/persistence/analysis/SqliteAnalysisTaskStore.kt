@@ -71,14 +71,14 @@ class SqliteAnalysisTaskStore(
     /** 覆盖写入一章的执行行。 */
     private fun upsertChapter(taskId: TaskId, c: ChapterRun) {
         jdbc.sql(
-            """INSERT INTO analysis_task_chapter (task_id, chapter_id, ord, title, status, units_total, units_done, error, warnings)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """INSERT INTO analysis_task_chapter (task_id, chapter_id, ord, title, status, units_total, units_done, error, warnings, started_at)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                ON CONFLICT(task_id, chapter_id) DO UPDATE SET status = excluded.status, units_total = excluded.units_total,
-               units_done = excluded.units_done, error = excluded.error, warnings = excluded.warnings""",
+               units_done = excluded.units_done, error = excluded.error, warnings = excluded.warnings, started_at = excluded.started_at""",
         ).params(
             listOf(
                 taskId.value, c.chapterId.value, c.order, c.title, c.status.name, c.unitsTotal, c.unitsDone, c.error,
-                mapper.writeValueAsString(c.warnings),
+                mapper.writeValueAsString(c.warnings), c.startedAt?.toString(),
             ),
         ).update()
     }
@@ -172,6 +172,7 @@ class SqliteAnalysisTaskStore(
                 unitsDone = rs.getInt("units_done"),
                 error = rs.getString("error"),
                 warnings = mapper.readValue<List<String>>(rs.getString("warnings")),
+                startedAt = rs.getString("started_at")?.let(Instant::parse),
             )
         }.list()
 }
