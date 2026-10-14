@@ -25,7 +25,7 @@ Take the first option that fully works:
 
 1. Does it need to exist? Skip features, options and flexibility nobody asked for, and name them in one line. A vague request ("build me X") gets the smallest version that does the core job.
 2. Already in this codebase (a helper, component, service, pattern)? Use it the way the surrounding code does.
-3. Standard library or a platform feature? Use it, unless the project has its own. A house component beats a native widget.
+3. Standard library or a platform feature? Use it, unless the project has its own.
 4. An installed dependency? Use it. Never add a dependency for a few lines.
 5. Can it be one line a reader gets at a glance? One line.
 6. Otherwise: the minimum code that works.
@@ -37,12 +37,11 @@ Take the first option that fully works:
 - Bug fix: before you edit, grep every caller of the function you touch, then fix the root cause once in the shared code.
 - Code you move or merge keeps its error handling and validation.
 - Between options of equal size, take the one that is correct on edge cases.
-- Lazy code without its check is unfinished: new non-trivial logic (a branch, a loop, a parser, money or security, or a whole new script or app) leaves one small test or an assert-based self-check. Trivial changes need none.
 - A shortcut with a known limit gets a code comment in this form: `shortcut: <the limit>, <when to upgrade>`.
 
-Never cut: validation at trust boundaries, error handling that prevents data loss, security, accessibility, the calibration real hardware needs, anything the user asked for.
+Never cut: validation at trust boundaries, error handling that prevents data loss, security, accessibility, anything the user asked for.
+- 测试原则：原则上不做任何除编译测试外的测试，有专门的测试人员，你只是个 code agent。
 
-原则上不做任何除编译测试外的测试，有专门的测试人员，你只是个code agent,
 ## 文档规则（docs/）
 每类内容只有一个归属，不新开平行设计稿；改设计就直接改对应文档：
 - `PRD.md`：做什么、给谁、用户可见行为与范围。不写系统内部怎么实现（数据结构、公式、调用流程）。
@@ -54,9 +53,13 @@ Never cut: validation at trust boundaries, error handling that prevents data los
 - `acceptance/`：Gherkin 验收场景；新产品决定先写 PRD 再同步场景。
 - `todo.md`：实施顺序、待办；做完即删。
 
+## 子代理派发规范
+派发 subagent 提示词力求精简防发散，必须遵守：
+1. **禁述常识**：系统已加载 AGENTS.md 与工具列表，Prompt 严禁重复编码规范或写“先读 AGENTS.md”。
+2. **按需精准阅读**：只指明目标文件与具体章节（如 `docs/DESIGN-beta.md §1`），指示其按需局部检索，严禁全量 dump 文档。
+3. **划定死边界**：显式声明“只做 X，严禁做 Y”，阻断顺带重构或提前实现后续功能的倾向。
+4. **编译即交付**：约束验证仅限编译测试（如 `mvn compile`），不做多余测试；按 Ponytail 风格报告改动与风险。
 
-## 编码规则
-1. 禁止过度设计，过度防御性编程。
-2. 边界校验: 仅在系统边界严格校验, 内部调用保持简单互信, 严禁向内部关系套用外部防御逻辑
-3. 避免指令与输出内容泄露： 将操作指令与可交付内容明确区分, 在输出中体现要求, 除非明确要求, 否则不得复述这些要求
+
+
 

@@ -6,11 +6,11 @@ ZhiYing 面向想读中长篇小说、但被人物和称呼绕晕的读者：上
 
 系统由两部分组成：Kotlin 后端 `zhiying_backend/`（模块化单体）负责书籍导入、调用大模型逐章分析、汇总人物与关系、按结果版本发布，并通过 HTTP 提供给 React 前端 `frontend/`；前端负责书架、关系图浏览与分析进度展示。本文主要写后端，前端见末尾「前端」一节。产品范围见 [PRD](./PRD.md)，领域模型与分析流程细节见 [DESIGN](./DESIGN.md)。
 
-当前进度（2026-10-14）：从上传、整书分析（阅读单元调度、滚动人名册、后处理模型判断、团体归纳）到发布、出图与人物 / 类型 / 团体查询已全链路打通，并用真实模型跑通过单章重跑；账号、会话、邀请码、按用户隔离与用量上限已完成，前端已接入，旧 Python 后端已删除。反馈、秒传、TXT 上传仍待实现；验收场景尚未落为测试。
+当前进度（2026-10-14）：从上传、整书分析（阅读单元调度、滚动人名册、后处理模型判断、团体归纳）到发布、出图与人物 / 类型 / 团体查询已全链路打通，并用真实模型跑通过单章重跑；账号、会话、邀请码、按用户隔离、用量上限与秒传第一版已完成，前端已接入，旧 Python 后端已删除。反馈、TXT 上传仍待实现；按章正文跨书复用留待后续；验收场景尚未落为测试。
 
 ## 数据流
 
-上传的 EPUB 在书主权限范围内拆成章节，与新书及归属一并保存；分析编排逐章交给章阅读（大模型多轮工具循环）得到章抽取记录，再由后处理规则在全书范围内完成身份对齐、类型归一、有限补查与软关系兜底，组装成一套一致的结果版本并发布；全书读完后再做团体归纳；出图与人物 / 类型 / 团体查询只读已发布版本。
+上传先在任务登记锁内按源文件 SHA-256、当前导入与方法版本、整书完整标记判定秒传；命中仅新增书架条目，未命中才拆成章节并保存新书和条目。共享书的分析或清空先分叉，首次发布再原子切换条目；分析编排逐章交给章阅读（大模型多轮工具循环）得到章抽取记录，再由后处理规则在全书范围内完成身份对齐、类型归一、有限补查与软关系兜底，组装成一套一致的结果版本并发布；全书读完后再做团体归纳；出图与人物 / 类型 / 团体查询只读已发布版本。
 
 ```mermaid
 flowchart TD
@@ -88,7 +88,7 @@ flowchart TD
 
 - **实现状态**：已完成；产品规则见 PRD §5.13，配置与计量见 DESIGN §5.6。
 - **domain**：`QuotaLimits` 与 `UsageSnapshot` 保存上限和快照，上传与分析检查返回 sealed `QuotaCheck`，纯计算，不访问存储。
-- **application**：`QuotaUsage` 读取本人用量、转换领域拒绝结果为已登记错误码；上传在导入锁内先检查文件大小与书数；分析在任务登记锁内提前判定复用、检查全站预算与本人额度、预占字数再启动线程，结束后结算。`UsageLedger` 是本用例使用的存储接口。
+- **application**：`QuotaUsage` 读取本人用量、转换领域拒绝结果为已登记错误码；上传在任务登记锁内检查文件大小、本人重复与新增书数；分析在任务登记锁内提前判定复用、检查全站预算与本人额度、预占字数再启动线程，结束后结算。`UsageLedger` 是本用例使用的存储接口。
 - **infrastructure**：`zhiying.quota.*` 由 `ZhiYingProperties` 绑定，`QuotaConfiguration` 校验 multipart 上限；SQLite 流水每任务一行，不对书建外键，删除书和清空分析不删除；首次读取标记支持服务重启结算，启动补齐已有数据库的标记列。
 - **web / frontend**：`/api/me/usage` 仅返回当前登录账号的书数和字数，书架顶部显示启用额度，直接展示后端超限提示。
 - **对应位置**：`domain/…/quota`、`application/…/quota`、`infrastructure/…/persistence/quota`、`infrastructure/…/config/QuotaConfiguration.kt`、`web/…/account/UsageController.kt`。
@@ -97,7 +97,7 @@ flowchart TD
 
 - **实现状态**：已完成。
 - **覆盖范围**：`com/zhiying/application/importbook`、`com/zhiying/application/library`、`com/zhiying/application/removal`、`com/zhiying/infrastructure/epub`。
-- **职责**：解析 EPUB（阅读顺序、目录标题、正文清洗、按标题或章节标记切章），判定每章是否参与分析并给出原因，在同一事务内保存新书、书主与正文；提供经应用层归属校验的书籍、章节与章节正文查询，供章阅读读取。删除书与清空分析（`removal`）：有运行中任务时拒绝，按书删除记录在一个事务内完成（`persistence.SqliteBookDataEraser`），源文件不再被引用时一并删除。
+- **职责**：解析 EPUB（阅读顺序、目录标题、正文清洗、按标题或章节标记切章），判定每章是否参与分析并给出原因；上传用例在导入之前判定秒传，命中只新增条目，未命中在同一事务保存新书、条目与正文。`ShelfItems` 在应用层解析结果与任务书；`ForkBook` 对共享书写操作重新导入并复制当前抽取，清空时不复制。删除条目仅回收无当前或 pending 引用的书与源文件，模型任务运行时拒绝删除和清空。
 - **对应位置**：`application/…/importbook`、`application/…/library`、`application/…/removal`、`infrastructure/…/epub`。
 
 [探索这个子系统](#module=com/zhiying/application/importbook)
@@ -223,7 +223,7 @@ flowchart TD
 
 ## 数据模型
 
-账号通过书主关联拥有书，一本书有多个章节；不同用户的上传各自保存书、章节、任务与结果，仅源文件按摘要共用。每章每次分析产生一份章抽取记录。抽取中的人物提及经身份映射归到书内人物，关系候选经类型归一与语义判断形成章账本记录，通过准入的记录按「人物 A、人物 B、关系类型」聚合成关系事实。人物可属于多个团体。一次分析构建一个结果版本，发布后成为出图的唯一来源。字段与不变量见 [DESIGN §2](./DESIGN.md)，账号与归属表见 [DESIGN §5.5](./DESIGN.md#55-账号会话与书籍归属)；用量流水记录任务发起者、预占或实际读取字数与总 token，独立保留（[DESIGN §5.6](./DESIGN.md#56-用量上限)）；共享结果仅为 DESIGN-beta §2 的待实现方案。
+账号拥有 `shelf_items` 书架条目，对外书 ID 即条目 ID；条目用 `book_id` 指向当前结果书，分叉首次发布前用 `pending_book_id` 指向任务书。一本书可被多个条目共享并有多个章节，写操作先分叉，发布事务内切换条目。已有归属迁移时条目 ID = 原书 ID。`books.import_version` 与结果的 `method_version`、`full_book` 判定秒传资格，方法版本由各调用点模型 ID 和提示版本自动生成；旧结果保留可读但不可秒传。每章每次分析产生一份章抽取记录。抽取中的人物提及经身份映射归到书内人物，关系候选经类型归一与语义判断形成章账本记录，通过准入的记录按「人物 A、人物 B、关系类型」聚合成关系事实。人物可属于多个团体。一次分析构建一个结果版本，发布后成为出图的唯一来源。字段与不变量见 [DESIGN §2](./DESIGN.md)，共享与分叉见 [DESIGN §5.4](./DESIGN.md#54-秒传与共享结果)，账号见 [DESIGN §5.5](./DESIGN.md#55-账号会话与书籍归属)。用量流水记发起者与条目、字数和输入 / 输出 / 总 token、请求数，独立保留，累计 token 仅按本人条目查询（[DESIGN §5.6](./DESIGN.md#56-用量上限)）。
 
 ## 技术栈
 
@@ -232,7 +232,7 @@ flowchart TD
 | Kotlin 2.4 / JDK 21 | 后端语言与运行时；四个 Gradle 模块对应四层 |
 | Spring Boot 4（Web MVC） | HTTP 接口与依赖装配，只用于 `web` 与 `infrastructure` |
 | Spring AI 2（OpenAI 兼容协议） | 模型接入，当前接 DeepSeek；通过 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 切换 |
-| SQLite + `JdbcClient` + 文件 | 结构化记录与章节正文走 SQLite，访问只用 Spring `JdbcClient`（查询少，不引入 ORM）；表结构由 `resources/schema/*.sql` 启动时以 `CREATE TABLE IF NOT EXISTS` 建立，不用迁移工具；账号上线新增表并补齐已有书归属，用量上线通过表结构检查补齐首次读取标记列，保留现有数据库；源 EPUB 按内容摘要存文件 |
+| SQLite + `JdbcClient` + 文件 | 结构化记录与章节正文走 SQLite，访问只用 Spring `JdbcClient`（查询少，不引入 ORM）；表结构由 `resources/schema/*.sql` 启动时以 `CREATE TABLE IF NOT EXISTS` 建立，不用迁移工具；账号上线新增表并补齐已有书归属，用量上线通过表结构检查补齐首次读取标记列，秒传上线通过事务迁移旧归属为同 ID 条目并补导入、方法、完整标记和流水用量列，保留现有数据库；源 EPUB 按内容摘要存文件 |
 | JDK 密码与随机数 API + Cookie | 密码派生与会话哈希由基础设施实现，应用层生成随机会话 token，HTTP Cookie 与 CSRF 请求头检查由 web 处理，安全参数见 DESIGN §5.5 |
 | jsoup | 解析 EPUB 内的 XHTML |
 | SSE | 分析进度推送（Spring MVC `SseEmitter`，事件带递增 id，断线按 Last-Event-ID 回放） |
