@@ -34,7 +34,7 @@ import com.zhiying.domain.revision.RevisionId
  * [extractions] 各章抽取，须按阅读顺序排列；[roster] 已有人名册（重跑时为上一版人物，保持 ID 稳定）；
  * [retained] 上一版保留的历史软关系，调用方先按"来源章节仍然有效"筛选；
  * [types] 起始类型库（默认仅含内置类型）；[affiliations] 团体结果，后续批次补上前为空；
- * [chapterOrder] 章节阅读序号（从 1 起），写入结果版本供出图排序，缺省时出图按章节 ID 排序；
+ * [chapterOrder] 章节阅读序号（从 1 起），身份判断据此看出章节先后，并写入结果版本供出图排序，缺省时出图按章节 ID 排序；
  * [rerunChapter] 单章重跑时被重跑的章，全书简介只重写在该章出场的重要人物；整书分析为 null。
  */
 data class PostProcessInput(
@@ -88,7 +88,7 @@ class AnalysisPostProcessor(
 ) {
     /** 执行全部后处理步骤并返回结果版本与报告。 */
     fun process(input: PostProcessInput): PostProcessResult {
-        val identities = identityStep.run(input.roster, input.extractions)
+        val identities = identityStep.run(input.roster, input.extractions, input.chapterOrder)
         val normalization = typeStep.run(input.types, input.extractions)
         val library = normalization.library
 

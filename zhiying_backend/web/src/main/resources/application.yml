@@ -165,6 +165,11 @@ zhiying:
     # 评测目录（DESIGN §7）：每个含 suite.json 的子目录是一个评测集，运行记录写到 runs/；相对路径按启动目录（zhiying_backend/）解析
     dir: ${ZHIYING_EVAL_DIR:../eval}
 
+logging:
+  file:
+    # 运行日志落盘（含身份结论与依据），分析结束后仍可追查；默认按大小滚动
+    name: ${ZHIYING_DATA_DIR:data}/logs/zhiying.log
+
 server:
   # 本地私有部署：默认只监听本机；需要时用 SERVER_ADDRESS / SERVER_PORT 覆盖
   address: 127.0.0.1

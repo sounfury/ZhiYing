@@ -11,14 +11,17 @@ import com.zhiying.domain.identity.IdentityAlignment
 import com.zhiying.domain.identity.IdentityAmbiguity
 import com.zhiying.domain.identity.NameIndex
 import com.zhiying.domain.identity.Person
+import com.zhiying.domain.library.ChapterId
 
 /**
  * 一批身份歧义问题。每个问题已打包候选人物资料与各自的提及（含上下文指代），
- * 实现方可按需读取原文补充上下文。批量大小由调用方按上限控制；[control] 是任务级预算与取消。
+ * 实现方可按需读取原文补充上下文。批量大小由调用方按上限控制；[control] 是任务级预算与取消；
+ * [chapterOrder] 是章节阅读序号（从 1 起），判断同一人物在先后章节里的变化时要用。
  */
 data class IdentityDisambiguationRequest(
     val ambiguities: List<IdentityAmbiguity>,
     val control: ModelCallControl = ModelCallControl(),
+    val chapterOrder: Map<ChapterId, Int> = emptyMap(),
 )
 
 /**
@@ -50,13 +53,17 @@ class IdentityAlignmentStep(
 ) {
     /**
      * 执行对齐。
-     * 入参：[roster] 已有人名册；[extractions] 各章抽取，按阅读顺序排列。
+     * 入参：[roster] 已有人名册；[extractions] 各章抽取，按阅读顺序排列；[chapterOrder] 章节阅读序号。
      * 出参：对齐产物；没有回答的歧义保持独立，不阻断其他人物。
      */
-    fun run(roster: List<Person>, extractions: List<ChapterExtraction>): AlignedIdentities {
+    fun run(
+        roster: List<Person>,
+        extractions: List<ChapterExtraction>,
+        chapterOrder: Map<ChapterId, Int> = emptyMap(),
+    ): AlignedIdentities {
         val draft = IdentityAlignment.start(roster, extractions, appellationLimit)
         val batches = boundedBatches(draft.ambiguities, limits, ::approximateSize)
-        val answers = batches.flatMap { disambiguator.disambiguate(IdentityDisambiguationRequest(it, control)) }
+        val answers = batches.flatMap { disambiguator.disambiguate(IdentityDisambiguationRequest(it, control, chapterOrder)) }
         return draft.apply(answers).result()
     }
 
