@@ -7,7 +7,9 @@
 
 | 文档 | 说明 |
 |------|------|
-| [docs/PRD.md](./docs/PRD.md) | 产品：做什么、给谁、用户可见行为与范围 |
+| [docs/PRD.md](./docs/PRD.md) | 产品：做什么、给谁、用户可见行为与范围（已实现能力） |
+| [docs/PRD-beta.md](./docs/PRD-beta.md) | 内测要补的能力：示例书、账号与隔离、用量上限、PNG 导出、反馈、TXT 上传 |
+| [docs/PRD-commons.md](./docs/PRD-commons.md) | 备选：公益版需求思路（公共关系库、用户自带 API Key），未排期 |
 | [docs/DESIGN.md](./docs/DESIGN.md) | 设计：领域模型、分析流程、模型调用点、存储与重跑 |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 架构：模块分层、依赖规则、技术选型、目录 |
 | [docs/acceptance/](./docs/acceptance/) | 验收场景（Gherkin） |
