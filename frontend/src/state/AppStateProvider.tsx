@@ -23,6 +23,7 @@ import { useChapterLedgers, useLedger } from '../hooks/useLedger'
 import { useRelationTypes } from '../hooks/useRelationTypes'
 import { ALL_BOOK_FOCUS, type ChapterFocusState, type GraphFilters, type SideTab } from '../types'
 import { chapterShortName } from '../chapterNames'
+import { shortTitle } from '../labels'
 import { AppStateContext, type AppStateValue } from './appStateContext'
 
 const BOOK_KEY = 'zhiying.bookId'
@@ -65,7 +66,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
 
   const [toChapter, setToChapter] = useState<number | ''>('')
   const [chapterFocus, setChapterFocusRaw] = useState<ChapterFocusState>(ALL_BOOK_FOCUS)
-  // 路人过滤默认「至少出场 2 章」（PRD §5.7.7）
+  // 路人过滤默认「至少出场 2 章」（PRD §5.7.6）
   const [minAppearance, setMinAppearance] = useState(2)
   const [categoryFilter, setCategoryFilter] = useState<string[]>([])
   const [typeFilter, setTypeFilter] = useState<string[]>([])
@@ -140,6 +141,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setMsg('')
   }, [])
   const [exporting, setExporting] = useState(false)
+  const [exportingPng, setExportingPng] = useState(false)
   const [rerunningChapterId, setRerunningChapterId] = useState<number | null>(null)
 
   const handleLoadGraph = useCallback(async () => {
@@ -367,6 +369,29 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     }
   }, [bookId, chapterFocus, scopeLabel, pushLog])
 
+  const onExportPng = useCallback<AppStateValue['onExportPng']>(
+    async (render) => {
+      if (!selectedBook) return
+      setExportingPng(true)
+      setError('')
+      // 服务端筛选不在场景里，写进图片的范围说明，免得别人看图以为是全部关系
+      const notes: string[] = []
+      if (categoryFilter.length || typeFilter.length) notes.push('已按关系类型筛选')
+      if (minAppearance !== 2) notes.push(`只含出场 ≥ ${minAppearance} 章的人物`)
+      try {
+        const res = await render({ bookTitle: shortTitle(selectedBook.title), notes })
+        const blurry = res.scale < 2 ? '；图较大，已降低清晰度，可筛选势力或进入中心视图后再导出' : ''
+        setMsg(`已导出 ${res.filename}（${res.width}×${res.height}${blurry}）`)
+        pushLog('ok', `导出图片 ${res.filename}（${res.width}×${res.height}）`)
+      } catch (e) {
+        setError(e instanceof Error ? e.message : String(e))
+      } finally {
+        setExportingPng(false)
+      }
+    },
+    [selectedBook, categoryFilter, typeFilter, minAppearance, pushLog],
+  )
+
   const onPickPerson = useCallback(
     (hit: PersonHit) => {
       setError('')
@@ -502,6 +527,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       onPickPerson,
       onExport,
       exporting,
+      onExportPng,
+      exportingPng,
       cast,
       castLoading,
       onFocusCastPerson,
@@ -555,6 +582,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       onPickPerson,
       onExport,
       exporting,
+      onExportPng,
+      exportingPng,
       cast,
       castLoading,
       onFocusCastPerson,

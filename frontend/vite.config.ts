@@ -1,4 +1,4 @@
-/** 前端开发与构建配置：代理后端，并仅在开发服务器接收本机图谱性能记录。 */
+/** 前端开发与构建配置：代理后端，仅在开发服务器接收本机图谱性能记录，并让依赖体积适配 pi web 预览代理。 */
 import { appendFile, mkdir } from 'node:fs/promises'
 import { fileURLToPath } from 'node:url'
 import { defineConfig, type Plugin } from 'vite'
@@ -40,16 +40,32 @@ function graphPerfLog(): Plugin {
   }
 }
 
+/**
+ * 预打包依赖不内联 sourcemap：G6 内联后超过 11MB，pi web 预览代理对文本响应有 8MB 上限会回 502、页面白屏。
+ * 依赖文件末尾仍保留指向外部 .map 的注释，调试不受影响。
+ */
+function depsWithoutInlineMap(): Plugin {
+  return {
+    name: 'deps-without-inline-map',
+    apply: 'serve',
+    transform(code, id) {
+      if (id.includes('/node_modules/.vite/deps/')) return { code, map: { mappings: '' } }
+    },
+  }
+}
+
 export default defineConfig({
-  plugins: [react(), graphPerfLog()],
+  plugins: [react(), graphPerfLog(), depsWithoutInlineMap()],
   server: {
     port: 5173,
     // 允许页面内 JS 采样（JS Self-Profiling），开发时 ?perf=1 用它定位卡顿；只作用于开发服务器
     headers: { 'Document-Policy': 'js-profiling' },
     proxy: {
-      '/api': {
+      // 也接带部署前缀的 /preview/api/...（pi web 预览挂在子路径下），转发时去掉前缀
+      '^(?:/[^/]+)?/api(?=/|$)': {
         target: 'http://127.0.0.1:8080',
         changeOrigin: true,
+        rewrite: (path) => path.replace(/^(?:\/[^/]+)?\/api/, '/api'),
       },
     },
   },

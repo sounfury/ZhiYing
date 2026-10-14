@@ -6,6 +6,7 @@
  * 悬停高亮（淡化其他人）要停留一会儿才生效、离开后稍等再恢复，鼠标在图上掠过时画面不闪；浮卡仍即时跟随。
  * 拖画布不用 G6 的 drag-canvas，由这里按「起点 + 鼠标总位移」每帧摆一次，拖动期间的鼠标移动不交给 G6；
  * 其余图上的鼠标移动限流后再交给 G6。高回报率鼠标（1000Hz）下 G6 每个移动都做命中检测，不这样会卡。
+ * 对外只交出人物的当前位置（导出 PNG 用，含拖动后的位置）。
  */
 import { useEffect, useRef, type RefObject } from 'react'
 import { Graph, type IPointerEvent } from '@antv/g6'
@@ -590,6 +591,24 @@ export function useGraphInstance({
     }
   }, [refitToken])
 
+  /** 人物在画布上的当前位置（拖动过的以此为准）；图未就绪时为 null */
+  const getPositionsRef = useRef(async () => {
+    await readyRef.current
+    const g = graphRef.current
+    const sc = sceneRef.current
+    if (!g || !sc || g.destroyed) return null
+    const out = new Map<string, { x: number; y: number }>()
+    for (const n of sc.nodes) {
+      try {
+        const [x, y] = g.getElementPosition(n.id)
+        out.set(n.id, { x, y })
+      } catch {
+        /* 元素不在图上就用场景位置 */
+      }
+    }
+    return out
+  })
+
   // 卸载时取消待重算的帧，并把标记清零：开发模式 StrictMode 会模拟卸载再挂载、沿用同一个 ref，
   // 不清零的话 schedule 会以为一直有帧在排队，之后的缩放 / 选中 / 悬停都不再重算样式
   useEffect(
@@ -599,4 +618,6 @@ export function useGraphInstance({
     },
     [],
   )
+
+  return { getPositions: getPositionsRef.current }
 }

@@ -1,10 +1,13 @@
 /**
  * 人物关系图（图谱区主体）：把后端图数据裁成当前视图（中心视图 / 势力筛选），编排成场景交给 G6 渲染，
  * 并叠加图例、中心视图路径条、悬停浮卡。选人、悬停、切主题都不重建图；只有数据 / 视图范围 / 中心人物 / 布局变了才重建。
+ * 通过 ref 对外提供 PNG 导出（PRD-beta §5）：按当前场景与人物的当前位置重画整张图。
  */
-import { useCallback, useMemo, useRef, useState } from 'react'
+import { useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { UNASSIGNED_FACTION_ID } from '../../factions'
-import type { GraphViewProps } from './types'
+import type { GraphViewHandle, GraphViewProps } from './types'
+import { downloadBlob, pngFilename, renderGraphPng } from './exportPng'
+import { readPalette } from './style'
 import { buildScene, egoSubgraph, factionsInView, pickCenter } from './layout'
 import { EgoCrumb, GraphLegend, HoverCard } from './legend'
 import { useGraphInstance, type HoverInfo } from './useGraphInstance'
@@ -24,6 +27,7 @@ export function GraphView({
   onSelectNode,
   onEnterEgo,
   onExitEgo,
+  ref,
 }: GraphViewProps) {
   const wrapRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
@@ -85,7 +89,7 @@ export function GraphView({
     return hit?.id ?? null
   }, [selectedEdge, scene])
 
-  useGraphInstance({
+  const { getPositions } = useGraphInstance({
     containerRef,
     scene,
     selectedPersonId,
@@ -101,6 +105,35 @@ export function GraphView({
 
   const nameById = useMemo(() => new Map(data.nodes.map((n) => [n.person_id, n.name])), [data.nodes])
   const nameOf = useCallback((id: string) => nameById.get(id) ?? '?', [nameById])
+
+  useImperativeHandle(
+    ref,
+    (): GraphViewHandle => ({
+      async exportPng({ bookTitle, notes = [] }) {
+        if (!scene) throw new Error('当前视图没有人物，无法导出图片')
+        const view: string[] = []
+        if (isEgoMode && egoPersonId) view.push(`以「${nameOf(egoPersonId)}」为中心`)
+        else view.push(useFactionLayout ? '势力分区' : '亲疏扇区')
+        if (!isEgoMode && layoutMode === 'faction' && selectedFactions.length) {
+          const names = data.factions.filter((f) => selectedFactions.includes(f.faction_id)).map((f) => f.name)
+          view.push(`只看：${names.slice(0, 4).join('、')}${names.length > 4 ? ` 等 ${names.length} 个势力` : ''}`)
+        }
+        const positions = await getPositions()
+        const res = await renderGraphPng(scene, positions, readPalette(), {
+          bookTitle,
+          scope: scopeLabel,
+          view: [...view, ...notes],
+          factions: viewFactions,
+          affinity: !useFactionLayout,
+        })
+        const suffix = isEgoMode && egoPersonId ? `${scopeLabel}-${nameOf(egoPersonId)}` : scopeLabel
+        const filename = pngFilename(bookTitle, suffix)
+        downloadBlob(res.blob, filename)
+        return { filename, width: res.width, height: res.height, scale: res.scale }
+      },
+    }),
+    [scene, isEgoMode, egoPersonId, nameOf, useFactionLayout, layoutMode, selectedFactions, data.factions, getPositions, scopeLabel, viewFactions],
+  )
 
   if (!data.nodes.length) {
     return <div className="graph-empty">暂无人物。可能尚未分析，或筛选过严（试试降低路人过滤阈值）。</div>

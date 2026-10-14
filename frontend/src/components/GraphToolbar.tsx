@@ -1,5 +1,5 @@
 /**
- * 图上的悬浮工具：左上章节聚焦卡（全书 / 单章 / 前 N 章），右上竖排图标工具（布局切换、筛选、放大、缩小、适应窗口），
+ * 图上的悬浮工具：左上章节聚焦卡（全书 / 单章 / 前 N 章），右上竖排图标工具（布局切换、筛选、放大、缩小、适应窗口、导出图片），
  * 筛选浮层（关系强度、关系类型、路人阈值、势力块）。
  * 只持有浮层开合等纯 UI 状态，筛选值全部由上层传入并回调修改。
  */
@@ -47,8 +47,11 @@ export interface GraphToolbarProps {
   onZoom?: (kind: 'in' | 'out') => void
   /** 单章模式下本章入图人数，显示在章节说明里 */
   chapterPeopleCount?: number
-  /** 当前有图可操作（无图时缩放 / 适应窗口禁用） */
+  /** 当前有图可操作（无图时缩放 / 适应窗口 / 导出图片禁用） */
   hasGraph?: boolean
+  /** 导出当前视图为 PNG；不传则不显示按钮 */
+  onExportPng?: () => void
+  exportingPng?: boolean
 }
 
 const Icon = {
@@ -86,6 +89,11 @@ const Icon = {
       <path d="M3.5 7.5v-4h4M16.5 7.5v-4h-4M3.5 12.5v4h4M16.5 12.5v4h-4" strokeLinejoin="round" />
     </svg>
   ),
+  download: (
+    <svg viewBox="0 0 20 20" aria-hidden>
+      <path d="M10 3.5v9M6 8.8l4 4 4-4M4 15.5h12" strokeLinejoin="round" />
+    </svg>
+  ),
 }
 
 export function GraphToolbar({
@@ -110,6 +118,8 @@ export function GraphToolbar({
   onZoom,
   chapterPeopleCount,
   hasGraph = true,
+  onExportPng,
+  exportingPng = false,
 }: GraphToolbarProps) {
   const [filterOpen, setFilterOpen] = useState(false)
   const toolsRef = useRef<HTMLDivElement>(null)
@@ -194,6 +204,18 @@ export function GraphToolbar({
         <button type="button" title="适应窗口" aria-label="适应窗口" disabled={!hasGraph} onClick={onRefit}>
           {Icon.fit}
         </button>
+        {onExportPng && (
+          <button
+            type="button"
+            title={exportingPng ? '正在导出图片…' : '导出图片（PNG，当前视图的完整图）'}
+            aria-label="导出图片"
+            aria-busy={exportingPng}
+            disabled={!hasGraph || exportingPng}
+            onClick={onExportPng}
+          >
+            {Icon.download}
+          </button>
+        )}
       </div>
 
       {filterOpen && (

@@ -2,8 +2,8 @@
  * 应用外壳：顶栏 + 主体两栏（图谱区 + 侧栏，≤900px 侧栏落到图下方），外加书架抽屉与提示条。
  * 只负责把全局状态接到各区域组件上，并处理页面级快捷键（Esc 退出中心视图 / 取消选中）。
  */
-import { useCallback, useEffect, useState } from 'react'
-import { GraphView, type ZoomRequest } from './components/GraphView'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { GraphView, type GraphViewHandle, type ZoomRequest } from './components/GraphView'
 import { HeaderBar } from './components/HeaderBar'
 import { GraphToolbar } from './components/GraphToolbar'
 import { AnalysisProgress } from './components/AnalysisProgress'
@@ -40,6 +40,17 @@ function AppLayout() {
   // 图工具条的放大 / 缩小请求（GraphToolbar → GraphView）
   const [zoomRequest, setZoomRequest] = useState<ZoomRequest | null>(null)
   const requestZoom = useCallback((kind: ZoomRequest['kind']) => setZoomRequest({ kind, nonce: Date.now() }), [])
+  // 导出图片由图谱组件按当前场景重画（GraphToolbar → GraphView）
+  const graphRef = useRef<GraphViewHandle>(null)
+  const { onExportPng } = s
+  const exportPng = useCallback(
+    () =>
+      void onExportPng((opts) => {
+        const g = graphRef.current
+        return g ? g.exportPng(opts) : Promise.reject(new Error('关系图还没准备好，稍后再试'))
+      }),
+    [onExportPng],
+  )
 
   const { msg, error, clearBanner } = s
   useEffect(() => {
@@ -89,6 +100,7 @@ function AppLayout() {
             <EmptyState books={s.books} onSelectBook={s.handleBookChange} onUpload={s.onUpload} />
           ) : s.graph && s.graph.nodes.length > 0 ? (
             <GraphView
+              ref={graphRef}
               data={s.graph}
               layoutMode={s.layoutMode}
               selectedFactions={s.selectedFactions}
@@ -157,6 +169,8 @@ function AppLayout() {
               onRefit={s.requestRefit}
               isRunning={s.isRunning}
               onZoom={requestZoom}
+              onExportPng={exportPng}
+              exportingPng={s.exportingPng}
               hasGraph={!!s.graph?.nodes.length}
               chapterPeopleCount={s.graph?.chapter_focus?.mode === 'single' ? s.graph.nodes.length : undefined}
             />

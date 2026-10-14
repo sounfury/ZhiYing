@@ -1,4 +1,5 @@
 /** 评测接口客户端（DESIGN §7）：评测集、准备并发起整书分析、评分与运行记录；字段与后端 snake_case 报告一致。 */
+import { apiUrl } from '../api'
 
 export type EvalRunSummary = {
   id: string
@@ -130,7 +131,7 @@ export type EvalRun = {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, init)
+  const res = await fetch(apiUrl(path), init)
   if (!res.ok) {
     let detail = res.statusText
     try {

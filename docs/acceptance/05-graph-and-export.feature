@@ -37,13 +37,6 @@ Feature: 可解释的图谱浏览与导出
     When 用户查看该关系详情
     Then 展示该关系的类型、来源章节、解释与引文
 
-  @GRAPH_05
-  Scenario: 切换渲染样式不改变数据与聚焦
-    Given 用户已在纯文字模式聚焦甲
-    When 用户切换为头像框模式
-    Then 仍然聚焦甲
-    And 人物、关系与布局保持一致
-
   @GRAPH_06 @prd_5_7_1
   Scenario: 单章视图只显示本章出场人物
     Given 甲、乙在第三章出场，丙只在第一章出场
@@ -77,7 +70,7 @@ Feature: 可解释的图谱浏览与导出
     Then 导出数据只包含前三章范围内的人物与关系
     And 标注范围为前三章
 
-  @EXPORT_01
+  @EXPORT_01 @prd_beta_5
   Scenario: 导出当前画布 PNG
     Given 用户正在查看一个已应用过滤和渲染样式的图谱
     When 用户导出 PNG

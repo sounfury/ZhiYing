@@ -1,5 +1,10 @@
 /** ZhiYing 后端客户端（经 Vite 代理到 Kotlin 后端 :8080）；新旧接口差异在本文件内转换，组件沿用原类型。 */
 
+/** 接口地址带上部署前缀（如 pi web 预览挂在 /preview/ 下）；前缀为 / 时原样返回 */
+export function apiUrl(path: string): string {
+  return import.meta.env.BASE_URL.replace(/\/$/, '') + path
+}
+
 export type BookMeta = {
   book_id: string
   title: string
@@ -226,7 +231,7 @@ export type DoneEvent = {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
-  const res = await fetch(path, init)
+  const res = await fetch(apiUrl(path), init)
   if (!res.ok) throw new Error(await readError(res))
   return res.json() as Promise<T>
 }
@@ -318,7 +323,7 @@ export async function uploadBook(file: File): Promise<{ book_id: string; title: 
 
 /** 无响应体的请求（204）：只检查状态，失败抛出后端说明。 */
 async function send(path: string, init: RequestInit): Promise<void> {
-  const res = await fetch(path, init)
+  const res = await fetch(apiUrl(path), init)
   if (!res.ok) throw new Error(await readError(res))
 }
 
@@ -344,7 +349,7 @@ export function subscribeAnalysisProgress(
     onError?: (message: string) => void
   },
 ): () => void {
-  const es = new EventSource(`/api/books/${bookId}/progress`)
+  const es = new EventSource(apiUrl(`/api/books/${bookId}/progress`))
   let closed = false
 
   const close = () => {
@@ -587,7 +592,7 @@ async function readError(res: Response): Promise<string> {
  */
 export async function downloadExport(bookId: string, focus?: ChapterFocusParam | null): Promise<string> {
   const qs = focus ? `?chapter=${focus.chapter}&chapter_mode=${focus.mode}` : ''
-  const res = await fetch(`/api/books/${bookId}/export${qs}`)
+  const res = await fetch(apiUrl(`/api/books/${bookId}/export${qs}`))
   if (!res.ok) throw new Error(await readError(res))
   const blob = await res.blob()
   const cd = res.headers.get('Content-Disposition') ?? ''
