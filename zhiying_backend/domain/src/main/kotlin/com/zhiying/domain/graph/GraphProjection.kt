@@ -53,7 +53,7 @@ object GraphProjection {
             scope = scope,
             nodes = shownPersons.sortedBy { it.value }.map { id ->
                 val chapters = appearances[id].orEmpty().sorted()
-                nodeOf(revision, revision.personsById.getValue(id), chapters, query.chapterFocus, plan)
+                nodeOf(revision, revision.personsById.getValue(id), chapters, plan)
             },
             edges = edges,
             partitions = plan,
@@ -165,7 +165,6 @@ object GraphProjection {
         revision: AnalysisRevision,
         person: Person,
         chapters: List<Int>,
-        chapterFocus: ChapterFocus?,
         plan: PartitionPlan,
     ): GraphNode {
         val placement = plan.placements[person.id]

@@ -1,0 +1,5 @@
+# Use the pinned gitleaks release's entire default ruleset.
+# No project allowlists, disabled rule IDs, or baseline.
+title = "ZhiYing full default secret scan"
+[extend]
+useDefault = true

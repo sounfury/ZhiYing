@@ -1,0 +1,44 @@
+# yamllint disable-line rule:line-length
+# yaml-language-server: $schema=https://raw.githubusercontent.com/woodpecker-ci/woodpecker/v3.19.0/pipeline/frontend/yaml/linter/schema/schema.json
+# GitHub 独立检查：认知复杂度
+# 手动跳过：SKIP_COMPLEXITY=true
+# 失败不阻断：COMPLEXITY_NONBLOCK=true
+# 密钥扫描不受这两个变量控制。
+
+when:
+  - event: [push, pull_request, manual]
+    path:
+      include:
+        - "zhiying_backend/**/*.kt"
+        - "quality/**"
+        - ".woodpecker/认知复杂度.yaml"
+      on_empty: false
+
+steps:
+  - name: 认知复杂度
+    image: local/detekt-cli:2.0.0-alpha.6
+    pull: false
+    when:
+      - evaluate: 'SKIP_COMPLEXITY != "true" && COMPLEXITY_NONBLOCK != "true"'
+    commands:
+      - >-
+        java -jar /opt/detekt-cli.jar
+        --input zhiying_backend
+        --config quality/detekt-complexity.yml
+        --fail-on-severity Info
+        --excludes '**/build/**,**/.gradle/**'
+        --base-path .
+  - name: 认知复杂度（不阻断）
+    image: local/detekt-cli:2.0.0-alpha.6
+    pull: false
+    failure: ignore
+    when:
+      - evaluate: 'SKIP_COMPLEXITY != "true" && COMPLEXITY_NONBLOCK == "true"'
+    commands:
+      - >-
+        java -jar /opt/detekt-cli.jar
+        --input zhiying_backend
+        --config quality/detekt-complexity.yml
+        --fail-on-severity Info
+        --excludes '**/build/**,**/.gradle/**'
+        --base-path .
