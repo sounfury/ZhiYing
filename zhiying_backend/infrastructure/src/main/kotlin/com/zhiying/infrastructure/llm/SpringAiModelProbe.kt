@@ -8,10 +8,13 @@ import com.zhiying.application.diagnostics.ModelTarget
 import com.zhiying.application.diagnostics.ProbeCheck
 import com.zhiying.application.diagnostics.ThinkingMode
 import com.zhiying.application.diagnostics.TokenUsage
-import com.zhiying.infrastructure.config.ZhiYingProperties
-import org.springframework.ai.chat.client.ChatClient
 import org.springframework.ai.chat.model.ChatResponse
+import org.springframework.ai.chat.prompt.Prompt
+import org.springframework.ai.converter.BeanOutputConverter
+import org.springframework.ai.model.tool.ToolCallingManager
 import org.springframework.ai.openai.OpenAiChatOptions
+import org.springframework.ai.support.ToolCallbacks
+import org.springframework.ai.tool.ToolCallback
 import org.springframework.ai.tool.annotation.Tool
 import org.springframework.stereotype.Component
 import java.util.UUID
@@ -25,29 +28,36 @@ import java.util.concurrent.atomic.AtomicInteger
 @Component
 class SpringAiModelProbe(
     private val providers: ProviderChatModels,
-    private val properties: ZhiYingProperties,
 ) : ModelProbe {
-
     /** 当前探测目标。 */
-    override fun target(provider: String, model: String?) = ModelTarget(provider, model ?: properties.llm.model)
+    override fun target(
+        provider: String,
+        model: String,
+    ) = ModelTarget(provider, model)
 
     /** 执行一项检查；任何调用异常都归类为执行失败，不向上抛出。 */
-    override fun run(check: ProbeCheck, thinking: ThinkingMode, provider: String, model: String?): CheckOutcome = try {
-        val target = Target(providers.of(provider), thinking, model)
-        when (check) {
-            ProbeCheck.CHAT -> chat(target)
-            ProbeCheck.TOOL_CALL -> toolCall(target)
-            ProbeCheck.STRUCTURED_OUTPUT -> structuredOutput(target)
+    override fun run(
+        check: ProbeCheck,
+        thinking: ThinkingMode,
+        provider: String,
+        model: String,
+    ): CheckOutcome =
+        try {
+            val target = Target(providers.of(provider), thinking, model)
+            when (check) {
+                ProbeCheck.CHAT -> chat(target)
+                ProbeCheck.TOOL_CALL -> toolCall(target)
+                ProbeCheck.STRUCTURED_OUTPUT -> structuredOutput(target)
+            }
+        } catch (e: Exception) {
+            val failure = classifyFailure(e)
+            CheckOutcome.Failed(failure, "模型连接检查失败（${failure.name}）")
         }
-    } catch (e: Exception) {
-        val failure = classifyFailure(e)
-        CheckOutcome.Failed(failure, "模型连接检查失败（${failure.name}）")
-    }
 
     /** 普通对话：要求模型原样复述一段随机校验码（与回复语言无关，避免被意译）。 */
     private fun chat(target: Target): CheckOutcome {
         val code = newProbeCode()
-        val response = request(target).user("原样回复这段校验码，不要添加其他内容：$code").call().chatResponse()
+        val response = request(target, "原样回复这段校验码，不要添加其他内容：$code")
         val reply = replyOf(response)
         return expect(code in reply, "回复：$reply", response)
     }
@@ -55,44 +65,70 @@ class SpringAiModelProbe(
     /** 工具调用：模型必须调用校验码工具，并在最终回复中带回工具返回的校验码。 */
     private fun toolCall(target: Target): CheckOutcome {
         val tool = ProbeCodeTool(newProbeCode())
-        val response = request(target)
-            .user("先调用 probe_code 工具取得校验码，然后只回复这个校验码。")
-            .tools(tool)
-            .call()
-            .chatResponse()
+        val response =
+            request(
+                target,
+                "先调用 probe_code 工具取得校验码，然后只回复这个校验码。",
+                ToolCallbacks.from(tool).toList(),
+            )
         val reply = replyOf(response)
         return expect(tool.calls > 0 && tool.code in reply, "工具调用 ${tool.calls} 次，回复：$reply", response)
     }
 
     /** 结构化输出：回复必须能解析为指定结构，且计算结果正确。 */
     private fun structuredOutput(target: Target): CheckOutcome {
-        val result = request(target)
-            .user("计算 17 加 25，给出结果数字与它的中文读法。")
-            .call()
-            .responseEntity(ArithmeticAnswer::class.java)
-        return expect(result.entity?.sum == 42, "解析结果：${result.entity}", result.response)
+        val converter = BeanOutputConverter(ArithmeticAnswer::class.java, LlmJson.mapper)
+        val response = request(target, "计算 17 加 25，给出结果数字与它的中文读法。\n\n${converter.format}")
+        val answer = converter.convert(replyOf(response))
+        return expect(answer.sum == 42, "解析结果：$answer", response)
     }
 
     /** 一次探测的服务商、思考模式与模型。 */
-    private class Target(val provider: ProviderModel, val thinking: ThinkingMode, val model: String?)
+    private class Target(
+        val provider: ProviderModel,
+        val thinking: ThinkingMode,
+        val model: String,
+    )
 
-    /** 按思考模式构造请求；思考参数按服务商写法放进请求体。 */
-    private fun request(target: Target): ChatClient.ChatClientRequestSpec {
-        val options = OpenAiChatOptions.builder().model(target.model ?: properties.llm.model)
+    /** 按服务商写法设置思考参数，执行工具并回传完整消息，再取得最终回复。 */
+    private fun request(
+        target: Target,
+        user: String,
+        tools: List<ToolCallback> = emptyList(),
+    ): ChatResponse {
+        val options = OpenAiChatOptions.builder().model(target.model).toolCallbacks(tools)
         if (target.thinking != ThinkingMode.DEFAULT) {
             options.extraBody(providers.thinkingBody(target.provider.thinkingStyle, target.thinking == ThinkingMode.ENABLED))
         }
-        return ChatClient.create(target.provider.chatModel).prompt().options(options)
+        var prompt = Prompt(user, options.build())
+        var response = target.provider.chatModel.call(prompt)
+        val manager = ToolCallingManager.builder().build()
+        while (response.hasToolCalls()) {
+            val result = manager.executeToolCalls(prompt, response)
+            prompt = Prompt(result.conversationHistory(), prompt.options)
+            response = target.provider.chatModel.call(prompt)
+        }
+        return response
     }
 
     /** 生成一次探测用的随机校验码。 */
     private fun newProbeCode(): String = UUID.randomUUID().toString().take(8)
 
     /** 取模型最终回复文本。 */
-    private fun replyOf(response: ChatResponse?): String = response?.result?.output?.text.orEmpty().trim()
+    private fun replyOf(response: ChatResponse?): String =
+        response
+            ?.result
+            ?.output
+            ?.text
+            .orEmpty()
+            .trim()
 
     /** 满足预期时记为通过并附用量与是否返回思考内容，否则记为回复不符合预期。 */
-    private fun expect(satisfied: Boolean, detail: String, response: ChatResponse?): CheckOutcome =
+    private fun expect(
+        satisfied: Boolean,
+        detail: String,
+        response: ChatResponse?,
+    ): CheckOutcome =
         if (satisfied) {
             CheckOutcome.Passed("$detail；${reasoningNote(response)}", usageOf(response))
         } else {
@@ -101,18 +137,27 @@ class SpringAiModelProbe(
 
     /** 说明回复是否带有思考内容，用于确认思考模式开关是否生效。 */
     private fun reasoningNote(response: ChatResponse?): String {
-        val reasoning = response?.result?.output?.metadata?.get("reasoningContent")?.toString()
+        val reasoning =
+            response
+                ?.result
+                ?.output
+                ?.metadata
+                ?.get("reasoningContent")
+                ?.toString()
         return if (reasoning.isNullOrBlank()) "无思考内容" else "含思考内容 ${reasoning.length} 字"
     }
 
     /** 读取本次调用的 token 用量。 */
-    private fun usageOf(response: ChatResponse?): TokenUsage? = response?.metadata?.usage?.let {
-        TokenUsage(it.promptTokens, it.completionTokens, it.totalTokens)
-    }
+    private fun usageOf(response: ChatResponse?): TokenUsage? =
+        response?.metadata?.usage?.let {
+            TokenUsage(it.promptTokens, it.completionTokens, it.totalTokens)
+        }
 }
 
 /** 探测用工具：返回本次探测生成的校验码，并记录被调用次数。 */
-class ProbeCodeTool(val code: String) {
+class ProbeCodeTool(
+    val code: String,
+) {
     private val counter = AtomicInteger()
 
     /** 已被调用的次数。 */
@@ -127,4 +172,7 @@ class ProbeCodeTool(val code: String) {
 }
 
 /** 结构化输出探测的目标结构。 */
-data class ArithmeticAnswer(val sum: Int, val reading: String)
+data class ArithmeticAnswer(
+    val sum: Int,
+    val reading: String,
+)

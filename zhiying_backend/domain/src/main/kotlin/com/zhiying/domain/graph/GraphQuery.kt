@@ -5,14 +5,22 @@ import com.zhiying.domain.identity.PersonId
 import com.zhiying.domain.relations.Hardness
 import com.zhiying.domain.relations.RelationTypeId
 
-/** 章节聚焦模式：只看第 N 章出场者，或累计前 N 章（PRD §5.7.1）。 */
-enum class ChapterMode { SINGLE, UPTO }
+/** 章节聚焦模式：只看第 N 章出场者，或指定章节区间。 */
+enum class ChapterMode { SINGLE, RANGE }
 
-/** 章节聚焦条件：[number] 为章节阅读序号（从 1 起，与响应里的章节编号同一口径），[mode] 为聚焦模式。 */
-data class ChapterFocus(val number: Int, val mode: ChapterMode) {
+/** 章节聚焦条件：[from]、[to] 为从 1 起的章节阅读序号，单章模式两端必须相等。 */
+data class ChapterFocus(
+    val from: Int,
+    val to: Int,
+    val mode: ChapterMode,
+) {
     init {
-        require(number >= 1) { "章节序号必须从 1 起" }
+        require(from >= 1 && to >= from) { "章节区间须满足 1 ≤ from ≤ to" }
+        require(mode != ChapterMode.SINGLE || from == to) { "单章模式的起止章必须相同" }
     }
+
+    /** 单章保留此前背景关系；区间只保留两端之间的记录。 */
+    val clipRange: IntRange get() = (if (mode == ChapterMode.SINGLE) 1 else from)..to
 }
 
 /**
@@ -56,9 +64,10 @@ data class DisplayScoring(
     }
 
     /** 某硬度的类型基础分。 */
-    fun base(hardness: Hardness): Double = when (hardness) {
-        Hardness.HARD -> hardBase
-        Hardness.MEDIUM -> mediumBase
-        Hardness.SOFT -> softBase
-    }
+    fun base(hardness: Hardness): Double =
+        when (hardness) {
+            Hardness.HARD -> hardBase
+            Hardness.MEDIUM -> mediumBase
+            Hardness.SOFT -> softBase
+        }
 }

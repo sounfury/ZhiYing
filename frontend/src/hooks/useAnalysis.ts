@@ -18,7 +18,7 @@ import {
   type ProgressEvent,
 } from '../api'
 import { formatTokens } from '../labels'
-import { emptyAnalysis, type AnalysisUi, type LogLine } from '../types'
+import { emptyAnalysis, NEW_PERSONS_KEPT, type AnalysisUi, type LogLine } from '../types'
 import { mockAnalysis, readMockKind } from './analysisMock'
 
 interface UseAnalysisParams {
@@ -109,6 +109,7 @@ export function useAnalysis({ chapterLabel, onAnalysisDone, onBanner }: UseAnaly
   const [analysis, setAnalysis] = useState<AnalysisUi>(emptyAnalysis)
 
   const logId = useRef(0)
+  const personId = useRef(0)
   /** 当前 SSE 的关闭函数 */
   const unsubRef = useRef<(() => void) | null>(null)
   /** 连接代号：启动 / 恢复 / 切书时递增，旧代号的回调与异步结果丢弃 */
@@ -167,10 +168,13 @@ export function useAnalysis({ chapterLabel, onAnalysisDone, onBanner }: UseAnaly
     (bookId: string, gen: number, e: ProgressEvent) => {
       const task = taskRef.current
       const unknownChapter = !task || (e.chapter_id != null && !task.chapters.some((c) => c.chapter_id === e.chapter_id))
+      const chapterId = e.chapter_id
+      const met = chapterId == null ? [] : (e.new_persons ?? []).map((name) => ({ id: ++personId.current, chapterId, name }))
       setAnalysis((prev) => {
         if (!prev.task) return prev
         const merged = mergeProgress(prev.task, e)
-        return { ...prev, task: merged, phase: phaseText(merged) }
+        const newPersons = met.length ? [...prev.newPersons, ...met].slice(-NEW_PERSONS_KEPT) : prev.newPersons
+        return { ...prev, task: merged, phase: phaseText(merged), newPersons }
       })
       // 阶段切换（或快照缺失 / 缺这一章）时重取快照：补齐章名、复用标记等事件里没有的字段
       const phaseChanged = e.phase != null && e.phase !== phaseRef.current

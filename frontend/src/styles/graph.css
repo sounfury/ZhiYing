@@ -111,23 +111,14 @@
   height: 34px;
 }
 
-.track .rail,
-.track .fill {
+.track .rail {
   position: absolute;
   left: 0;
+  right: 0;
   top: 9px;
   height: 4px;
   border-radius: 2px;
-}
-
-.track .rail {
-  right: 0;
   background: var(--line);
-}
-
-.track .fill {
-  background: var(--accent);
-  transition: width 0.2s;
 }
 
 .tick {
@@ -165,10 +156,6 @@
   border-color: var(--accent);
 }
 
-.tick.in i {
-  border-color: var(--accent);
-}
-
 .tick.cur i {
   background: var(--accent);
   border-color: var(--accent);
@@ -191,11 +178,6 @@
 .tick:focus-visible i {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-
-/* 全书模式：滑轨变灰，点刻度会切到单章 */
-.track.disabled .fill {
-  background: var(--line-2);
 }
 
 /* 章节很多时的滑块 */
@@ -237,6 +219,103 @@
   color: var(--muted);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
+}
+
+/* 区间双滑块：两个原生 range 叠放，只有滑块圆点接收指针 */
+.range-slider {
+  position: relative;
+  margin: 12px 8px 4px;
+  height: 22px;
+}
+
+.range-slider .rail,
+.range-slider .fill {
+  position: absolute;
+  top: 9px;
+  height: 4px;
+  border-radius: 2px;
+}
+
+.range-slider .rail {
+  left: 0;
+  right: 0;
+  background: var(--line);
+}
+
+.range-slider .fill {
+  background: var(--accent);
+}
+
+.range-slider input[type='range'] {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  margin: 0;
+  background: none;
+  pointer-events: none;
+  appearance: none;
+}
+
+.range-slider input.top {
+  z-index: 1;
+}
+
+.range-slider input[type='range']::-webkit-slider-thumb {
+  appearance: none;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.range-slider input[type='range']::-moz-range-thumb {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: var(--panel);
+  border: 2px solid var(--accent);
+  cursor: grab;
+  pointer-events: auto;
+}
+
+.range-slider input[type='range']:focus-visible {
+  outline: none;
+}
+
+.range-slider input[type='range']:focus-visible::-webkit-slider-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.range-slider input[type='range']:focus-visible::-moz-range-thumb {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.range-inputs {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.range-inputs input {
+  width: 5.5em;
+  padding: 2px 4px;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--panel);
+  color: var(--ink);
+  font-variant-numeric: tabular-nums;
+}
+
+.range-inputs .err {
+  color: var(--err);
 }
 
 .fx-chapter .cap {

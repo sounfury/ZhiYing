@@ -43,6 +43,9 @@ enum class ErrorCode(
     /** 上传文件超过大小上限。 */
     FILE_TOO_LARGE("上传文件超过大小上限"),
 
+    /** 管理员尚未配置全部分析环节的模型。 */
+    MODEL_NOT_CONFIGURED("请管理员先配置模型"),
+
     /** 未预期的内部错误，详情只记日志，不返回给调用方。 */
     INTERNAL_ERROR("服务内部错误"),
 }

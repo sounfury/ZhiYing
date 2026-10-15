@@ -1,4 +1,4 @@
-// 管理员模型连接诊断接口：可指定模型名，不返回服务地址或密钥。
+// 管理员模型连接诊断接口：必填服务商与模型名，不返回服务地址或密钥。
 package com.zhiying.web.diagnostics
 
 import com.zhiying.application.diagnostics.CheckOutcome
@@ -9,7 +9,6 @@ import com.zhiying.application.diagnostics.ThinkingMode
 import com.zhiying.application.diagnostics.TokenUsage
 import com.zhiying.application.error.AppException
 import com.zhiying.application.error.ErrorCode
-import com.zhiying.application.llm.DEFAULT_PROVIDER
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -20,8 +19,9 @@ import org.springframework.web.bind.annotation.RestController
 /** 诊断接口：供开发与部署时确认外部依赖可用。 */
 @RestController
 @RequestMapping("/api/diagnostics")
-class DiagnosticsController(private val diagnostics: ModelDiagnostics) {
-
+class DiagnosticsController(
+    private val diagnostics: ModelDiagnostics,
+) {
     /**
      * 探测模型接入：依次检查对话、工具调用与结构化输出，每项都会真实调用模型并产生费用。
      * 全部通过返回 200；任一项失败返回 502，响应体同样是完整报告；thinking 取值非法时返回 INVALID_ARGUMENT。
@@ -29,12 +29,13 @@ class DiagnosticsController(private val diagnostics: ModelDiagnostics) {
     @GetMapping("/model")
     fun probeModel(
         @RequestParam(defaultValue = "default") thinking: String,
-        @RequestParam(required = false) model: String?,
-        @RequestParam(defaultValue = DEFAULT_PROVIDER) provider: String,
+        @RequestParam model: String,
+        @RequestParam provider: String,
     ): ResponseEntity<ModelProbeResponse> {
-        val mode = ThinkingMode.entries.firstOrNull { it.name.equals(thinking, ignoreCase = true) }
-            ?: throw AppException(ErrorCode.INVALID_ARGUMENT, "thinking 只能是 default、enabled 或 disabled")
-        val report = diagnostics.run(mode, provider, model?.trim()?.ifBlank { null })
+        val mode =
+            ThinkingMode.entries.firstOrNull { it.name.equals(thinking, ignoreCase = true) }
+                ?: throw AppException(ErrorCode.INVALID_ARGUMENT, "thinking 只能是 default、enabled 或 disabled")
+        val report = diagnostics.run(mode, provider.trim(), model.trim())
         val status = if (report.passed) HttpStatus.OK else HttpStatus.BAD_GATEWAY
         return ResponseEntity.status(status).body(ModelProbeResponse.from(report))
     }
@@ -49,12 +50,13 @@ data class ModelProbeResponse(
 ) {
     companion object {
         /** 由应用层报告转换。 */
-        fun from(report: ModelProbeReport) = ModelProbeResponse(
-            passed = report.passed,
-            model = report.target.model,
-            thinking = report.thinking.name.lowercase(),
-            checks = report.results.map(CheckResponse::from),
-        )
+        fun from(report: ModelProbeReport) =
+            ModelProbeResponse(
+                passed = report.passed,
+                model = report.target.model,
+                thinking = report.thinking.name.lowercase(),
+                checks = report.results.map(CheckResponse::from),
+            )
     }
 }
 
@@ -73,9 +75,13 @@ data class CheckResponse(
             val name = result.check.name.lowercase()
             val elapsedMs = result.elapsed.inWholeMilliseconds
             return when (val outcome = result.outcome) {
-                is CheckOutcome.Passed -> CheckResponse(name, true, elapsedMs, outcome.detail, null, outcome.usage)
-                is CheckOutcome.Failed ->
+                is CheckOutcome.Passed -> {
+                    CheckResponse(name, true, elapsedMs, outcome.detail, null, outcome.usage)
+                }
+
+                is CheckOutcome.Failed -> {
                     CheckResponse(name, false, elapsedMs, outcome.message, outcome.failure.name.lowercase(), null)
+                }
             }
         }
     }

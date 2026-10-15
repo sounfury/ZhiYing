@@ -1,6 +1,7 @@
 // 账号 SQLite 存储：事务内消耗邀请码、创建账号和撤销登录；仅保存会话令牌的摘要。
 package com.zhiying.infrastructure.persistence.account
 
+import com.zhiying.application.account.AccountQuota
 import com.zhiying.application.account.AccountStore
 import com.zhiying.application.account.Invitation
 import com.zhiying.application.account.StoredAccount
@@ -61,6 +62,10 @@ class SqliteAccountStore(
                 .update()
         if (consumed == 0) throw AppException(ErrorCode.INVALID_INVITATION)
         insertAccount(account, passwordHash)
+        jdbc
+            .sql("UPDATE accounts SET max_books = (SELECT max_books FROM invitations WHERE code = ?), max_tokens = (SELECT max_tokens FROM invitations WHERE code = ?) WHERE id = ?")
+            .params(inviteCode, inviteCode, account.id)
+            .update()
     }
 
     private fun insertAccount(
@@ -110,20 +115,38 @@ class SqliteAccountStore(
             .query { rs, _ -> accountOf(rs) }
             .list()
 
+    override fun quota(userId: String): AccountQuota =
+        jdbc
+            .sql("SELECT max_books, max_tokens FROM accounts WHERE id = ?")
+            .param(userId)
+            .query { rs, _ ->
+                AccountQuota(
+                    rs.getLong("max_books").takeUnless { rs.wasNull() },
+                    rs.getLong("max_tokens").takeUnless { rs.wasNull() },
+                )
+            }
+            .single()
+
     override fun createInvitation(
         invitation: Invitation,
         createdBy: String,
     ) {
         jdbc
-            .sql("INSERT INTO invitations (code, max_uses, created_by, created_at) VALUES (?, ?, ?, ?)")
-            .params(invitation.code, invitation.maxUses, createdBy, Instant.now().toString())
+            .sql("INSERT INTO invitations (code, max_uses, max_books, max_tokens, created_by, created_at) VALUES (?, ?, ?, ?, ?, ?)")
+            .params(listOf(invitation.code, invitation.maxUses, invitation.maxBooks, invitation.maxTokens, createdBy, Instant.now().toString()))
             .update()
     }
 
     override fun listInvitations(): List<Invitation> =
         jdbc
             .sql("SELECT * FROM invitations ORDER BY created_at DESC, rowid DESC")
-            .query { rs, _ -> Invitation(rs.getString("code"), rs.getInt("max_uses"), rs.getInt("used_count")) }
+            .query { rs, _ ->
+                Invitation(
+                    rs.getString("code"), rs.getInt("max_uses"), rs.getInt("used_count"),
+                    rs.getLong("max_books").takeUnless { rs.wasNull() },
+                    rs.getLong("max_tokens").takeUnless { rs.wasNull() },
+                )
+            }
             .list()
 
     @Transactional

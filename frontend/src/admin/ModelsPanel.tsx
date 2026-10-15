@@ -1,7 +1,7 @@
-/** 管理员模型页签：维护模型服务商；为三个分析环节选服务商、模型（下拉或手填）与思考开关，恢复部署值、检查连接。 */
+/** 管理员模型页签：维护模型服务商；为三个分析环节选服务商、模型（下拉或手填）与思考开关并检查连接。没有内置服务商，未配置的环节不能启动分析。 */
 import { useCallback, useEffect, useState, type FormEvent } from 'react'
 import {
-  createProvider, deleteProvider, getModels, getProviderModels, getProviders, probeModel, resetModel, saveModel, updateProvider,
+  createProvider, deleteProvider, getModels, getProviderModels, getProviders, probeModel, saveModel, updateProvider,
   type ModelProvider, type ModelSetting, type ProbeReport, type ProviderDraft, type ThinkingStyle,
 } from './adminApi'
 
@@ -24,12 +24,13 @@ export default function ModelsPanel() {
   return <section className="adm-page" aria-label="模型配置">
     <header className="adm-page-head"><div>
       <h2>模型</h2>
-      <p className="hint">修改后对之后启动的分析生效，正在运行的任务继续使用启动时的配置。更换服务商、模型或思考开关后，原配置的结果不能再秒传。</p>
+      <p className="hint">修改后对之后启动的分析生效，正在运行的任务继续使用启动时的配置。更换模型或思考开关后，原配置的结果不能再秒传；只换服务商、模型名不变时仍可秒传。任一环节未配置时不能启动分析。</p>
     </div></header>
     {error && <p className="adm-note err" role="alert">{error}</p>}
     {!models.length && !error && <p className="adm-empty" role="status">正在加载模型配置…</p>}
+    {models.length > 0 && !providers.length && <p className="adm-note" role="status">还没有服务商，请先在下方新增服务商，再为各环节选择模型。</p>}
     {models.length > 0 && <div className="adm-grid">{models.map((setting) => <ModelForm key={setting.callPoint} initial={setting} providers={providers} />)}</div>}
-    {providers.length > 0 && <Providers providers={providers} onChange={loadProviders} />}
+    {models.length > 0 && <Providers providers={providers} onChange={loadProviders} />}
   </section>
 }
 
@@ -44,24 +45,24 @@ function ModelForm({ initial, providers }: { initial: ModelSetting; providers: M
   const [report, setReport] = useState<ProbeReport | null>(null)
   useEffect(() => {
     let active = true
-    setOptions([]); setListNote('正在拉取模型列表…')
+    setOptions([]); setListNote(setting.providerId ? '正在拉取模型列表…' : '')
+    if (!setting.providerId) return
     getProviderModels(setting.providerId)
       .then((list) => { if (active) { setOptions(list); setListNote(list.length ? `可选 ${list.length} 个模型，也可手动填写` : '服务商未返回模型列表，请手动填写') } })
       .catch((e: unknown) => { if (active) setListNote(message(e)) })
     return () => { active = false }
   }, [setting.providerId])
   const dirty = setting.providerId !== saved.providerId || setting.model !== saved.model || setting.thinking !== saved.thinking
-  const act = async (action: 'save' | 'reset' | 'probe') => {
+  const act = async (action: 'save' | 'probe') => {
     setBusy(true); setError(''); setNotice(''); setReport(null)
     try {
       if (action === 'probe') {
         setReport(await probeModel(setting))
       } else {
-        if (action === 'save') await saveModel(setting)
-        else await resetModel(setting.callPoint)
+        await saveModel(setting)
         const current = (await getModels()).find((m) => m.callPoint === setting.callPoint)!
         setSetting(current); setSaved(current)
-        setNotice(action === 'save' ? '已保存，之后启动的分析使用此配置。' : '已恢复配置文件的值。')
+        setNotice('已保存，之后启动的分析使用此配置。')
       }
     } catch (e) {
       setError(message(e))
@@ -72,9 +73,10 @@ function ModelForm({ initial, providers }: { initial: ModelSetting; providers: M
   return <form className="adm-card adm-form" onSubmit={submit}>
     <div className="adm-card-head" style={{ marginBottom: 0 }}>
       <h3>{LABELS[setting.callPoint]}</h3>
-      {dirty ? <span className="pill warn">未保存</span> : <span className="pill" title="当前生效配置的来源">{saved.source}</span>}
+      {dirty ? <span className="pill warn">未保存</span> : saved.configured ? <span className="pill">已配置</span> : <span className="pill warn">未配置</span>}
     </div>
-    <label className="adm-field">服务商<select value={setting.providerId} onChange={(e) => setSetting({ ...setting, providerId: e.target.value, model: '' })} disabled={busy}>
+    <label className="adm-field">服务商<select required value={setting.providerId ?? ''} onChange={(e) => setSetting({ ...setting, providerId: e.target.value, model: '' })} disabled={busy}>
+      <option value="" disabled>请选择服务商</option>
       {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
     </select></label>
     <label className="adm-field">模型<input list={listId} required value={setting.model} placeholder="从列表选择或手动填写" onChange={(e) => setSetting({ ...setting, model: e.target.value })} disabled={busy} />
@@ -84,8 +86,7 @@ function ModelForm({ initial, providers }: { initial: ModelSetting; providers: M
     <label className="adm-switch"><input type="checkbox" checked={setting.thinking} onChange={(e) => setSetting({ ...setting, thinking: e.target.checked })} disabled={busy} />思考模式</label>
     <div className="adm-actions">
       <button type="submit" className="btn primary" disabled={busy || !dirty}>保存</button>
-      <button type="button" className="btn" disabled={busy || !setting.model} onClick={() => void act('probe')}>测试连接</button>
-      <button type="button" className="btn ghost" disabled={busy} title="删除后台覆盖，回到部署配置的值" onClick={() => void act('reset')}>恢复默认</button>
+      <button type="button" className="btn" disabled={busy || !setting.providerId || !setting.model} onClick={() => void act('probe')}>测试连接</button>
     </div>
     {busy && <p className="hint" role="status" style={{ margin: 0 }}>正在处理…</p>}
     {error && <p className="adm-note err" role="alert">{error}</p>}
@@ -103,7 +104,7 @@ function ModelForm({ initial, providers }: { initial: ModelSetting; providers: M
 
 const EMPTY: ProviderDraft = { name: '', baseUrl: '', apiKey: '', thinkingStyle: 'NONE' }
 
-/** 服务商表格与新增 / 编辑表单（editing：null 收起，'' 新增，其余为被编辑的 id）；内置服务商来自部署配置，只读。 */
+/** 服务商表格与新增 / 编辑表单（editing：null 收起，'' 新增，其余为被编辑的 id）。 */
 function Providers({ providers, onChange }: { providers: ModelProvider[]; onChange: () => Promise<void> }) {
   const [editing, setEditing] = useState<string | null>(null)
   const [draft, setDraft] = useState<ProviderDraft>(EMPTY)
@@ -125,19 +126,19 @@ function Providers({ providers, onChange }: { providers: ModelProvider[]; onChan
       <div><h3>服务商</h3><p className="hint">支持 OpenAI 兼容协议的服务。API Key 加密保存，保存后只显示末尾 4 位。</p></div>
       {editing === null && <button type="button" className="btn" onClick={() => setEditing('')}>＋ 新增服务商</button>}
     </div>
-    <div className="adm-table-wrap"><table className="adm-table">
+    {providers.length === 0 ? <p className="adm-empty">暂无服务商</p> : <div className="adm-table-wrap"><table className="adm-table">
       <thead><tr><th>名称</th><th>服务地址</th><th>密钥</th><th>思考参数</th><th /></tr></thead>
       <tbody>{providers.map((p) => <tr key={p.id}>
         <td>{p.name}</td>
         <td className="clip" title={p.baseUrl}><code>{p.baseUrl}</code></td>
         <td><code>…{p.keyHint}</code></td>
         <td>{STYLES[p.thinkingStyle]}</td>
-        <td><div className="row-actions">{p.builtIn ? <span className="pill" title="来自部署配置，只读">部署配置</span> : <>
+        <td><div className="row-actions">
           <button type="button" className="btn ghost" disabled={busy} onClick={() => edit(p)}>编辑</button>
           <button type="button" className="btn ghost danger" disabled={busy} onClick={() => remove(p)}>删除</button>
-        </>}</div></td>
+        </div></td>
       </tr>)}</tbody>
-    </table></div>
+    </table></div>}
     {editing === null && error && <p className="adm-note err" role="alert">{error}</p>}
     {editing !== null && <form className="adm-form" onSubmit={submit} style={{ marginTop: 18, paddingTop: 18, borderTop: '1px solid var(--line)' }}>
       <h4 style={{ margin: 0 }}>{editing ? `编辑「${providers.find((p) => p.id === editing)?.name ?? ''}」` : '新增服务商'}</h4>

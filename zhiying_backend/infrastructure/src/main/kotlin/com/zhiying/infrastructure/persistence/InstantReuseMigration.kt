@@ -1,4 +1,4 @@
-// 表结构兼容迁移：补版本列、TXT 分章方案列与模型服务商列，并将旧书主迁为同 ID 条目，旧结果仍可读但不可秒传。
+// 表结构兼容迁移：补账号额度、版本与 TXT 分章列、迁移模型设置，并将旧书主迁为同 ID 条目。
 package com.zhiying.infrastructure.persistence
 
 import org.springframework.beans.factory.InitializingBean
@@ -15,9 +15,14 @@ class InstantReuseMigration(
 ) : InitializingBean {
     override fun afterPropertiesSet() {
         transactions.executeWithoutResult {
+            for (table in listOf("accounts", "invitations")) {
+                // 补列不带 CHECK：SQLite 会为它扫描旧行，驱动报 Query returns results；非负由应用层校验
+                addColumn(table, "max_books", "INTEGER")
+                addColumn(table, "max_tokens", "INTEGER")
+            }
             addColumn("books", "import_version", "INTEGER NOT NULL DEFAULT 1")
             addColumn("books", "split_rule", "TEXT")
-            addColumn("model_settings", "provider_id", "TEXT NOT NULL DEFAULT 'default'")
+            migrateModelSettings()
             addColumn("analysis_revision", "method_version", "TEXT")
             addColumn("analysis_revision", "full_book", "INTEGER NOT NULL DEFAULT 0")
             val old =
@@ -38,10 +43,32 @@ class InstantReuseMigration(
             for (column in listOf("input_tokens", "output_tokens", "requests")) {
                 if (column in ledgerColumns) continue
                 addColumn("usage_ledger", column, "INTEGER NOT NULL DEFAULT 0")
-                jdbc.sql("UPDATE usage_ledger SET $column = COALESCE((SELECT $column FROM analysis_task WHERE task_id = usage_ledger.task_id), 0)").update()
+                jdbc
+                    .sql(
+                        "UPDATE usage_ledger SET $column = COALESCE((SELECT $column FROM analysis_task WHERE task_id = usage_ledger.task_id), 0)",
+                    ).update()
             }
             jdbc.sql("CREATE INDEX IF NOT EXISTS idx_books_source_version ON books(source_ref, import_version)").update()
         }
+    }
+
+    private fun migrateModelSettings() {
+        val exists =
+            jdbc
+                .sql("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = 'model_settings'")
+                .query(Int::class.java)
+                .single() > 0
+        if (!exists) return
+        addColumn("model_settings", "provider_id", "TEXT NOT NULL DEFAULT 'default'")
+        jdbc
+            .sql(
+                """INSERT OR IGNORE INTO app_settings (setting_group, setting_key, value_json, updated_at, updated_by)
+            SELECT 'model', call_point,
+                json_object('providerId', provider_id, 'model', model, 'thinking', json(CASE WHEN thinking = 1 THEN 'true' ELSE 'false' END)),
+                updated_at, updated_by
+            FROM model_settings WHERE provider_id <> 'default'""",
+            ).update()
+        jdbc.sql("DROP TABLE model_settings").update()
     }
 
     private fun addColumn(

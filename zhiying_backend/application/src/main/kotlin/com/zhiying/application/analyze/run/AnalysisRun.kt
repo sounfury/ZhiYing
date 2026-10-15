@@ -6,6 +6,7 @@ import com.zhiying.application.llm.CancelSignal
 import com.zhiying.application.llm.ModelCallBudget
 import com.zhiying.application.llm.ModelCallControl
 import com.zhiying.application.llm.ModelSnapshot
+import com.zhiying.application.llm.PromptSnapshot
 import com.zhiying.domain.library.ChapterId
 import com.zhiying.domain.revision.RevisionId
 import java.time.Instant
@@ -23,7 +24,15 @@ fun interface AnalysisSubscription : AutoCloseable {
  * 入参：[initial] 初始快照；[tasks] 快照存储；[maxRequests]、[maxTokens] 整个任务的模型预算（0 不限）。
  * 取消只是置位 [cancelRequested]，由 [control] 的取消信号传给每一次模型调用；取消信号不被通用异常吞掉。
  */
-class AnalysisRun(initial: AnalysisTask, private val tasks: AnalysisTaskStore, maxRequests: Long, maxTokens: Long, val userId: String, models: ModelSnapshot) {
+class AnalysisRun(
+    initial: AnalysisTask,
+    private val tasks: AnalysisTaskStore,
+    maxRequests: Long,
+    maxTokens: Long,
+    val userId: String,
+    models: ModelSnapshot,
+    prompts: PromptSnapshot,
+) {
     private val lock = Any()
     private var task = initial
     private var sequence = 0L
@@ -44,7 +53,7 @@ class AnalysisRun(initial: AnalysisTask, private val tasks: AnalysisTaskStore, m
     }
 
     /** 任务级预算与取消信号，传给读章、后处理与团体归纳的全部调用，任务用量即取自该预算。 */
-    val control = ModelCallControl(ModelCallBudget(maxRequests, maxTokens), CancelSignal { cancelRequested }, models)
+    val control = ModelCallControl(ModelCallBudget(maxRequests, maxTokens), CancelSignal { cancelRequested }, models, prompts)
 
     /** 当前快照。 */
     val snapshot: AnalysisTask get() = synchronized(lock) { task }
@@ -61,11 +70,15 @@ class AnalysisRun(initial: AnalysisTask, private val tasks: AnalysisTaskStore, m
     fun setPhase(phase: TaskPhase) = update { it.copy(phase = phase) }
 
     /** 修改一章的执行情况并广播（章级事件）；章不在任务内则忽略。 */
-    fun updateChapter(chapterId: ChapterId, change: (ChapterRun) -> ChapterRun) {
+    fun updateChapter(
+        chapterId: ChapterId,
+        newPersons: List<String>? = null,
+        change: (ChapterRun) -> ChapterRun,
+    ) {
         synchronized(lock) {
             val current = task.chapters.firstOrNull { it.chapterId == chapterId } ?: return
             val updated = change(current)
-            emit(AnalysisEventKind.PROGRESS, task.withChapter(updated), updated)
+            emit(AnalysisEventKind.PROGRESS, task.withChapter(updated), updated, newPersons)
         }
     }
 
@@ -75,15 +88,20 @@ class AnalysisRun(initial: AnalysisTask, private val tasks: AnalysisTaskStore, m
     }
 
     /** 终结任务：写入终态、结束时间与说明，广播 DONE 事件并只保留这一条历史，之后不再有事件。 */
-    fun finish(status: TaskStatus, message: String?, revisionId: RevisionId? = null) {
+    fun finish(
+        status: TaskStatus,
+        message: String?,
+        revisionId: RevisionId? = null,
+    ) {
         synchronized(lock) {
-            val done = task.copy(
-                status = status,
-                phase = TaskPhase.FINISHED,
-                finishedAt = Instant.now(),
-                message = message,
-                revisionId = revisionId,
-            )
+            val done =
+                task.copy(
+                    status = status,
+                    phase = TaskPhase.FINISHED,
+                    finishedAt = Instant.now(),
+                    message = message,
+                    revisionId = revisionId,
+                )
             emit(AnalysisEventKind.DONE, done, null)
             history.removeAll { it.kind != AnalysisEventKind.DONE }
         }
@@ -93,7 +111,10 @@ class AnalysisRun(initial: AnalysisTask, private val tasks: AnalysisTaskStore, m
      * 订阅事件：先把历史中 id 大于 [lastEventId] 的事件依次回放，再转入实时；回放与登记是原子的，不会漏也不会乱序。
      * 任务已终结时回放的最后一条是 DONE，之后不会有新事件。
      */
-    fun subscribe(lastEventId: Long, listener: (AnalysisEvent) -> Unit): AnalysisSubscription {
+    fun subscribe(
+        lastEventId: Long,
+        listener: (AnalysisEvent) -> Unit,
+    ): AnalysisSubscription {
         synchronized(lock) {
             history.filter { it.id > lastEventId }.forEach { deliver(listener, it) }
             listeners += listener
@@ -102,20 +123,29 @@ class AnalysisRun(initial: AnalysisTask, private val tasks: AnalysisTaskStore, m
     }
 
     /** 应用变化：刷新用量、落库、记入历史并通知订阅者；调用方须持有 [lock]。 */
-    private fun emit(kind: AnalysisEventKind, next: AnalysisTask, chapter: ChapterRun?) {
+    private fun emit(
+        kind: AnalysisEventKind,
+        next: AnalysisTask,
+        chapter: ChapterRun?,
+        newPersons: List<String>? = null,
+    ) {
         val budget = control.budget
-        task = next.copy(
-            usage = TaskUsage(budget.usedRequests, budget.usedInputTokens, budget.usedOutputTokens, budget.usedTokens),
-        )
+        task =
+            next.copy(
+                usage = TaskUsage(budget.usedRequests, budget.usedInputTokens, budget.usedOutputTokens, budget.usedTokens),
+            )
         tasks.update(task, chapter)
-        val event = AnalysisEvent(++sequence, kind, task, chapter)
-        history.addLast(event)
+        val event = AnalysisEvent(++sequence, kind, task, chapter, newPersons)
+        history.addLast(event.copy(newPersons = null))
         if (history.size > HISTORY_LIMIT) history.removeFirst()
         listeners.forEach { deliver(it, event) }
     }
 
     /** 通知一个订阅者；回调抛异常（如连接已断开）就移除它，不影响任务与其他订阅者。 */
-    private fun deliver(listener: (AnalysisEvent) -> Unit, event: AnalysisEvent) {
+    private fun deliver(
+        listener: (AnalysisEvent) -> Unit,
+        event: AnalysisEvent,
+    ) {
         try {
             listener(event)
         } catch (e: Exception) {

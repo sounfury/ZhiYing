@@ -16,9 +16,9 @@ internal val AFFILIATION_KINDS = setOf("school", "religious", "family", "organiz
 
 /** 团体归纳提示词渲染。 */
 internal object AffiliationPrompts {
-
-    /** 系统提示：团体语义、类别、分块要求与输出约定。[minGroups]、[maxGroups] 为建议团体数范围。 */
-    fun system(minGroups: Int, maxGroups: Int): String = """
+    /** 系统提示模板：团体语义、类别、分块要求与输出约定。 */
+    val SYSTEM: String =
+        """
 你是一名小说人物「团体（势力）」归纳助手。你的任务是根据全书人名册、章摘要与关系骨架，列出书中真实存在的团体及其成员，供关系图按团体分区。
 
 ## 什么叫团体
@@ -50,7 +50,7 @@ internal object AffiliationPrompts {
 
 ## 分团要求
 
-1. 团体数建议在 $minGroups-$maxGroups 个：太少等于没分区，太多等于没秩序；书里确实只有更少时按实际来。
+1. 团体数建议在 {{min_groups}}-{{max_groups}} 个：太少等于没分区，太多等于没秩序；书里确实只有更少时按实际来。
 2. 团体名用书里的专有名词（学校名、教会名、家族名、圈子名），不要用「一群人」「配角们」。
 3. 一人可属多个团体（主角常跨多个阶段）；不要为了唯一归属而漏掉真实归属，也不要强行只归一个。
 4. chapters 填该人在此团体活跃的章号（阅读序号）。阶段性团体（某学校）只在对应章活跃，这样按前 N 章看图时后期团体不会提前泄露。
@@ -60,7 +60,7 @@ internal object AffiliationPrompts {
 ## 输出
 
 只输出一个 JSON 对象，团体放在 groups 数组里：name（必填）、kind（必填）、note（可选，一句话说明团体）、members（必填，非空，每项含 personId、role 可选、chapters、note、quote）。
-""".trimIndent()
+        """.trimIndent()
 
     /** 人名册里每人的短代号，按名册顺序编号；提示与回复解析共用。 */
     fun refs(request: AffiliationRequest): Map<PersonId, String> =
@@ -70,8 +70,10 @@ internal object AffiliationPrompts {
     fun user(request: AffiliationRequest): String {
         val names = request.persons.associate { it.person.id to it.person.displayName }
         val refs = refs(request)
-        val chapterRange = request.chapters.takeIf { it.isNotEmpty() }
-            ?.let { "第 ${it.first().number}-${it.last().number} 章（共 ${it.size} 章）" } ?: "无"
+        val chapterRange =
+            request.chapters
+                .takeIf { it.isNotEmpty() }
+                ?.let { "第 ${it.first().number}-${it.last().number} 章（共 ${it.size} 章）" } ?: "无"
         return buildString {
             appendLine("## 已分析章范围\n- $chapterRange\n")
             appendLine("## 人名册（共 ${request.persons.size} 人，后面括号内为出场章号）")
@@ -99,15 +101,27 @@ internal object AffiliationPrompts {
     }
 
     /** 一行人名册：短代号、名、别名、重要度、资料与出场章。 */
-    private fun rosterLine(p: InductionPerson, ref: String): String {
+    private fun rosterLine(
+        p: InductionPerson,
+        ref: String,
+    ): String {
         val person = p.person
-        val aliases = person.aliases.takeIf { it.isNotEmpty() }?.joinToString("/", prefix = " 别名[", postfix = "]").orEmpty()
-        val importance = when (person.importance) {
-            Importance.PROTAGONIST -> "主角"
-            Importance.SUPPORTING -> "配角"
-            else -> "次要"
-        }
-        val profile = person.profile?.takeIf { it.isNotBlank() }?.let { " — $it" }.orEmpty()
+        val aliases =
+            person.aliases
+                .takeIf { it.isNotEmpty() }
+                ?.joinToString("/", prefix = " 别名[", postfix = "]")
+                .orEmpty()
+        val importance =
+            when (person.importance) {
+                Importance.PROTAGONIST -> "主角"
+                Importance.SUPPORTING -> "配角"
+                else -> "次要"
+            }
+        val profile =
+            person.profile
+                ?.takeIf { it.isNotBlank() }
+                ?.let { " — $it" }
+                .orEmpty()
         return "  - $ref: ${person.displayName}$aliases [$importance]$profile (${ranges(p.appearances)})"
     }
 
@@ -118,7 +132,10 @@ internal object AffiliationPrompts {
         var start = numbers.first()
         var prev = start
         for (n in numbers.drop(1) + (numbers.last() + 2)) {
-            if (n == prev + 1) { prev = n; continue }
+            if (n == prev + 1) {
+                prev = n
+                continue
+            }
             parts += if (start == prev) "$start" else "$start-$prev"
             start = n
             prev = n

@@ -9,14 +9,15 @@ import com.zhiying.domain.relations.AssessmentSource
 import com.zhiying.domain.relations.RelationAssessment
 import com.zhiying.domain.relations.SemanticVerdict
 import com.zhiying.domain.relations.UndeterminedReason
-import com.zhiying.infrastructure.config.ZhiYingProperties
 import com.zhiying.infrastructure.llm.StructuredCallExecutor
 import com.zhiying.infrastructure.llm.StructuredOutcome
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 /** 模型回复：每条记录一项结论。 */
-internal data class RecheckReply(val results: List<RecheckResultDto> = emptyList())
+internal data class RecheckReply(
+    val results: List<RecheckResultDto> = emptyList(),
+)
 
 /** 对一条记录的补查结论：verdict 为 supported / refuted / undetermined。 */
 internal data class RecheckResultDto(
@@ -36,9 +37,7 @@ internal data class RecheckResultDto(
 @Component
 class SpringAiRelationRechecker(
     private val executor: StructuredCallExecutor,
-    properties: ZhiYingProperties,
 ) : RelationRechecker {
-    private val config = properties.postProcess
     private val log = LoggerFactory.getLogger(SpringAiRelationRechecker::class.java)
 
     /**
@@ -46,12 +45,12 @@ class SpringAiRelationRechecker(
      * 入参：[request] 原因、动作、记录材料与任务级控制。出参：与 [RecheckRequest.items] 一一对应的结果。
      */
     override fun recheck(request: RecheckRequest): List<RecheckResult> {
-        val outcome = executor.askPostProcess<RecheckReply>(
-            system = RecheckPrompts.SYSTEM,
-            user = RecheckPrompts.user(request),
-            control = request.control,
-            config = config,
-        )
+        val outcome =
+            executor.askPostProcess<RecheckReply>(
+                system = requireNotNull(request.control.prompts).system("recheck"),
+                user = RecheckPrompts.user(request),
+                control = request.control,
+            )
         if (outcome is StructuredOutcome.Failed) {
             log.warn("定向补查未完成（{}），{} 条记录保持未决：{}", outcome.failure, request.items.size, outcome.message)
             return request.items.map { RecheckResult.NotCompleted(it.occurrence.id, "${outcome.failure}: ${outcome.message}") }
@@ -62,21 +61,27 @@ class SpringAiRelationRechecker(
     }
 
     /** 单条记录的结果：回复缺项或结论非法时为未完成。 */
-    private fun resultFor(item: RecheckItem, dto: RecheckResultDto?, requested: UndeterminedReason): RecheckResult {
+    private fun resultFor(
+        item: RecheckItem,
+        dto: RecheckResultDto?,
+        requested: UndeterminedReason,
+    ): RecheckResult {
         val id = item.occurrence.id
         if (dto == null) return RecheckResult.NotCompleted(id, "模型没有返回该记录的结论")
         val basis = dto.basis.trim()
-        val verdict = when (dto.verdict.trim().lowercase()) {
-            "supported" -> SemanticVerdict.Supported
-            "refuted" -> SemanticVerdict.Refuted
-            "undetermined" -> SemanticVerdict.Undetermined(AnalysisPromptText.parseReason(dto.undeterminedReason) ?: requested)
-            else -> null
-        }
-        val problem = when {
-            verdict == null -> "无法识别的结论「${dto.verdict}」"
-            basis.isEmpty() -> "没有说明依据"
-            else -> null
-        }
+        val verdict =
+            when (dto.verdict.trim().lowercase()) {
+                "supported" -> SemanticVerdict.Supported
+                "refuted" -> SemanticVerdict.Refuted
+                "undetermined" -> SemanticVerdict.Undetermined(AnalysisPromptText.parseReason(dto.undeterminedReason) ?: requested)
+                else -> null
+            }
+        val problem =
+            when {
+                verdict == null -> "无法识别的结论「${dto.verdict}」"
+                basis.isEmpty() -> "没有说明依据"
+                else -> null
+            }
         if (verdict == null || problem != null) {
             log.warn("丢弃补查结论 {}：{}", id.value, problem)
             return RecheckResult.NotCompleted(id, "补查结论无效：$problem")

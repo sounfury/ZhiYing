@@ -29,32 +29,42 @@ data class GraphQuery(
     @param:BindParam("category_filter") val categoryFilter: String?,
     val chapter: Int?,
     @param:BindParam("chapter_mode") val chapterMode: String?,
+    @param:BindParam("chapter_from") val chapterFrom: Int?,
+    @param:BindParam("chapter_to") val chapterTo: Int?,
 )
 
 /** 图谱与导出 HTTP 接口。 */
 @RestController
 @RequestMapping("/api/books/{bookId}")
-class GraphController(private val getGraph: GetGraph, private val exportGraph: ExportGraphData) {
-
+class GraphController(
+    private val getGraph: GetGraph,
+    private val exportGraph: ExportGraphData,
+) {
     /**
      * 关系图。
      *
      * 参数：min_appearance 最少出场章数（缺省用配置阈值）；focus 聚焦人物 ID；
      * predicate_filter 关系类型 ID，逗号分隔；category_filter 硬度（hard / medium / soft 或 硬关系 / 中关系 / 软关系），逗号分隔；
-     * chapter 章节阅读序号（章节聚焦，从 1 起）；chapter_mode 为 single（只看本章）或 upto（前 N 章累计，缺省）。
+     * chapter_mode=single&chapter=N 只看第 N 章；chapter_mode=range&chapter_from=a&chapter_to=b 查看指定区间。
      * 该书尚无已发布结果时返回空图（200），revision_id 为 null。
      */
     @GetMapping("/graph")
-    fun graph(@PathVariable bookId: String, query: GraphQuery): GraphResponse =
-        GraphResponse.from(getGraph.execute(BookId(bookId), request(query)))
+    fun graph(
+        @PathVariable bookId: String,
+        query: GraphQuery,
+    ): GraphResponse = GraphResponse.from(getGraph.execute(BookId(bookId), request(query)))
 
     /** 导出 JSON（附件下载）；参数与 /graph 相同，内容与页面共用同一份图数据。 */
     @GetMapping("/export")
-    fun export(@PathVariable bookId: String, query: GraphQuery): ResponseEntity<ExportResponse> {
+    fun export(
+        @PathVariable bookId: String,
+        query: GraphQuery,
+    ): ResponseEntity<ExportResponse> {
         val export = exportGraph.execute(BookId(bookId), request(query))
         val safeId = bookId.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(64).ifEmpty { "book" }
         val disposition = ContentDisposition.attachment().filename("zhiying-$safeId.json").build()
-        return ResponseEntity.ok()
+        return ResponseEntity
+            .ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
             .body(ExportResponse("zhiying-graph", 2, export.exportedAt.toString(), GraphResponse.from(export.graph)))
     }
@@ -66,29 +76,56 @@ class GraphController(private val getGraph: GetGraph, private val exportGraph: E
             focus = q.focus?.takeIf { it.isNotBlank() }?.let { PersonId(it.trim()) },
             types = splitList(q.predicateFilter).mapTo(linkedSetOf()) { RelationTypeId(it) },
             hardness = splitList(q.categoryFilter).mapTo(linkedSetOf()) { hardnessOf(it) },
-            chapterFocus = chapterFocusOf(q.chapter, q.chapterMode),
+            chapterFocus = chapterFocusOf(q),
         )
 
-    /** 章节聚焦参数：未给 chapter 时为空（给了 chapter_mode 也忽略）；章号小于 1 或模式非法返回 INVALID_ARGUMENT。 */
-    private fun chapterFocusOf(chapter: Int?, mode: String?): ChapterFocus? {
-        if (chapter == null) return null
-        if (chapter < 1) throw AppException(ErrorCode.INVALID_ARGUMENT, "chapter 必须从 1 起: $chapter")
-        val parsed = when (mode?.trim()?.lowercase()) {
-            null, "", "upto" -> ChapterMode.UPTO
-            "single" -> ChapterMode.SINGLE
-            else -> throw AppException(ErrorCode.INVALID_ARGUMENT, "chapter_mode 只能是 single 或 upto: $mode")
+    /** 无章节参数时查看全书；其余严格匹配单章或区间参数，非法组合返回 INVALID_ARGUMENT。 */
+    private fun chapterFocusOf(q: GraphQuery): ChapterFocus? {
+        if (q.chapterMode == null && q.chapter == null && q.chapterFrom == null && q.chapterTo == null) return null
+        val mode: ChapterMode
+        val from: Int
+        val to: Int
+        when (q.chapterMode) {
+            "single" -> {
+                if (q.chapter == null || q.chapterFrom != null || q.chapterTo != null) {
+                    throw AppException(ErrorCode.INVALID_ARGUMENT, "single 模式须仅提供 chapter")
+                }
+                mode = ChapterMode.SINGLE
+                from = q.chapter
+                to = q.chapter
+            }
+
+            "range" -> {
+                if (q.chapterFrom == null || q.chapterTo == null || q.chapter != null) {
+                    throw AppException(ErrorCode.INVALID_ARGUMENT, "range 模式须仅提供 chapter_from 与 chapter_to")
+                }
+                mode = ChapterMode.RANGE
+                from = q.chapterFrom
+                to = q.chapterTo
+            }
+
+            else -> {
+                throw AppException(ErrorCode.INVALID_ARGUMENT, "chapter_mode 只能是 single 或 range")
+            }
         }
-        return ChapterFocus(chapter, parsed)
+        if (from < 1 || to < from) throw AppException(ErrorCode.INVALID_ARGUMENT, "章节区间须满足 1 ≤ from ≤ to")
+        return ChapterFocus(from, to, mode)
     }
 
     /** 逗号分隔参数拆成非空项。 */
-    private fun splitList(raw: String?): List<String> = raw.orEmpty().split(',').map { it.trim() }.filter { it.isNotEmpty() }
+    private fun splitList(raw: String?): List<String> =
+        raw
+            .orEmpty()
+            .split(',')
+            .map { it.trim() }
+            .filter { it.isNotEmpty() }
 
     /** 硬度参数：英文名或中文分类名。 */
-    private fun hardnessOf(raw: String): Hardness = when (raw.lowercase().removeSuffix("关系")) {
-        "hard", "硬" -> Hardness.HARD
-        "medium", "中" -> Hardness.MEDIUM
-        "soft", "软" -> Hardness.SOFT
-        else -> throw AppException(ErrorCode.INVALID_ARGUMENT, "category_filter 只能是 hard、medium、soft: $raw")
-    }
+    private fun hardnessOf(raw: String): Hardness =
+        when (raw.lowercase().removeSuffix("关系")) {
+            "hard", "硬" -> Hardness.HARD
+            "medium", "中" -> Hardness.MEDIUM
+            "soft", "软" -> Hardness.SOFT
+            else -> throw AppException(ErrorCode.INVALID_ARGUMENT, "category_filter 只能是 hard、medium、soft: $raw")
+        }
 }

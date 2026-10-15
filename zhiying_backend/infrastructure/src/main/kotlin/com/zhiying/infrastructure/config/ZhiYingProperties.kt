@@ -4,7 +4,6 @@ package com.zhiying.infrastructure.config
 import org.springframework.boot.context.properties.ConfigurationProperties
 import org.springframework.boot.context.properties.EnableConfigurationProperties
 import org.springframework.context.annotation.Configuration
-import org.springframework.util.unit.DataSize
 import java.nio.file.Path
 import java.time.Duration
 import java.time.ZoneId
@@ -32,21 +31,10 @@ data class ZhiYingProperties(
     val quota: QuotaProperties = QuotaProperties(),
 )
 
-/** 用量上限；0 表示不限，初始每人额度与全站预算由运营方配置。 */
+/** 配额时区仍由部署配置提供，上限从后台设置读取。 */
 data class QuotaProperties(
-    val maxBooks: Long = 0,
-    val maxAnalysisChars: Long = 0,
-    val maxFileSize: DataSize = DataSize.ofMegabytes(200),
-    val maxConcurrentTasks: Long = 0,
-    val dailyTokenBudget: Long = 0,
     val timeZone: ZoneId = ZoneId.of("Asia/Shanghai"),
-) {
-    init {
-        require(listOf(maxBooks, maxAnalysisChars, maxFileSize.toBytes(), maxConcurrentTasks, dailyTokenBudget).all { it >= 0 }) {
-            "zhiying.quota 上限不能为负"
-        }
-    }
-}
+)
 
 /** 示例书固定链接目录；访问权限统一由账号与书籍归属决定。 */
 data class ExampleProperties(
@@ -68,26 +56,12 @@ data class AccountProperties(
         "AccountProperties(adminUsername=$adminUsername, sessionLifetime=$sessionLifetime, secureCookie=$secureCookie)"
 }
 
-/**
- * 模型服务连接（OpenAI 兼容协议）。`spring.ai.openai.*` 从这里取值，保证只有一处来源。
- *
- * 入参：[baseUrl] 服务地址；[apiKey] 密钥；[model] 默认对话模型名；
- * [secretKey] 加密后台所填服务商密钥的主密钥，为空时后台不能保存服务商密钥。
- */
+/** 加密后台服务商 API Key 的主密钥；为空时仍可启动，但不能保存或使用服务商密钥。 */
 data class LlmProperties(
-    val baseUrl: String,
-    val apiKey: String,
-    val model: String,
     val secretKey: String = "",
 ) {
-    init {
-        require(baseUrl.isNotBlank()) { "zhiying.llm.base-url 不能为空" }
-        require(apiKey.isNotBlank()) { "zhiying.llm.api-key 不能为空，请在 .env 中设置 LLM_API_KEY" }
-        require(model.isNotBlank()) { "zhiying.llm.model 不能为空" }
-    }
-
-    /** 打印配置时隐藏密钥。 */
-    override fun toString() = "LlmProperties(baseUrl=$baseUrl, model=$model)"
+    /** 打印配置时隐藏主密钥。 */
+    override fun toString() = "LlmProperties()"
 }
 
 /**
@@ -159,15 +133,12 @@ data class GraphProperties(
 /**
  * 团体归纳参数（zhiying.affiliations.*）：全书级一次结构化调用，输入过大时按重要度与出场数裁剪。
  *
- * 入参：[model] 专用模型名，空则用 `zhiying.llm.model`；[thinking] 是否开启思考；
- * [minGroups]、[maxGroups] 提示中建议的团体数范围；[maxPersons] 人名册最多带入的人数（按重要度、出场章数取前）；
+ * 入参：[minGroups]、[maxGroups] 提示中建议的团体数范围默认值，后台覆盖后随任务快照生效；[maxPersons] 人名册最多带入的人数（按重要度、出场章数取前）；
  * [maxProfileChars] 单个人物资料截断字数；[maxChapters] 最多带入的章摘要数（超出时均匀抽样）；
  * [maxSummaryChars] 单章摘要截断字数；[maxObservationsPerChapter] 每章最多带入的章内观察数；
  * [maxObservationChars] 单条观察截断字数；[maxRelations] 关系骨架最多条数（按出现章数取前）。
  */
 data class AffiliationProperties(
-    val model: String = "",
-    val thinking: Boolean = false,
     val minGroups: Int = 5,
     val maxGroups: Int = 12,
     val maxPersons: Int = 300,
@@ -218,16 +189,13 @@ data class ModelCallProperties(
 /**
  * 章阅读参数（对应 `zhiying.reading.*`）。
  *
- * 入参：[model] 章阅读专用模型名，空则用 `zhiying.llm.model`；[thinking] 是否开启思考模式；
- * [baseSteps] 短章工具循环最大步数；[maxSteps] 长章步数上限（长章按窗数 15 + 2 × 窗数，不超过该值）；
- * [injectMaxChars] 不超过该字数的章节整章注入提示；[readWindowChars] 分段读取时每窗最大字数；
+ * 入参：[baseSteps] 短章工具循环最大步数；[maxSteps] 长章步数上限（长章按窗数 15 + 2 × 窗数，不超过该值）；
+ * [injectMaxChars] 不超过该字数的章节整章注入提示；[readWindowChars] 分段读取时每窗最大字数默认值，后台覆盖后随任务快照生效；
  * [maxRequests]、[maxTokens] 单章请求数与 token 预算；[submitNudges] 模型不调工具也未提交时，提醒其提交的次数；
  * [segmentMaxChars] 阅读单元字数上限，超过的章按 ⌈字数 / 上限⌉ 均分成多段（短章不合并）；
  * [segmentHintChars] 段首附上一段末尾的提示字数（仅供衔接，不归本段抽取），0 表示不附。
  */
 data class ReadingProperties(
-    val model: String = "",
-    val thinking: Boolean = false,
     val baseSteps: Int = 20,
     val maxSteps: Int = 60,
     val injectMaxChars: Int = 10_000,
@@ -265,8 +233,7 @@ data class AnalysisProperties(
 /**
  * 分析后处理参数（对应 `zhiying.post-process.*`）：身份歧义、类型归一、定向补查、软兜底四个模型调用点共用。
  *
- * 入参：[model] 后处理专用模型名，空则用 `zhiying.llm.model`；[thinking] 是否开启思考；
- * [identityMaxItems]/[identityMaxChars]、[typeMaxItems]/[typeMaxChars]、[recheckMaxItems]/[recheckMaxChars]、
+ * 入参：[identityMaxItems]/[identityMaxChars]、[typeMaxItems]/[typeMaxChars]、[recheckMaxItems]/[recheckMaxChars]、
  * [fallbackMaxItems]/[fallbackMaxChars] 各步骤单次请求的条数与近似输入字符数上限；
  * [recheckMaxRequests] 整个分析最多发出的补查请求数，超出的记录保持未决；
  * [mentionsPerPerson] 身份判断中每个候选人物最多附带的提及条数；[fallbackInteractionsPerPair] 软兜底每个人物对最多附带的交流观察数；
@@ -279,8 +246,6 @@ data class AnalysisProperties(
  * [recheckContext] 补查原文上下文的扩展上限。
  */
 data class PostProcessProperties(
-    val model: String = "",
-    val thinking: Boolean = false,
     val identityMaxItems: Int = 8,
     val identityMaxChars: Int = 12_000,
     val typeMaxItems: Int = 10,

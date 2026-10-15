@@ -100,6 +100,7 @@ internal object AnalysisPayloads {
             base["units_total"] = c.unitsTotal
             c.error?.let { base["error"] = it }
         }
+        e.newPersons?.let { base["new_persons"] = it }
         base["done"] = t.chaptersDone
         base["total"] = t.chapters.size
         base["phase"] = t.phase.name.lowercase()

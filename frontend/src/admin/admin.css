@@ -174,6 +174,36 @@
   color: var(--muted);
 }
 
+/* 页签切换淡入；加载中的空状态带转圈 */
+.adm-main > * {
+  animation: zy-fade-in 0.2s ease both;
+}
+
+.adm-empty[role='status'] {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  animation: zy-fade-in 0.25s ease 0.12s both;
+}
+
+.adm-empty[role='status']::before {
+  content: '';
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2.5px solid var(--line-2);
+  border-top-color: var(--accent);
+  animation: zy-spin 0.8s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .adm-main > *,
+  .adm-empty[role='status'] {
+    animation: none;
+  }
+}
+
 /* ── 表单字段 ── */
 
 .adm-form {
@@ -613,4 +643,59 @@
   .adm-card {
     padding: 16px 14px;
   }
+}
+
+/* ── 设置页签 ── */
+
+.adm-field-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.adm-prompt {
+  border: 1px solid var(--line);
+  border-radius: var(--r-sm);
+  padding: 10px 14px;
+}
+
+.adm-prompt summary {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-weight: 500;
+}
+
+.adm-prompt[open] summary {
+  margin-bottom: 12px;
+}
+
+.adm textarea {
+  width: 100%;
+  min-height: 240px;
+  padding: 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--ink);
+  font: 13px/1.6 var(--mono, ui-monospace, monospace);
+  resize: vertical;
+}
+
+.adm textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.adm-prompt > .hint {
+  margin: 0 0 10px;
+}
+
+.adm-prompt-params {
+  margin-bottom: 14px;
+  padding: 12px;
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
 }

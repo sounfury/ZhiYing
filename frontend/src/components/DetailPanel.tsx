@@ -17,6 +17,7 @@ import {
   type GraphNode,
   type GraphTag,
 } from '../api'
+import { useAuth } from '../useAuth'
 import { UNASSIGNED_FACTION_ID, factionColor } from '../factions'
 import { edgeDirection } from '../relationDirection'
 import { GENDER_LABEL, IMPORTANCE_LABEL, formatTokens, shortTitle } from '../labels'
@@ -106,7 +107,8 @@ function formatElapsed(ms: number): string {
 
 function BookOverview({ graph, book, castCount, chapters, onFocusPerson }: DetailPanelProps) {
   const [task, setTask] = useState<AnalysisTaskSnapshot | null>(null)
-  const bookId = book?.book_id
+  // 任务快照需登录，访客不请求
+  const bookId = useAuth().user ? book?.book_id : undefined
   const status = book?.status
   const totalTokens = book?.token_usage?.total_tokens
   useEffect(() => {
@@ -220,7 +222,7 @@ function PersonCard({
 }: DetailPanelProps & { node: GraphNode }) {
   const [openRel, setOpenRel] = useState<string | null>(null)
   const focus = graph?.chapter_focus ?? null
-  const singleChapter = focus?.mode === 'single' ? focus.chapter : null
+  const singleChapter = focus?.mode === 'single' ? focus.to : null
   const short = shortName(node.name)
   const color = nodeColor(graph, node)
   // 所属势力：主势力排最前，其余按图上的势力顺序
@@ -307,7 +309,7 @@ function PersonCard({
         <AppearanceStrip
           node={node}
           chapters={chapters}
-          current={focus ? focus.chapter : null}
+          current={focus ? focus.to : null}
           onJump={onJumpChapter}
         />
 

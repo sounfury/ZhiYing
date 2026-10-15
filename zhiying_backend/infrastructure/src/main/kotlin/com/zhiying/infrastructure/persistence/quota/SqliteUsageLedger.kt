@@ -38,6 +38,13 @@ class SqliteUsageLedger(
             .query(Long::class.java)
             .single()
 
+    override fun usedTokens(userId: String): Long =
+        jdbc
+            .sql("SELECT COALESCE(SUM(tokens), 0) FROM usage_ledger WHERE user_id = ?")
+            .param(userId)
+            .query(Long::class.java)
+            .single()
+
     override fun tokensBetween(
         start: Instant,
         end: Instant,

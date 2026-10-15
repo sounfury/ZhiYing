@@ -1,11 +1,11 @@
-/** 管理员用量页签：按配置时区展示今日与近 30 天用量、只读额度，以及累计用户与条目用量。 */
+/** 管理员用量页签：按配置时区展示今日与近 30 天用量、当前额度（在设置页签调整），以及累计用户与条目用量。 */
 import { useEffect, useState } from 'react'
 import { getBookUsage, getDailyUsage, getUserUsage, type BookUsage, type UsageDashboard, type UserUsage } from './adminApi'
 
 const fmt = (n: number) => n.toLocaleString()
 const limit = (n: number, unit: string) => (n > 0 ? `${fmt(n)} ${unit}` : '不限')
 
-export default function UsagePanel() {
+export default function UsagePanel({ onOpenSettings }: { onOpenSettings: () => void }) {
   const [data, setData] = useState<UsageDashboard | null>(null)
   const [users, setUsers] = useState<UserUsage[]>([])
   const [books, setBooks] = useState<BookUsage[]>([])
@@ -55,9 +55,10 @@ export default function UsagePanel() {
         <div className="adm-chart-axis"><span>{data.daily[0]?.date}</span><span>{data.daily.at(-1)?.date}</span></div>
       </div>
       <div className="adm-card">
-        <div className="adm-card-head"><div><h3>额度</h3><p className="hint">由部署配置调整，此处只读。</p></div></div>
+        <div className="adm-card-head"><h3>额度</h3><button type="button" className="btn ghost" onClick={onOpenSettings}>去设置调整 →</button></div>
         <dl className="adm-limits">
           <div><dt>每人书数</dt><dd>{limit(data.limits.maxBooks, '本')}</dd></div>
+          <div><dt>每人累计 token</dt><dd>{limit(data.limits.maxTokens, 'token')}</dd></div>
           <div><dt>每人累计分析</dt><dd>{limit(data.limits.maxAnalysisChars, '字')}</dd></div>
           <div><dt>单个文件</dt><dd>{limit(data.limits.maxFileBytes / 1024 / 1024, 'MiB')}</dd></div>
           <div><dt>同时分析</dt><dd>{limit(data.limits.maxConcurrentTasks, '本')}</dd></div>

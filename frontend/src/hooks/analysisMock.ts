@@ -37,6 +37,8 @@ function ch(i: number, status: string, unitsDone: number, extra: Partial<Analysi
   }
 }
 
+const MOCK_PERSONS = ['斯蒂芬', '丹蒂', '西蒙', '克兰利'].map((name, i) => ({ id: i + 1, chapterId: 9 + (i >> 1), name }))
+
 const ago = (seconds: number) => new Date(Date.now() - seconds * 1000).toISOString()
 
 function snapshot(over: Partial<AnalysisTaskSnapshot>): AnalysisTaskSnapshot {
@@ -166,6 +168,7 @@ export function mockAnalysis(kind: MockKind): AnalysisUi {
     dismissed: false,
     phase: task.active ? '分析进行中（演示数据）' : '',
     logs: LOGS,
+    newPersons: task.active ? MOCK_PERSONS : [],
     demo: true,
   }
 }

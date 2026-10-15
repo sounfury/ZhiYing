@@ -58,6 +58,8 @@ type Args = {
 /** 适应窗口后最多放到这么大：两三个人的小图别被放成巨型气泡 */
 const MAX_FIT_ZOOM = 1.15
 const ZOOM_STEP = 1.3
+/** 缩放停手多久后才重排标签 */
+const ZOOM_SETTLE_MS = 120
 
 export function useGraphInstance({
   containerRef,
@@ -449,8 +451,18 @@ export function useGraphInstance({
       cb.current.onHover?.(null)
       release()
     })
-    // 缩放分级：名字 / 连线文字随缩放显隐
-    graph.on('aftertransform', () => schedule())
+    // 缩放分级：名字 / 连线文字随缩放显隐。标签避让每次要扫全部连线，缩放中逐帧重算会卡，
+    // 所以平移不算、缩放停手后再算一次，缩放过程中由画布整体缩放
+    let styledZoom = 1 // 建图样式按 1 算；render 完成前还不能 getZoom
+    let zoomTimer = 0
+    graph.on('aftertransform', () => {
+      window.clearTimeout(zoomTimer)
+      zoomTimer = window.setTimeout(() => void readyRef.current.then(() => {
+        if (graph.destroyed || graph.getZoom() === styledZoom) return
+        styledZoom = graph.getZoom()
+        schedule()
+      }), ZOOM_SETTLE_MS)
+    })
     const onPerfDown = () => perfLog('按下鼠标')
     if (perfOn()) {
       installPerfWatch()

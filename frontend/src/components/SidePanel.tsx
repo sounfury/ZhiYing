@@ -29,10 +29,12 @@ const TABS: { id: SideTab; label: string }[] = [
 /** 与图上章节条同一套章名 */
 function scopeText(focus: ChapterFocusParam, chapters: ChapterBrief[]): string {
   const names = chapterShortNames(chapters)
-  const idx = chapters.findIndex((c) => c.chapter_id === focus.chapter)
-  const name = idx >= 0 ? names[idx] : `第 ${focus.chapter} 段`
-  if (focus.mode === 'single') return `${name} · 只显示本章出场人物`
-  return idx <= 0 ? `${name} · 只用这一章的信息出图` : `${names[0]} – ${name} · 只用这几章的信息出图`
+  const name = (id: number) => {
+    const idx = chapters.findIndex((c) => c.chapter_id === id)
+    return idx >= 0 ? names[idx] : `第 ${id} 段`
+  }
+  if (focus.mode === 'single') return `${name(focus.to)} · 只显示本章出场人物`
+  return focus.from === focus.to ? `${name(focus.to)} · 只用这一章的信息出图` : `${name(focus.from)} – ${name(focus.to)} · 只用这几章的信息出图`
 }
 
 export function SidePanel({ tab, onTab, castCount, focus, chapters, onShowAll, detail, cast, ledger }: SidePanelProps) {

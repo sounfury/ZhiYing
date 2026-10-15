@@ -1,12 +1,10 @@
-// 按服务商取对话模型与思考参数写法：内置服务商用 Spring AI 自动配置的模型，后台服务商按连接信息建模型并缓存；另提供模型列表查询。
+// 按后台服务商构建并缓存对话模型，提供思考参数写法与实时模型列表查询。
 package com.zhiying.infrastructure.llm
 
 import com.zhiying.application.error.AppException
 import com.zhiying.application.error.ErrorCode
-import com.zhiying.application.llm.DEFAULT_PROVIDER
 import com.zhiying.application.llm.ModelCatalog
 import com.zhiying.application.llm.ThinkingStyle
-import com.zhiying.infrastructure.config.ZhiYingProperties
 import com.zhiying.infrastructure.persistence.SqliteModelProviderStore
 import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.openai.OpenAiChatModel
@@ -27,16 +25,13 @@ class ProviderModel(
 
 @Component
 class ProviderChatModels(
-    private val defaultModel: ChatModel,
     private val store: SqliteModelProviderStore,
-    private val properties: ZhiYingProperties,
 ) : ModelCatalog {
     private val cache = ConcurrentHashMap<String, Pair<String, ProviderModel>>()
     private val http = HttpClient.newBuilder().connectTimeout(TIMEOUT).build()
 
     /** 取服务商的对话模型；后台服务商被修改后按新连接重建。服务商不存在抛 NOT_FOUND。 */
     fun of(providerId: String): ProviderModel {
-        if (providerId == DEFAULT_PROVIDER) return ProviderModel(defaultModel, ThinkingStyle.DEEPSEEK)
         val connection = store.connection(providerId) ?: throw AppException(ErrorCode.NOT_FOUND, "模型服务商不存在")
         cache[providerId]?.takeIf { it.first == connection.version }?.let { return it.second }
         val options =
@@ -64,13 +59,9 @@ class ProviderChatModels(
 
     /** 请求 OpenAI 兼容的 `GET {baseUrl}/models`，返回模型 ID。 */
     override fun models(providerId: String): List<String> {
-        val (baseUrl, apiKey) =
-            if (providerId == DEFAULT_PROVIDER) {
-                properties.llm.baseUrl to properties.llm.apiKey
-            } else {
-                val c = store.connection(providerId) ?: throw AppException(ErrorCode.NOT_FOUND, "模型服务商不存在")
-                c.baseUrl to c.apiKey
-            }
+        val connection = store.connection(providerId) ?: throw AppException(ErrorCode.NOT_FOUND, "模型服务商不存在")
+        val baseUrl = connection.baseUrl
+        val apiKey = connection.apiKey
         val request =
             HttpRequest
                 .newBuilder(URI.create(baseUrl.trimEnd('/') + "/models"))

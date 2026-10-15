@@ -104,7 +104,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const { graph, graphLoading, loadGraph } = useGraphData(readableBookId, filters, chapterLabel)
   const relationTypes = useRelationTypes(readableBookId, graph)
 
-  /** 切换章节聚焦：从「全书」切到单章/前 N 章时，章节缺省取已有选择或第一章；章节不在可选范围时回落第一章 */
+  /** 切换章节聚焦：单章不在可选范围时回落第一章；区间两端收到最近的正文章节，从「全书」切来时缺省为整本 */
   const setChapterFocus = useCallback(
     (next: ChapterFocusState) => {
       if (next.mode === 'all') {
@@ -112,16 +112,26 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         return
       }
       const ids = contentChapters.map((c) => c.chapter_id)
-      const chapter = ids.includes(next.chapter) ? next.chapter : (ids[0] ?? 0)
-      if (!chapter) return
-      setChapterFocusRaw({ mode: next.mode, chapter })
+      if (!ids.length) return
+      if (next.mode === 'single') {
+        const chapter = ids.includes(next.to) ? next.to : ids[0]
+        setChapterFocusRaw({ mode: 'single', from: chapter, to: chapter })
+        return
+      }
+      const from = ids.find((id) => id >= next.from) ?? ids[0]
+      const to = next.to ? (ids.findLast((id) => id <= next.to) ?? from) : ids[ids.length - 1]
+      setChapterFocusRaw({ mode: 'range', from, to: Math.max(from, to) })
     },
     [contentChapters],
   )
 
   useEffect(() => {
     if (!contentChapters.length || chapterFocus.mode === 'all') return
-    if (!contentChapters.some((c) => c.chapter_id === chapterFocus.chapter)) {
+    const ids = contentChapters.map((c) => c.chapter_id)
+    const ok = chapterFocus.mode === 'single'
+      ? ids.includes(chapterFocus.to)
+      : ids.some((id) => id >= chapterFocus.from && id <= chapterFocus.to)
+    if (!ok) {
       setChapterFocusRaw(ALL_BOOK_FOCUS)
       setMsg('链接中的章节不存在，已打开全书关系图')
     }
@@ -131,10 +141,12 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const scopeLabel = useMemo(() => {
     const f = graph?.chapter_focus
     if (!f) return '全书'
-    // chapter 是章节 id，不是正文序号；显示用正文里的序号与短名
-    const i = contentChapters.findIndex((c) => c.chapter_id === f.chapter)
-    if (i < 0) return f.mode === 'single' ? chapterLabel(f.chapter) : `截至「${chapterLabel(f.chapter)}」`
-    return f.mode === 'single' ? chapterShortName(contentChapters, f.chapter) : `前 ${i + 1} 章`
+    // from / to 是章节 id，不是正文序号；显示用正文里的序号与短名
+    if (f.mode === 'single') return chapterShortName(contentChapters, f.to)
+    const i = contentChapters.findIndex((c) => c.chapter_id >= f.from)
+    const j = contentChapters.findLastIndex((c) => c.chapter_id <= f.to)
+    if (i < 0 || j < 0) return `「${chapterLabel(f.from)}」至「${chapterLabel(f.to)}」`
+    return i === 0 ? `前 ${j + 1} 章` : `第 ${i + 1}–${j + 1} 章`
   }, [graph, chapterLabel, contentChapters])
 
   // 单章聚焦时取该章结果，详情里显示本章摘要
@@ -142,7 +154,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     ledger: focusLedger,
     loading: focusLedgerLoading,
     refresh: refreshFocusLedger,
-  } = useLedger(readableBookId, chapterFocus.mode === 'single' ? chapterFocus.chapter : '')
+  } = useLedger(readableBookId, chapterFocus.mode === 'single' ? chapterFocus.to : '')
 
   const [layoutMode, setLayoutMode] = useState<LayoutMode>('faction')
   const [selectedFactions, setSelectedFactions] = useState<string[]>([])
@@ -413,7 +425,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
     setExporting(true)
     setError('')
     try {
-      const filename = await downloadExport(bookId, chapterFocus.mode === 'all' ? null : { mode: chapterFocus.mode, chapter: chapterFocus.chapter })
+      const filename = await downloadExport(bookId, chapterFocus.mode === 'all' ? null : { ...chapterFocus, mode: chapterFocus.mode })
       setMsg(`已导出 ${filename}（范围：${scopeLabel}）`)
       pushLog('ok', `导出 ${filename}（范围：${scopeLabel}）`)
     } catch (e) {

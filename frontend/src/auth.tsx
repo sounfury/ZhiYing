@@ -52,6 +52,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   useEffect(() => {
     const expired = () => {
+      // 访客没有会话可过期：碰到需登录的接口时不重建状态，否则重新挂载后再次请求会无限循环
+      if (!currentUser.current) return
       applyUser(null)
       // /me 清除过期 cookie 后再加载访客书架，避免重复 401。
       setReady(false)

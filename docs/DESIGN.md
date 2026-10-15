@@ -252,9 +252,10 @@ flowchart TD
 
 章节聚焦（PRD §5.7.1）是同一结果版本上的查询条件，不生成新版本、不调模型：
 
-- 投影前先按截止章 N 裁剪：关系记录只留章节 ≤ N 的出现与依据（全部被裁掉的标签不进图），人物出场集合也只数 ≤ N 的章。展示分按裁剪后的章数重算。
-- 单章模式：人物限定为第 N 章出场者，不做路人阈值过滤；标签标记是否含第 N 章依据（本章 / 背景）；节点照常带全书简介，本章记录由前端从章结果补充。
-- 累计模式：人物为前 N 章出场者，路人阈值按前 N 章内的出场章数判定。
+- `ChapterFocus(from, to, mode)`，章号为阅读序号。投影前先按裁剪区间裁剪：关系记录只留章节在区间内的出现与依据（全部被裁掉的标签不进图），人物出场集合也只数区间内的章。展示分按裁剪后的章数重算。
+- 单章模式（`from = to = N`）：裁剪区间为 1～N；人物限定为第 N 章出场者，不做路人阈值过滤；标签标记是否含第 N 章依据（本章 / 背景）；节点照常带全书简介，本章记录由前端从章结果补充。
+- 区间模式（1 ≤ from ≤ to）：裁剪区间为 from～to；人物为区间内出场者，路人阈值按区间内的出场章数判定。`from = 1` 即原「前 N 章」累计。
+- 图与导出接口：`chapter_mode=single&chapter=N` 或 `chapter_mode=range&chapter_from=a&chapter_to=b`；章号小于 1 或 from > to 返回 `INVALID_ARGUMENT`，超过本书章数时截到末章。回显 `chapter_focus: {mode, from, to}`。
 - 团体归属、称呼、重要度沿用全书结果，因此不构成严格防剧透；严格防剧透需按章生成快照，后续另行设计。
 
 ---
@@ -299,6 +300,7 @@ Agent 只是基础设施里的一种执行方式（多轮工具循环），领�
 - 同一本书同时只运行一个会发布结果的任务；同书章节可并行，模型调用有统一并发与预算限制。
 - 取消与超时由应用层掌握：正常完成、用户取消、供应商错误、部分章失败分别记录；取消信号不能被通用异常吞掉。
 - 进度写入运行记录，HTTP 订阅只负责传递，页面断开不影响任务。
+- 章读完的 SSE progress 事件带 `new_persons`：本章新登记（未绑定已有人物）人物的正式名，按重要度取前 5 个；沿用旧抽取的章、失败章与非章事件不带。只在实时事件里推送，不写入任务快照，断线重连后不回放（PRD §5.9 等待展示）。
 - 发布时校验输入抽取版本与当前发布版本未被其他任务改变；一次图查询固定一个结果版本。
 - 失败发布（PRD §5.9）：整书分析中只要有章读取失败，本次不发布，不产生带缺章空洞的结果；成功章的抽取照常保存，再次启动分析沿用仍有效的抽取（正文修订、模型、提示词版本未变），只补读失败章。取消同样不发布。单章重跑失败时上一版保持不变。
 - 章抽取按章保存、重跑产生新记录并移动当前指针；任务快照与各章状态落库，SSE 只在内存任务存在时实时推送，其余情况由快照合成终态事件。
@@ -317,7 +319,7 @@ Agent 只是基础设施里的一种执行方式（多轮工具循环），领�
 
 产品规则见 [PRD §5.14](./PRD.md#514-秒传)。多个书架条目指向同一本书，写操作先分叉；命中不复制正文与整份结果。
 
-**版本判定：** `books.import_version` 保存导入规则版本，常量 `IMPORT_VERSION = 1`；EPUB 切章、清洗或章节选择规则改变时递增，已有书迁移为 1。`analysis_revision.method_version` 由章阅读、身份歧义、类型归一、补查、软兜底、全书简介及团体归纳按生效模型配置快照（§5.7）的实际模型 ID、思考开关与提示版本拼接后取 SHA-256，自动生成。`full_book` 仅在 FULL 任务未限定 `toChapter`、成功发布且 `analyzedChapters` 覆盖全部参与分析章节时为真。`AnalysisRevision.reusableFor(currentMethod)` 以完整标记与方法版本作纯判断；旧结果仍可读取，缺少标记时不能秒传。
+**版本判定：** `books.import_version` 保存导入规则版本，常量 `IMPORT_VERSION = 1`；EPUB 切章、清洗或章节选择规则改变时递增，已有书迁移为 1。`analysis_revision.method_version` 由章阅读、身份歧义、类型归一、补查、软兜底、全书简介及团体归纳按生效模型配置快照（§5.7）的实际模型名、思考开关与提示版本拼接后取 SHA-256，自动生成。模型只记模型名、不记服务商；提示版本对未改过的内置提示词取代码常量 `VERSION`，对后台改过的取「`custom:` + 内容 SHA-256」，保证未改提示词时已有结果继续有效。`full_book` 仅在 FULL 任务未限定 `toChapter`、成功发布且 `analyzedChapters` 覆盖全部参与分析章节时为真。`AnalysisRevision.reusableFor(currentMethod)` 以完整标记与方法版本作纯判断；旧结果仍可读取，缺少标记时不能秒传。
 
 **书架条目：** `shelf_items` 取代 `book_owners`。
 
@@ -350,17 +352,21 @@ Agent 只是基础设施里的一种执行方式（多轮工具循环），领�
 
 | 表 | 字段与约束 |
 |---|---|
-| `accounts` | `id` 主键；`username` 唯一，`COLLATE NOCASE`；`password_hash`；`role` 为 `ADMIN` / `USER`；`created_at` |
-| `invitations` | `code` 主键；`max_uses > 0`，`used_count` 默认 0 且满足 `0 ≤ used_count ≤ max_uses`；`created_by` 外键引用 `accounts(id)`；`created_at` |
+| `accounts` | `id` 主键；`username` 唯一，`COLLATE NOCASE`；`password_hash`；`role` 为 `ADMIN` / `USER`；`max_books`、`max_tokens` 为可空非负整数，默认 `NULL`；`created_at` |
+| `invitations` | `code` 主键；`max_uses > 0`，`used_count` 默认 0 且满足 `0 ≤ used_count ≤ max_uses`；`max_books`、`max_tokens` 为可空非负整数，默认 `NULL`；`created_by` 外键引用 `accounts(id)`；`created_at` |
 | `account_sessions` | `token_hash` 主键；`user_id` 外键引用 `accounts(id) ON DELETE CASCADE` 并建索引；`expires_at` 为 epoch 秒 |
 | `shelf_items` | 字段见 §5.4；`user_id`、`book_id`、`pending_book_id` 分别建索引；书的引用不级联删除条目 |
 
 条目限定访问边界，应用层先查条目归属再解析实际书。累计 token 按本人条目查询独立流水（§5.6），只对管理员输出（§5.7）。反馈先检查条目读权限与登录身份，私有书只能由书主提交；管理员查看反馈不开放其他私有数据（§5.8）。
 
+**邀请码额度：** 创建请求可带 `maxBooks`、`maxTokens`，省略或 `null` 表示继承全站对应上限，`0` 表示不限；非空值须为非负整数，否则抛 `AppException(INVALID_ARGUMENT)`。邀请码列表与创建响应均返回这两个字段，保留 `null`，不折算为当前全站值或 `0`。注册将邀请码字段原值复制至账号，账号生效上限按 `account.max_books ?? quota.max_books`、`account.max_tokens ?? quota.max_tokens` 读取，继承值随全站设置变化。不提供已注册账号额度编辑接口，不增加邀请码字数额度。
+
+已有数据库启动时检查 `accounts`、`invitations` 的表结构，分别为缺少的 `max_books`、`max_tokens` 补可空非负整数列，默认 `NULL`；保留已有账号、邀请码、使用次数与书籍数据，旧记录继承全站上限。
+
 **事务与用例顺序：**
 
 1. 首次启动读取管理员引导配置，创建一个管理员；随后把缺少条目引用 的已有书归入该管理员，不删除或重建已有书、章节和分析数据。管理员已存在时不通过引导密码重置账号；部署参数见 README。
-2. 注册先校验邀请码与账号输入，再在同一事务中消耗一次邀请名额并创建账号；失败时两者一起回滚，不能超用或丢失名额。
+2. 注册先校验邀请码与账号输入，再在同一事务中消耗一次邀请名额、创建账号并将邀请码的 `max_books`、`max_tokens` 原值（含 `NULL`）复制至 `accounts`；失败时全部回滚，不能超用或丢失名额。
 3. 上传在任务登记锁内按 §5.4 检查大小、本人重复、书数与复用候选；未命中才解析，在同一事务保存新书、条目与章节，源文件仍按 SHA-256 保存。
 4. 登录校验密码后创建数据库会话；退出删除当前会话。管理员重置密码时同时撤销目标账号的全部会话。
 5. 书架查询限定本人条目，加上已发布的配置示例条目。所有书籍读取与写入入口都先检查条目权限，再按 §5.4 解析结果或任务书；管理员评测也只匹配本人条目，评测与模型诊断还需管理员身份。
@@ -377,18 +383,18 @@ Agent 只是基础设施里的一种执行方式（多轮工具循环），领�
 
 产品规则见 [PRD §5.13](./PRD.md#513-用量上限)。
 
-**配置：** 所有上限放 `zhiying.quota.*`，由 `ZhiYingProperties` 绑定为应用层 `QuotaSettings`，后台仅只读展示（§5.7）。
+**配置：** 下表六项是后台设置 `quota` 组（§5.7），部署配置不再提供；每次上传与启动分析时读取全站生效值，并以账号非空的 `max_books`、`max_tokens` 覆盖对应项，组装 `QuotaLimits`，`0` 保持不限。时区仍是部署配置 `zhiying.quota.time-zone`。
 
 | 键 | 含义 | 默认 |
 |---|---|---|
-| `max-books` | 每人书数，不含配置为示例的书 | `0` |
-| `max-analysis-chars` | 每人累计分析字数 | `0` |
-| `max-file-size` | 单个上传文件，`DataSize` | `200MB` |
-| `max-concurrent-tasks` | 每人同时运行任务数，整书与单章重跑合计 | `0` |
-| `daily-token-budget` | 全站每日 token | `0` |
-| `time-zone` | 当天边界的时区 | `Asia/Shanghai` |
+| `max_books` | 每人书数，不含配置为示例的书 | `0` |
+| `max_tokens` | 每人累计 token | `0` |
+| `max_analysis_chars` | 每人累计分析字数 | `0` |
+| `max_file_size` | 单个上传文件字节数 | multipart `max-file-size` |
+| `max_concurrent_tasks` | 每人同时运行任务数，整书与单章重跑合计 | `0` |
+| `daily_token_budget` | 全站每日 token | `0` |
 
-数值上限 `0` 表示不限；运营方在开放内测前配置实际额度。multipart 的 `max-file-size` 默认 `200MB`，必须不小于应用上限；`max-request-size` 默认 `201MB`，需容纳表单开销。应用文件大小不限时，multipart 两项也须不限。启动时绑定并校验这些关系。
+数值上限 `0` 表示不限。multipart 的 `max-file-size`（默认 `200MB`）是部署硬上限，`max-request-size`（默认 `201MB`）须大于它；后台保存 `max_file_size` 时须为 1～硬上限（硬上限不限时也可为 0）。
 
 **流水与计量：** `resources/schema/70-quota.sql` 按现有 `CREATE TABLE IF NOT EXISTS` 约定建 `usage_ledger`，只追加、结算时更新一次，不对书建外键，删书和清空分析均不删除。
 
@@ -402,29 +408,29 @@ Agent 只是基础设施里的一种执行方式（多轮工具循环），领�
 | `input_tokens` / `output_tokens` / `requests` | 结算后的输入、输出与请求数；旧流水从仍在库的任务回填 |
 | `started_at` / `settled_at` | 任务开始时间 / 结算时间，结算前 `settled_at` 为空 |
 
-每人已用字数为该用户流水的 `SUM(chars)`，包含预占；书数为本人 `shelf_items` 条目数，排除示例配置中的书。全站今日 token 为配置时区当天 `started_at` 的流水 `SUM(tokens)`，加上内存中未结算任务的实时 token；任务总量来自 `ModelCallControl.budget.usedTokens`，包括阅读、后处理与团体归纳。
+每人已用字数为该用户流水的 `SUM(chars)`，包含预占；书数为本人 `shelf_items` 条目数，排除示例配置中的书。每人累计 token 按 `user_id` 汇总独立 `usage_ledger` 的 `SUM(tokens)`，删除条目或清空分析不退还；只用该流水累计值在任务启动前检查，不预估新任务 token，不在运行途中按个人上限停止任务。全站今日 token 为配置时区当天 `started_at` 的流水 `SUM(tokens)`，加上内存中未结算任务的实时 token；任务总量来自 `ModelCallControl.budget.usedTokens`，包括阅读、后处理与团体归纳。
 
 **领域规则：** `domain/quota` 的 `QuotaLimits` 和 `UsageSnapshot` 保存上限与用量，后者以纯函数返回 `sealed QuotaCheck`（`Allowed` 或 `Exceeded(item, needed, remaining)`）：
 
 - `checkUpload(fileBytes)`：文件大小 → 书数。
-- `checkAnalysis(chars)`：全站预算 → 本人同时任务数 → 剩余字数。
-- 管理员只跳过书数、字数与同时任务数；文件大小与全站预算照常检查。
+- `checkAnalysis(chars)`：全站预算 → 本人累计 token → 本人同时任务数 → 剩余字数；生效 `max_tokens > 0` 且累计 token `>= max_tokens` 时拒绝。
+- 管理员跳过书数、字数、累计 token 与同时任务数等个人额度；文件大小与全站预算照常检查。
 
-应用层 `QuotaUsage` 读取用量，并把拒绝结果转为 `AppException`；外部存储能力仅定义 `UsageLedger` 接口，由 SQLite 实现。
+应用层 `QuotaUsage` 读取用量，并把拒绝结果转为 `AppException`；个人 token 超限固定为 `QUOTA_EXCEEDED`、消息「分析额度已用完」，其他额度错误沿用原有消息。外部存储能力仅定义 `UsageLedger` 接口，由 SQLite 实现。
 
-**上传顺序：** 见 §5.4；本人重复上传不新增条目、不占新书名额，仍检查文件大小。秒传命中占用一个书数名额，不创建分析流水、不检查剩余分析字数。
+**上传顺序：** 见 §5.4；本人重复上传不新增条目、不占新书名额，仍检查文件大小。秒传命中占用一个书数名额，不创建分析流水，不检查剩余分析字数或个人累计 token。
 
 **分析顺序：** `AnalysisRunner.launch` 在已有 `synchronized(runs)` 锁内：
 
 1. 读取章正文并判断可沿用抽取；整书待读字数为无可沿用抽取的章 `wordCount` 之和，`force` 时计所有章，单章重跑计该章。
-2. 读取本人用量、全站今日 token，按领域规则检查。
+2. 读取本人用量、账号生效上限与全站今日 token，按领域规则检查；整书与单章入口均执行个人 token 检查，拒绝时不创建任务或流水。
 3. 同一事务保存任务与流水，`chars` 预占待读字数。
 4. 登记记录发起者的 `AnalysisRun` 并启动线程，阅读阶段使用启动前确定的抽取复用结果。
 5. 任务结束后持有登记锁结算流水：已开始读的章计字数，包括失败与取消中的章；未开始与复用的章不计，`tokens` 写本任务总量。结算前该任务继续占用运行名额、不能删除书或清空分析；避免终态出现到结算之间的竞态及 token 重复计量。
 
 `ChapterRun.startedAt` 在首次提交实际读取单元前持久化，复用与未启动章保持空。已有数据库启动时通过表结构检查补齐 `analysis_task_chapter.started_at`，不删除原数据。服务重启先按该标记及章节 `word_count` 结算遗留流水、从任务快照恢复 token，再由 `interruptRunning` 将运行中任务收口为失败；重复启动不重复结算。上线前的历史任务不回填额度。进程突然退出时，已消耗但尚未写入任务快照的 token 无法恢复。
 
-**接口与前端：** `GET /api/me/usage` 只接受登录账号，返回 `{books: {used, limit}, chars: {used, limit}}`。管理员每人额度返回 `limit: 0`。书架打开及书列表刷新后读取用量，顶部显示启用的「已用 / 总额」，`limit: 0` 隐藏该项。`QUOTA_EXCEEDED` 明确超限项、所需量和剩余量；`DAILY_BUDGET_EXHAUSTED` 与 `FILE_TOO_LARGE` 使用已登记错误码；前端直接展示这些消息。
+**接口与前端：** `GET /api/me/usage` 只接受登录账号，仍返回 `{books: {used, limit}, chars: {used, limit}}`，不新增 token 字段；`books.limit` 为账号与全站规则确定的生效书数上限，管理员每人额度返回 `limit: 0`。书架打开及书列表刷新后读取用量，顶部显示启用的「已用 / 总额」，`limit: 0` 隐藏该项。`QUOTA_EXCEEDED` 除个人 token 固定消息外，明确超限项、所需量和剩余量；`DAILY_BUDGET_EXHAUSTED` 与 `FILE_TOO_LARGE` 使用已登记错误码；前端直接展示这些消息。
 
 ---
 
@@ -442,26 +448,40 @@ Agent 只是基础设施里的一种执行方式（多轮工具循环），领�
 - `GET /api/admin/usage/users`：按用户汇总字数、token 及书架条目数；字数包含未结算任务的预占。
 - `GET /api/admin/usage/books`：按条目汇总 token，带书名与用户名。删除条目后流水仍显示为「已删除的书」，不开放私人书链接。
 
-**模型配置：** 新表 `model_settings`：
+**后台设置：** 表 `app_settings` 只存管理员改过的值，生效值 = 表内值，否则默认值。
 
 | 列 | 说明 |
 |---|---|
-| `call_point` | 主键，`READING` / `POST_PROCESS` / `AFFILIATION` |
-| `provider_id` | 服务商 ID，`default` 为部署配置的内置服务商 |
-| `model` | 模型名，空值使用 `zhiying.llm.model` |
-| `thinking` | 是否开思考 |
+| `setting_group`、`setting_key` | 联合主键 |
+| `value_json` | 值的 JSON |
 | `updated_at`、`updated_by` | 最近修改时间与管理员 ID |
 
-读取顺序：表内覆盖值优先，否则用 `zhiying.reading` / `post-process` / `affiliations` 的现有 `model`、`thinking`，服务商为内置；模型名为空时回退默认模型（仅内置服务商允许留空）。这是自有参数由 `ZhiYingProperties` 绑定的唯一持久化覆盖例外，部署值继续作为缺省。
+可配置项清单写在应用层：每个键声明类型、默认值与校验，表里有清单外的键时忽略。通用设置按 `quota` → `params` → `prompt` 顺序返回，分组：
 
-**服务商：** 内置服务商 `default` 来自 `zhiying.llm.*`，只读。后台新增的服务商存 `model_providers`（名称、地址、思考参数写法、密钥密文与末 4 位）；密钥用 `zhiying.llm.secret-key` 经 SHA-256 派生的 AES-GCM 密钥加密，未配置主密钥时不能保存或使用后台服务商，主密钥更换后需重填密钥。被分析环节引用的服务商不能删除。`ProviderChatModels` 按服务商建 `OpenAiChatModel` 并按修改时间缓存；思考参数写法有 `DEEPSEEK`（`thinking.type`）、`ENABLE_THINKING`（`enable_thinking`）、`NONE`（不发送）。模型列表实时请求 `GET {baseUrl}/models`，失败时前端仍可手填。
+- `quota`：用量上限，类型 `count`（非负整数，0 不限）或 `bytes`，包含默认 `0` 的 `max_tokens`，见 §5.6。
+- `params`（「提示词参数」）：类型 `count`，键为 `read_window_chars`、`min_groups`、`max_groups`，均须为正整数；`read_window_chars` 不超过 `Int.MAX_VALUE`，与正文字符索引范围一致；默认值分别来自部署配置 `zhiying.reading.read-window-chars`、`zhiying.affiliations.min-groups`、`zhiying.affiliations.max-groups`。保存或恢复任一参数默认值前，先合并操作后的整组生效值，校验 `min_groups <= max_groups`，失败不写入或删除覆盖值。
+- `prompt`：各调用点的系统提示词，类型 `prompt`，键为 `reading`、`identity`、`types`、`recheck`、`fallback`、`profile`、`affiliation`；默认值为代码内置文字。只开放系统提示词，用户提示（章节信息、人名册、类型库等）与工具 / 输出结构仍由代码生成。提示词里的参数写成 `{{name}}`：`reading` 可用 `read_window_chars`，`affiliation` 可用 `min_groups`、`max_groups`，其余无参数；保存时拒绝不认识的占位符与空文本。
+- `model`：见下方模型配置，由模型页签专用接口读写，不出现在通用设置列表里。
+
+接口：
+
+- `GET /api/admin/settings` 返回 `[{group, label, items: [{key, label, type, value, defaultValue, overridden, hint, min?, max?, placeholders?}]}]`；`count` / `bytes` 的值为数字，`prompt` 为字符串；`params` 条目均返回 `min: 1`，`read_window_chars` 的 hint 说明它同时限制长章分段读取的实际每窗字数；`max` 仅 `bytes` 有（硬上限，0 表示不限）；`placeholders` 为 `[{name, description}]`。
+- `PUT /api/admin/settings/{group}/{key}` 请求体 `{value}`，校验失败 `INVALID_ARGUMENT`，未知键 `NOT_FOUND`；`DELETE` 恢复默认，同样校验操作后的生效参数组。都返回 `204`。
+
+任务登记时连同模型一起快照提示词与参数（放在 `ModelCallControl`），提示渲染与实际执行共用同一快照，任务中途不重新读取。`reading` 的 `{{read_window_chars}}` 与分段读正文时的实际窗口上限均用快照值，即使提示词未引用占位符也生效；`affiliation` 的 `{{min_groups}}`、`{{max_groups}}` 使用快照参数。
+
+提示版本按对应调用点的提示词与生效参数计算：`read_window_chars` 计入读章提示版本及阅读来源，`min_groups`、`max_groups` 计入团体归纳提示版本；方法版本由同一快照计算（§5.4）。参数变化随对应提示版本变化，读章参数变化使旧章抽取不能沿用，团体参数变化不使读章抽取失效，但两者均影响整书方法版本与秒传。提示词不变且生效参数等于部署默认值时保持原默认提示版本，不把覆盖记录或修改时间计入版本，显式保存默认参数不额外改变版本；恢复默认后与相同默认配置的版本一致。用量上限不进快照，每次检查时读取。
+
+**模型配置：** `model` 组键为 `READING` / `POST_PROCESS` / `AFFILIATION`，值 `{providerId, model, thinking}`；没有默认值，未配置的环节启动分析时报 `MODEL_NOT_CONFIGURED`。旧表 `model_settings` 启动时把非 `default` 服务商的行搬入后删除，`default` 行丢弃，由管理员重新选择。
+
+**服务商：** 服务商全部在后台维护，没有部署内置服务商，`zhiying.llm` 只剩 `secret-key`。服务商存 `model_providers`（名称、地址、思考参数写法、密钥密文与末 4 位）；密钥用 `zhiying.llm.secret-key` 经 SHA-256 派生的 AES-GCM 密钥加密，未配置主密钥时不能保存或使用后台服务商，主密钥更换后需重填密钥。被分析环节引用的服务商不能删除。`ProviderChatModels` 按服务商建 `OpenAiChatModel` 并按修改时间缓存；思考参数写法有 `DEEPSEEK`（`thinking.type`）、`ENABLE_THINKING`（`enable_thinking`）、`NONE`（不发送）。模型列表实时请求 `GET {baseUrl}/models`，失败时前端仍可手填。
 
 - `GET /api/admin/model-providers` 列出服务商（不含密钥）；`POST` 新增，`PUT /{id}` 修改（密钥留空保留原值），`DELETE /{id}` 删除；`GET /{id}/models` 拉取模型列表。
 
-任务登记时一次读取生效配置（含服务商 ID），放入 `ModelCallControl.models` 的 `ModelSnapshot`；读章、各后处理调用与团体归纳按请求设置 options，任务中途不重新读取。抽取沿用判定使用同一快照的阅读来源版本，来源包含思考开关，非内置服务商的模型记为「服务商ID/模型名」作标识；结果发布按任务快照计算方法版本，上传秒传按当时生效快照计算方法版本（§5.4）。
+任务登记时一次读取生效配置（含服务商 ID），放入 `ModelCallControl.models` 的 `ModelSnapshot`；读章、各后处理调用与团体归纳按请求设置 options，任务中途不重新读取。抽取沿用判定使用同一快照的阅读来源版本，来源包含模型名、思考开关与读章提示版本，不含服务商；结果发布按任务快照计算方法版本，上传秒传按当时生效快照计算方法版本（§5.4）。
 
-- `GET /api/admin/models` 返回三环节生效服务商、模型、思考开关及来源（后台 / 配置文件）；`PUT /api/admin/models/{callPoint}` 保存；`DELETE` 删除覆盖值，恢复配置文件。
-- 测试连接复用 `GET /api/diagnostics/model`，增加可选 `provider`、`model` 参数并沿用 `thinking`。报告仅返回模型名与各项协议检查；失败保持 502 完整报告，不返回地址与密钥，底层连接异常只返回分类。
+- `GET /api/admin/models` 返回三环节 `[{callPoint, providerId, model, thinking, configured}]`，未配置时 `providerId` 为 `null`、`model` 为空串、`configured: false`；`PUT /api/admin/models/{callPoint}` 保存，服务商与模型名必填。
+- 测试连接复用 `GET /api/diagnostics/model`，`provider`、`model` 必填并沿用 `thinking`。报告仅返回模型名与各项协议检查；失败保持 502 完整报告，不返回地址与密钥，底层连接异常只返回分类。
 
 shortcut: 不校验模型名是否存在于服务商，没有统一列模型接口；保存后由管理员手动测试连接确认。
 
@@ -482,7 +502,7 @@ shortcut: 不校验模型名是否存在于服务商，没有统一列模型接�
 | `target_ref` | 人物 ID；两端人物 ID 与类型 ID 以 `/` 连接的关系键；势力分区块 ID |
 | `target_label` | 提交时显示名快照，如「甲—乙：师徒」；势力重跑后 ID 不稳定，靠快照阅读 |
 | `category` | `DUPLICATE_PERSON` / `WRONG_RELATION` / `WRONG_GROUP` / `MISSING` / `OTHER`，可空 |
-| `note`、`scope` | 可选说明；对象反馈范围为 `all` / `single:N` / `upto:N` |
+| `note`、`scope` | 可选说明；对象反馈范围为 `all` / `single:N` / `range:a-b`，历史记录中的 `upto:N` 照常读取 |
 
 反馈表不使用指向书或结果的级联外键，因此删除条目、清空或重跑仍保留快照。按条目和提交时间建索引；同一对象不去重。
 

@@ -21,14 +21,16 @@ export type AnalysisUi = {
   phase: string
   /** 详细日志（进度卡里默认收起） */
   logs: LogLine[]
+  /** 最近读完的章里新登场的人物（只来自实时事件，最多 NEW_PERSONS_KEPT 个） */
+  newPersons: NewPerson[]
   /** 仅开发模式：内置假快照（?mockProgress=），不自动淡出 */
   demo?: boolean
 }
 
-/** 章节聚焦状态：all = 全书；single = 第 N 章；upto = 前 N 章（chapter 为章节 id） */
-export type ChapterFocusState = { mode: 'all' | 'single' | 'upto'; chapter: number }
+/** 章节聚焦状态：all = 全书；single = 第 to 章（from = to）；range = 第 from～to 章（均为章节 id） */
+export type ChapterFocusState = { mode: 'all' | 'single' | 'range'; from: number; to: number }
 
-export const ALL_BOOK_FOCUS: ChapterFocusState = { mode: 'all', chapter: 0 }
+export const ALL_BOOK_FOCUS: ChapterFocusState = { mode: 'all', from: 0, to: 0 }
 
 export type GraphFilters = {
   chapterFocus: ChapterFocusState
@@ -40,6 +42,10 @@ export type GraphFilters = {
 
 export type SideTab = 'detail' | 'cast' | 'ledger'
 
+export type NewPerson = { id: number; chapterId: number; name: string }
+
+export const NEW_PERSONS_KEPT = 12
+
 export const emptyAnalysis = (): AnalysisUi => ({
   running: false,
   stopping: false,
@@ -47,4 +53,5 @@ export const emptyAnalysis = (): AnalysisUi => ({
   dismissed: false,
   phase: '',
   logs: [],
+  newPersons: [],
 })

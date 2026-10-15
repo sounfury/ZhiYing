@@ -4,7 +4,6 @@ package com.zhiying.infrastructure.llm
 
 import com.zhiying.application.diagnostics.ModelFailure
 import com.zhiying.application.diagnostics.TokenUsage
-import com.zhiying.application.llm.DEFAULT_PROVIDER
 import com.zhiying.application.llm.ModelCallControl
 import com.zhiying.application.llm.ModelCallStats
 import com.zhiying.infrastructure.config.ZhiYingProperties
@@ -19,13 +18,13 @@ import java.util.concurrent.Semaphore
 /**
  * 单次请求的差异化设置。
  *
- * 入参：[provider] 服务商 ID；[model] 模型名，null 用默认模型；[thinking] 是否开启思考模式；[tools] 本次请求携带的工具定义。
+ * 入参：[provider] 服务商 ID；[model] 模型名；[thinking] 是否开启思考模式；[tools] 本次请求携带的工具定义。
  */
 data class CallSpec(
-    val model: String? = null,
+    val model: String,
     val thinking: Boolean = false,
     val tools: List<ToolCallback> = emptyList(),
-    val provider: String = DEFAULT_PROVIDER,
+    val provider: String,
 )
 
 /** 一次执行内的累计统计器；同一次执行中的多次请求（含重试）都累加到这里。非线程安全，一次执行一个。 */
@@ -49,11 +48,12 @@ class CallMeter {
     }
 
     /** 当前累计统计，耗时从统计器创建时起算。 */
-    fun stats() = ModelCallStats(
-        requests,
-        TokenUsage(input, output, total),
-        (System.nanoTime() - startedNanos) / NANOS_PER_MILLI,
-    )
+    fun stats() =
+        ModelCallStats(
+            requests,
+            TokenUsage(input, output, total),
+            (System.nanoTime() - startedNanos) / NANOS_PER_MILLI,
+        )
 
     private companion object {
         const val NANOS_PER_MILLI = 1_000_000
@@ -63,10 +63,15 @@ class CallMeter {
 /** 单次请求（含其重试）的结果。 */
 sealed interface InvokeResult {
     /** 取得回复。 */
-    data class Reply(val response: ChatResponse) : InvokeResult
+    data class Reply(
+        val response: ChatResponse,
+    ) : InvokeResult
 
     /** 执行失败；不等于任何语义结论。 */
-    data class Failed(val failure: ModelFailure, val message: String) : InvokeResult
+    data class Failed(
+        val failure: ModelFailure,
+        val message: String,
+    ) : InvokeResult
 }
 
 /**
@@ -83,16 +88,18 @@ class ModelInvoker(
     private val policy = properties.modelCall
     private val permits = Semaphore(policy.maxConcurrentRequests)
 
-    /** 默认模型名，用于记录抽取所用模型。 */
-    fun defaultModel(): String = properties.llm.model
-
     /**
      * 发出一次请求并按政策重试。
      *
      * 入参：[messages] 完整消息序列；[spec] 本次请求设置；[control] 任务级预算与取消；[meter] 累计统计器。
      * 出参：[InvokeResult.Reply] 或带失败类别的 [InvokeResult.Failed]，不抛出模型调用异常。
      */
-    fun invoke(messages: List<Message>, spec: CallSpec, control: ModelCallControl, meter: CallMeter): InvokeResult {
+    fun invoke(
+        messages: List<Message>,
+        spec: CallSpec,
+        control: ModelCallControl,
+        meter: CallMeter,
+    ): InvokeResult {
         val provider =
             try {
                 providers.of(spec.provider)
@@ -125,7 +132,10 @@ class ModelInvoker(
     }
 
     /** 在并发许可内发一次请求，异常归类后返回，不外抛。 */
-    private fun attemptOnce(provider: ProviderModel, prompt: Prompt): Attempt {
+    private fun attemptOnce(
+        provider: ProviderModel,
+        prompt: Prompt,
+    ): Attempt {
         try {
             permits.acquire()
         } catch (e: InterruptedException) {
@@ -154,14 +164,18 @@ class ModelInvoker(
         }
     }
 
-    /** 由请求设置构造选项：显式写入思考开关，覆盖全局默认；携带工具定义，工具由调用方自己执行。 */
-    private fun optionsOf(spec: CallSpec, provider: ProviderModel): OpenAiChatOptions {
-        // 构建器自带默认模型名，会盖掉全局配置，所以模型名必须显式给出
-        val builder = OpenAiChatOptions.builder()
-            .model(spec.model?.takeIf { it.isNotBlank() } ?: properties.llm.model)
-            .temperature(policy.temperature)
-            .timeout(policy.timeout)
-            .extraBody(providers.thinkingBody(provider.thinkingStyle, spec.thinking))
+    /** 由任务快照构造选项，携带工具定义，工具由调用方执行。 */
+    private fun optionsOf(
+        spec: CallSpec,
+        provider: ProviderModel,
+    ): OpenAiChatOptions {
+        val builder =
+            OpenAiChatOptions
+                .builder()
+                .model(spec.model)
+                .temperature(policy.temperature)
+                .timeout(policy.timeout)
+                .extraBody(providers.thinkingBody(provider.thinkingStyle, spec.thinking))
         if (spec.tools.isNotEmpty()) builder.toolCallbacks(spec.tools)
         return builder.build()
     }
@@ -171,18 +185,25 @@ class ModelInvoker(
         response.metadata.usage.let { TokenUsage(it.promptTokens ?: 0, it.completionTokens ?: 0, it.totalTokens ?: 0) }
 
     private sealed interface Attempt {
-        data class Ok(val response: ChatResponse) : Attempt
-        data class Err(val failure: ModelFailure, val message: String) : Attempt
+        data class Ok(
+            val response: ChatResponse,
+        ) : Attempt
+
+        data class Err(
+            val failure: ModelFailure,
+            val message: String,
+        ) : Attempt
     }
 
     private companion object {
         /** 可重试的瞬时失败。 */
-        val RETRYABLE = setOf(
-            ModelFailure.RATE_LIMITED,
-            ModelFailure.TIMEOUT,
-            ModelFailure.NETWORK,
-            ModelFailure.PROVIDER_ERROR,
-        )
+        val RETRYABLE =
+            setOf(
+                ModelFailure.RATE_LIMITED,
+                ModelFailure.TIMEOUT,
+                ModelFailure.NETWORK,
+                ModelFailure.PROVIDER_ERROR,
+            )
 
         /** 退避位移上限，防止溢出。 */
         const val MAX_SHIFT = 20

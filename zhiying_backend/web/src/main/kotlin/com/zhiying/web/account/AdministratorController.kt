@@ -3,6 +3,8 @@ package com.zhiying.web.account
 
 import com.zhiying.application.account.Accounts
 import com.zhiying.application.account.Invitation
+import com.zhiying.application.error.AppException
+import com.zhiying.application.error.ErrorCode
 import com.zhiying.domain.account.Account
 import org.springframework.http.HttpStatus
 import org.springframework.web.bind.annotation.GetMapping
@@ -28,7 +30,14 @@ class AdministratorController(
     fun createInvitation(
         @RequestAttribute("user") user: Account,
         @RequestBody body: InvitationRequest,
-    ): Invitation = accounts.createInvitation(user, body.maxUses)
+    ): Invitation = accounts.createInvitation(user, body.maxUses, invitationLimit(body.maxBooks), invitationLimit(body.maxTokens))
+
+    private fun invitationLimit(value: Any?): Long? =
+        when (value) {
+            null -> null
+            is Byte, is Short, is Int, is Long -> (value as Number).toLong()
+            else -> throw AppException(ErrorCode.INVALID_ARGUMENT, "邀请码额度必须是非负整数或 null")
+        }
 
     @GetMapping("/users")
     fun users(
@@ -46,6 +55,8 @@ class AdministratorController(
 
 data class InvitationRequest(
     val maxUses: Int,
+    val maxBooks: Any? = null,
+    val maxTokens: Any? = null,
 )
 
 data class PasswordRequest(

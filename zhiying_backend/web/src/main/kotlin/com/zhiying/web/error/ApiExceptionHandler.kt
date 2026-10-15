@@ -81,6 +81,7 @@ internal fun statusOf(code: ErrorCode): HttpStatus =
         ErrorCode.USERNAME_TAKEN -> HttpStatus.CONFLICT
         ErrorCode.QUOTA_EXCEEDED, ErrorCode.DAILY_BUDGET_EXHAUSTED -> HttpStatus.TOO_MANY_REQUESTS
         ErrorCode.FILE_TOO_LARGE -> HttpStatus.CONTENT_TOO_LARGE
+        ErrorCode.MODEL_NOT_CONFIGURED -> HttpStatus.CONFLICT
         ErrorCode.INTERNAL_ERROR -> HttpStatus.INTERNAL_SERVER_ERROR
     }
 

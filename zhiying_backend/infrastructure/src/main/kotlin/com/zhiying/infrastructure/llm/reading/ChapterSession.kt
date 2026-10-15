@@ -139,7 +139,8 @@ internal class ChapterSession(
         val size = (limit ?: readWindowChars).coerceIn(1, readWindowChars)
         val unitEnd = unit.last + 1
         // 单元内的窗口不越过单元末尾；单元之外只在模型主动要求时才读（用于核对上下文）
-        var end = minOf(start + size, total, if (start < unitEnd) unitEnd else total)
+        val windowEnd = minOf(total, if (start < unitEnd) unitEnd else total)
+        var end = start + minOf(size, windowEnd - start)
         if (end < total && chapter.text[end].isLowSurrogate()) end-- // 不切开补充平面字符
         readRanges += start until end
         return mapOf(

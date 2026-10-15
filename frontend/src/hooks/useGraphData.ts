@@ -24,6 +24,7 @@ export function useGraphData(
     setGraphLoading(false)
   }, [bookId])
 
+  const { mode: focusMode, from: focusFrom, to: focusTo } = filters.chapterFocus
   const loadGraph = useCallback(
     async (): Promise<{ error: string; msg: string }> => {
       if (!bookId) return { error: '', msg: '' }
@@ -32,8 +33,7 @@ export function useGraphData(
 
       try {
         const data = await getGraph(bookId, {
-          chapter: filters.chapterFocus.mode === 'all' ? undefined : filters.chapterFocus.chapter,
-          chapter_mode: filters.chapterFocus.mode === 'all' ? undefined : filters.chapterFocus.mode,
+          focus: focusMode === 'all' ? undefined : { mode: focusMode, from: focusFrom, to: focusTo },
           min_appearance: filters.minAppearance,
           category_filter: filters.categoryFilter.length ? filters.categoryFilter.join(',') : undefined,
           predicate_filter: filters.typeFilter.length
@@ -45,11 +45,11 @@ export function useGraphData(
 
         let rangeLabel = ' · 无章数据'
         if (data.chapter_focus) {
-          const { chapter, mode } = data.chapter_focus
+          const { from, to, mode } = data.chapter_focus
           rangeLabel =
             mode === 'single'
-              ? ` · 仅「${chapterLabel(chapter)}」`
-              : ` · 前 ${chapter} 章（累计）`
+              ? ` · 仅「${chapterLabel(to)}」`
+              : ` · 「${chapterLabel(from)}」至「${chapterLabel(to)}」`
         } else if (data.chapter_range?.length >= 2) {
           rangeLabel = ' · 全书'
         }
@@ -70,8 +70,9 @@ export function useGraphData(
     },
     [
       bookId,
-      filters.chapterFocus.mode,
-      filters.chapterFocus.chapter,
+      focusMode,
+      focusFrom,
+      focusTo,
       filters.minAppearance,
       filters.typeFilter,
       filters.categoryFilter,

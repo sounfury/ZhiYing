@@ -16,10 +16,15 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 /** 模型回复：每个问题一项回答。 */
-internal data class IdentityReply(val answers: List<IdentityAnswerDto> = emptyList())
+internal data class IdentityReply(
+    val answers: List<IdentityAnswerDto> = emptyList(),
+)
 
 /** 对一个问题的回答，question 为问题编号。 */
-internal data class IdentityAnswerDto(val question: String = "", val decisions: List<IdentityDecisionDto> = emptyList())
+internal data class IdentityAnswerDto(
+    val question: String = "",
+    val decisions: List<IdentityDecisionDto> = emptyList(),
+)
 
 /** 一个身份结论：verdict 为 same / distinct / undecided。 */
 internal data class IdentityDecisionDto(
@@ -48,18 +53,21 @@ class SpringAiIdentityDisambiguator(
      * 入参：[request] 问题与任务级控制。出参：通过程序校验的回答；失败时为空。
      */
     override fun disambiguate(request: IdentityDisambiguationRequest): List<DisambiguationAnswer> {
-        val outcome = executor.askPostProcess<IdentityReply>(
-            system = IdentityPrompts.SYSTEM,
-            user = IdentityPrompts.user(request.ambiguities, config.mentionsPerPerson, request.chapterOrder),
-            control = request.control,
-            config = config,
-        )
+        val outcome =
+            executor.askPostProcess<IdentityReply>(
+                system = requireNotNull(request.control.prompts).system("identity"),
+                user = IdentityPrompts.user(request.ambiguities, config.mentionsPerPerson, request.chapterOrder),
+                control = request.control,
+            )
         return when (outcome) {
             is StructuredOutcome.Failed -> {
                 log.warn("身份歧义判断未完成（{}），{} 个问题保持独立：{}", outcome.failure, request.ambiguities.size, outcome.message)
                 emptyList()
             }
-            is StructuredOutcome.Success -> convert(outcome.value, request.ambiguities, request.chapterOrder)
+
+            is StructuredOutcome.Success -> {
+                convert(outcome.value, request.ambiguities, request.chapterOrder)
+            }
         }
     }
 
@@ -95,31 +103,45 @@ class SpringAiIdentityDisambiguator(
     }
 
     /** 结论的文字说法。 */
-    private fun verdictOf(decision: IdentityDecision): String = when (decision) {
-        is IdentityDecision.SamePerson -> "same"
-        is IdentityDecision.DistinctPersons -> "distinct"
-        is IdentityDecision.Undecided -> "undecided"
-    }
+    private fun verdictOf(decision: IdentityDecision): String =
+        when (decision) {
+            is IdentityDecision.SamePerson -> "same"
+            is IdentityDecision.DistinctPersons -> "distinct"
+            is IdentityDecision.Undecided -> "undecided"
+        }
 
     /** 日志里的一条结论：涉及的人物（展示名与最早出现的章节）和依据。 */
-    private fun describe(decision: IdentityDecision, ambiguity: IdentityAmbiguity, chapterOrder: Map<ChapterId, Int>): String {
-        val people = ambiguity.persons.filter { it.id in decision.persons }.joinToString("、") {
-            "${it.displayName}（${IdentityPrompts.chapterLabel(it.bindings.first().sourceChapter, chapterOrder)}）"
-        }
+    private fun describe(
+        decision: IdentityDecision,
+        ambiguity: IdentityAmbiguity,
+        chapterOrder: Map<ChapterId, Int>,
+    ): String {
+        val people =
+            ambiguity.persons.filter { it.id in decision.persons }.joinToString("、") {
+                "${it.displayName}（${IdentityPrompts.chapterLabel(it.bindings.first().sourceChapter, chapterOrder)}）"
+            }
         return "$people —— ${decision.basis}"
     }
 
     /** 单个结论转领域对象（人物按代号或完整 ID 解析）；人物不在候选组、不足两人、没有依据或结论词无法识别时返回 null。 */
-    private fun toDecision(dto: IdentityDecisionDto, ambiguity: IdentityAmbiguity): IdentityDecision? {
+    private fun toDecision(
+        dto: IdentityDecisionDto,
+        ambiguity: IdentityAmbiguity,
+    ): IdentityDecision? {
         val refs = IdentityPrompts.refs(ambiguity)
-        val persons = dto.persons.map { it.trim() }.filter { it.isNotEmpty() }
-            .map { AnalysisPromptText.resolvePerson(it, refs) ?: PersonId(it) }.toSet()
-        val problem = when {
-            persons.size < 2 -> "涉及人物不足两个"
-            !ambiguity.candidates.containsAll(persons) -> "涉及候选组之外的人物 ${(persons - ambiguity.candidates).map { it.value }}"
-            dto.basis.isBlank() -> "没有说明依据"
-            else -> null
-        }
+        val persons =
+            dto.persons
+                .map { it.trim() }
+                .filter { it.isNotEmpty() }
+                .map { AnalysisPromptText.resolvePerson(it, refs) ?: PersonId(it) }
+                .toSet()
+        val problem =
+            when {
+                persons.size < 2 -> "涉及人物不足两个"
+                !ambiguity.candidates.containsAll(persons) -> "涉及候选组之外的人物 ${(persons - ambiguity.candidates).map { it.value }}"
+                dto.basis.isBlank() -> "没有说明依据"
+                else -> null
+            }
         if (problem != null) {
             log.warn("丢弃身份结论（{}）：{}", dto.verdict, problem)
             return null
@@ -127,9 +149,18 @@ class SpringAiIdentityDisambiguator(
         val basis = dto.basis.trim()
         val source = DecisionSource.TARGETED_JUDGMENT
         return when (dto.verdict.trim().lowercase()) {
-            "same" -> IdentityDecision.SamePerson(persons, basis, source)
-            "distinct" -> IdentityDecision.DistinctPersons(persons, basis, source)
-            "undecided" -> IdentityDecision.Undecided(persons, basis, source)
+            "same" -> {
+                IdentityDecision.SamePerson(persons, basis, source)
+            }
+
+            "distinct" -> {
+                IdentityDecision.DistinctPersons(persons, basis, source)
+            }
+
+            "undecided" -> {
+                IdentityDecision.Undecided(persons, basis, source)
+            }
+
             else -> {
                 log.warn("丢弃身份结论：无法识别的 verdict「{}」", dto.verdict)
                 null

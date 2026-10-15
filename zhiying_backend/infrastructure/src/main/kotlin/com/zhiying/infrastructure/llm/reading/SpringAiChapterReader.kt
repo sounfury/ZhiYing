@@ -2,7 +2,6 @@
 // 步数、预算、重试、用量由执行器负责；规则校验在 ChapterSession；这里只做装配与收尾。
 package com.zhiying.infrastructure.llm.reading
 
-import com.zhiying.application.llm.DEFAULT_PROVIDER
 import com.zhiying.application.analyze.reading.ChapterReadRequest
 import com.zhiying.application.analyze.reading.ChapterReadResult
 import com.zhiying.application.analyze.reading.ChapterReader
@@ -10,11 +9,11 @@ import com.zhiying.application.diagnostics.ModelFailure
 import com.zhiying.application.llm.ModelCallBudget
 import com.zhiying.application.llm.ModelCallControl
 import com.zhiying.application.llm.ModelSnapshot
+import com.zhiying.application.llm.PromptSnapshot
 import com.zhiying.domain.extraction.ExtractionProvenance
 import com.zhiying.domain.library.TextRevision
 import com.zhiying.infrastructure.config.ZhiYingProperties
 import com.zhiying.infrastructure.llm.LoopEnd
-import com.zhiying.infrastructure.llm.ModelInvoker
 import com.zhiying.infrastructure.llm.ToolLoopExecutor
 import com.zhiying.infrastructure.llm.ToolLoopOutcome
 import com.zhiying.infrastructure.llm.ToolLoopRequest
@@ -25,7 +24,6 @@ import org.springframework.stereotype.Component
 @Component
 class SpringAiChapterReader(
     private val loop: ToolLoopExecutor,
-    private val invoker: ModelInvoker,
     properties: ZhiYingProperties,
 ) : ChapterReader {
     private val config = properties.reading
@@ -43,74 +41,113 @@ class SpringAiChapterReader(
         val unit = request.unit
         val range = unit?.let { it.start until it.end } ?: (0 until chapter.text.length)
         val injectUnit = range.last - range.first + 1 <= config.injectMaxChars
-        val session = ChapterSession(chapter, request.roster, request.library, config.readWindowChars, range, injectUnit)
-        val outcome = loop.run(
-            ToolLoopRequest(
-                system = ChapterReadingPrompts.system(config.readWindowChars),
-                user = ChapterReadingPrompts.user(
-                    chapter, unit, request.roster, request.library,
-                    config.injectMaxChars, config.readWindowChars, config.segmentHintChars,
+        val model = requireNotNull(request.control.models).reading
+        val prompts = requireNotNull(request.control.prompts)
+        val readWindowChars = prompts.parameter("read_window_chars").toInt()
+        val session = ChapterSession(chapter, request.roster, request.library, readWindowChars, range, injectUnit)
+        val outcome =
+            loop.run(
+                ToolLoopRequest(
+                    system = prompts.system("reading"),
+                    user =
+                        ChapterReadingPrompts.user(
+                            chapter,
+                            unit,
+                            request.roster,
+                            request.library,
+                            config.injectMaxChars,
+                            readWindowChars,
+                            config.segmentHintChars,
+                        ),
+                    tools = ChapterTools.of(session),
+                    maxSteps = maxStepsFor(range.last - range.first + 1, readWindowChars),
+                    model = model.model,
+                    thinking = model.thinking,
+                    control = chapterControl(request.control),
+                    provider = model.providerId,
+                    nudge = SUBMIT_NUDGE,
+                    nudges = config.submitNudges,
+                    isDone = { session.submitted },
                 ),
-                tools = ChapterTools.of(session),
-                maxSteps = maxStepsFor(range.last - range.first + 1),
-                model = request.control.models?.reading?.model ?: config.model.ifBlank { null },
-                thinking = request.control.models?.reading?.thinking ?: config.thinking,
-                control = chapterControl(request.control),
-                provider = request.control.models?.reading?.providerId ?: DEFAULT_PROVIDER,
-                nudge = SUBMIT_NUDGE,
-                nudges = config.submitNudges,
-                isDone = { session.submitted },
-            ),
-        )
+            )
         logUsage(request, range.last - range.first + 1, outcome)
         return finish(session, outcome, request)
     }
 
     /** 记录一个阅读单元的用量与耗时（章、段、字数、请求数、输入 / 输出 token、毫秒），用于估算成本与时长。 */
-    private fun logUsage(request: ChapterReadRequest, chars: Int, outcome: ToolLoopOutcome) {
+    private fun logUsage(
+        request: ChapterReadRequest,
+        chars: Int,
+        outcome: ToolLoopOutcome,
+    ) {
         val stats = outcome.stats
         val part = request.unit?.let { "${it.index}/${it.count}" } ?: "1/1"
         log.info(
             "读章用量 chapter={} 「{}」 unit={} chars={} steps={} requests={} input={} output={} elapsedMs={} end={}",
-            request.chapter.order, request.chapter.title, part, chars, outcome.steps, stats.requests,
-            stats.usage.input, stats.usage.output, stats.elapsedMillis, outcome.end::class.simpleName,
+            request.chapter.order,
+            request.chapter.title,
+            part,
+            chars,
+            outcome.steps,
+            stats.requests,
+            stats.usage.input,
+            stats.usage.output,
+            stats.elapsedMillis,
+            outcome.end::class.simpleName,
         )
     }
 
-    /** 当前所用模型（章阅读专用模型，空则取默认）与提示词版本。 */
-    override fun provenanceFor(textRevision: TextRevision, models: ModelSnapshot?): ExtractionProvenance {
-        val model = models?.reading?.label ?: config.model.ifBlank { invoker.defaultModel() }
-        val thinking = models?.reading?.thinking ?: config.thinking
-        return ExtractionProvenance(textRevision, model, ChapterReadingPrompts.VERSION + if (thinking) "/thinking" else "")
-    }
+    /** 同一任务快照中的模型、思考开关与提示版本，默认提示保持原有来源格式。 */
+    override fun provenanceFor(
+        textRevision: TextRevision,
+        models: ModelSnapshot,
+        prompts: PromptSnapshot,
+    ): ExtractionProvenance =
+        ExtractionProvenance(
+            textRevision,
+            models.reading.model,
+            prompts.version("reading") + if (models.reading.thinking) "/thinking" else "",
+        )
 
     /** 单章预算挂在任务级预算之下，两级都受限；取消信号沿用任务级。 */
     private fun chapterControl(task: ModelCallControl) =
         task.copy(budget = ModelCallBudget(config.maxRequests, config.maxTokens, parent = task.budget))
 
     /** 短章用基础步数；长章按 15 + 2 × 窗数估算，不超过上限（15 为读窗之外的取证、登记、提交步数）。 */
-    private fun maxStepsFor(chars: Int): Int {
+    private fun maxStepsFor(chars: Int, readWindowChars: Int): Int {
         if (chars <= config.injectMaxChars) return config.baseSteps
-        val windows = (chars + config.readWindowChars - 1) / config.readWindowChars
-        return minOf(config.maxSteps, LONG_CHAPTER_BASE_STEPS + 2 * windows)
+        val windows = (chars.toLong() + readWindowChars - 1) / readWindowChars
+        return minOf(config.maxSteps.toLong(), LONG_CHAPTER_BASE_STEPS + 2 * windows).toInt()
     }
 
     /** 按循环结束方式收尾：已提交直接产出；模型停手或步数用尽时，有累积成果则程序收尾并带警告，否则报失败。 */
-    private fun finish(session: ChapterSession, outcome: ToolLoopOutcome, request: ChapterReadRequest): ChapterReadResult {
-        val needsFinalize = when (val end = outcome.end) {
-            is LoopEnd.Failed -> return ChapterReadResult.Failed(end.failure, end.message, outcome.stats)
-            LoopEnd.Finished -> false
-            LoopEnd.ModelStopped, LoopEnd.StepsExhausted -> {
-                if (!session.hasWork()) {
-                    val failure = if (end == LoopEnd.StepsExhausted) ModelFailure.STEPS_EXHAUSTED else ModelFailure.UNEXPECTED_REPLY
-                    return ChapterReadResult.Failed(failure, "读章结束但未提交结果，也未登记任何内容（${outcome.steps} 步）", outcome.stats)
+    private fun finish(
+        session: ChapterSession,
+        outcome: ToolLoopOutcome,
+        request: ChapterReadRequest,
+    ): ChapterReadResult {
+        val needsFinalize =
+            when (val end = outcome.end) {
+                is LoopEnd.Failed -> {
+                    return ChapterReadResult.Failed(end.failure, end.message, outcome.stats)
                 }
-                true
+
+                LoopEnd.Finished -> {
+                    false
+                }
+
+                LoopEnd.ModelStopped, LoopEnd.StepsExhausted -> {
+                    if (!session.hasWork()) {
+                        val failure = if (end == LoopEnd.StepsExhausted) ModelFailure.STEPS_EXHAUSTED else ModelFailure.UNEXPECTED_REPLY
+                        return ChapterReadResult.Failed(failure, "读章结束但未提交结果，也未登记任何内容（${outcome.steps} 步）", outcome.stats)
+                    }
+                    true
+                }
             }
-        }
         if (needsFinalize) session.finalizeWithoutSubmit(outcome.lastText.take(SUMMARY_FALLBACK_CHARS))
         return try {
-            val provenance = provenanceFor(request.chapter.revision, request.control.models)
+            val provenance =
+                provenanceFor(request.chapter.revision, requireNotNull(request.control.models), requireNotNull(request.control.prompts))
             val extraction = session.build(provenance.model, provenance.promptVersion)
             ChapterReadResult.Completed(extraction, outcome.stats, session.warnings())
         } catch (e: IllegalArgumentException) {

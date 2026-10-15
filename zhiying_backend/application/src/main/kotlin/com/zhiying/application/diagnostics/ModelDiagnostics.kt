@@ -1,12 +1,18 @@
 // 模型连接诊断编排：按指定模型与思考开关检查协议，报告不含连接凭据。
 package com.zhiying.application.diagnostics
 
+import com.zhiying.application.error.AppException
+import com.zhiying.application.error.ErrorCode
 import org.springframework.stereotype.Service
 import kotlin.time.Duration
 import kotlin.time.measureTimedValue
 
 /** 单项检查的结果及耗时。 */
-data class CheckResult(val check: ProbeCheck, val outcome: CheckOutcome, val elapsed: Duration)
+data class CheckResult(
+    val check: ProbeCheck,
+    val outcome: CheckOutcome,
+    val elapsed: Duration,
+)
 
 /** 一次完整探测的报告。 */
 data class ModelProbeReport(
@@ -24,14 +30,21 @@ data class ModelProbeReport(
  * 副作用：每项检查向模型服务发一次真实请求（工具调用检查可能多轮）；某项失败不影响后续检查。
  */
 @Service
-class ModelDiagnostics(private val probe: ModelProbe) {
-
+class ModelDiagnostics(
+    private val probe: ModelProbe,
+) {
     /** 以指定思考模式执行全部检查。 */
-    fun run(thinking: ThinkingMode, provider: String, model: String? = null): ModelProbeReport {
-        val results = ProbeCheck.entries.map { check ->
-            val (outcome, elapsed) = measureTimedValue { probe.run(check, thinking, provider, model) }
-            CheckResult(check, outcome, elapsed)
-        }
+    fun run(
+        thinking: ThinkingMode,
+        provider: String,
+        model: String,
+    ): ModelProbeReport {
+        if (provider.isBlank() || model.isBlank()) throw AppException(ErrorCode.INVALID_ARGUMENT, "服务商与模型名必填")
+        val results =
+            ProbeCheck.entries.map { check ->
+                val (outcome, elapsed) = measureTimedValue { probe.run(check, thinking, provider, model) }
+                CheckResult(check, outcome, elapsed)
+            }
         return ModelProbeReport(probe.target(provider, model), thinking, results)
     }
 }

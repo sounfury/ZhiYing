@@ -1,3 +1,4 @@
+# 后端依赖版本与坐标清单。
 [versions]
 kotlin = "2.4.20"
 spring-boot = "4.1.1"
@@ -11,7 +12,7 @@ spring-ai-bom = { module = "org.springframework.ai:spring-ai-bom", version.ref =
 # 以下版本由上面两个 BOM 管理
 spring-context = { module = "org.springframework:spring-context" }
 spring-boot-starter-webmvc = { module = "org.springframework.boot:spring-boot-starter-webmvc" }
-spring-ai-starter-model-openai = { module = "org.springframework.ai:spring-ai-starter-model-openai" }
+spring-ai-openai = { module = "org.springframework.ai:spring-ai-openai" }
 jackson-module-kotlin = { module = "tools.jackson.module:jackson-module-kotlin" }
 kotlin-reflect = { module = "org.jetbrains.kotlin:kotlin-reflect" }
 spring-boot-starter-jdbc = { module = "org.springframework.boot:spring-boot-starter-jdbc" }

@@ -31,4 +31,3 @@
 .account-identity { overflow-wrap: anywhere; }
 .account-button { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
 .account-tabs { margin-top: 18px; }
-.account-route-status { padding: 24px; }

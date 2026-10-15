@@ -15,6 +15,7 @@ import com.zhiying.application.library.ShelfItemStore
 import com.zhiying.application.library.ShelfItems
 import com.zhiying.application.llm.ModelSettings
 import com.zhiying.application.quota.QuotaUsage
+import com.zhiying.application.settings.AppSettings
 import com.zhiying.domain.account.Account
 import com.zhiying.domain.library.Book
 import com.zhiying.domain.library.BookId
@@ -59,10 +60,16 @@ data class SplitPreview(
 
 /** TXT 解析：[rule] 为 null 时自动选择分章方案；方案不存在抛 INVALID_ARGUMENT，无法解码或无有效章节抛 UNREADABLE_BOOK。 */
 interface TxtParser {
-    fun parse(content: ByteArray, rule: String? = null): ParsedBook
+    fun parse(
+        content: ByteArray,
+        rule: String? = null,
+    ): ParsedBook
 
     /** 按全部方案试切，不落库。 */
-    fun preview(content: ByteArray, currentRule: String): List<SplitPreview>
+    fun preview(
+        content: ByteArray,
+        currentRule: String,
+    ): List<SplitPreview>
 }
 
 fun isTxt(fileName: String) = fileName.endsWith(".txt", ignoreCase = true)
@@ -84,10 +91,16 @@ class BookImporter(
     private val txtParser: TxtParser,
 ) {
     /** 按扩展名选解析器；[rule] 只对 TXT 生效。 */
-    fun parse(fileName: String, content: ByteArray, rule: String? = null): ParsedBook =
-        if (isTxt(fileName)) txtParser.parse(content, rule) else parser.parse(content)
+    fun parse(
+        fileName: String,
+        content: ByteArray,
+        rule: String? = null,
+    ): ParsedBook = if (isTxt(fileName)) txtParser.parse(content, rule) else parser.parse(content)
 
-    fun preview(content: ByteArray, currentRule: String) = txtParser.preview(content, currentRule)
+    fun preview(
+        content: ByteArray,
+        currentRule: String,
+    ) = txtParser.preview(content, currentRule)
 
     fun prepare(
         fileName: String,
@@ -131,6 +144,7 @@ class ImportBook(
     private val method: AnalysisMethod,
     private val runner: AnalysisRunner,
     private val models: ModelSettings,
+    private val appSettings: AppSettings,
 ) {
     fun import(
         fileName: String,
@@ -150,10 +164,20 @@ class ImportBook(
             // TXT 秒传要按自动选出的分章方案匹配，所以先解析；EPUB 仍在未命中时才解析。
             val parsedTxt = if (isTxt(fileName)) importer.parse(fileName, content) else null
             val splitRule = parsedTxt?.splitRule
-            val currentMethod = method.version(models.snapshot())
+            val currentMethod =
+                try {
+                    method.version(models.snapshot(), appSettings.promptSnapshot())
+                } catch (e: AppException) {
+                    if (e.code != ErrorCode.MODEL_NOT_CONFIGURED) throw e
+                    null
+                }
             val candidate =
-                shelves.candidates(source, IMPORT_VERSION, splitRule).firstOrNull {
-                    !runner.hasUnsettledTask(it) && revisions.findPublished(it)?.reusableFor(currentMethod) == true
+                if (currentMethod == null) {
+                    null
+                } else {
+                    shelves.candidates(source, IMPORT_VERSION, splitRule).firstOrNull {
+                        !runner.hasUnsettledTask(it) && revisions.findPublished(it)?.reusableFor(currentMethod) == true
+                    }
                 }
             if (candidate != null) {
                 val item = ShelfItem(BookId(UUID.randomUUID().toString()), user.id, candidate, null, fileName, Instant.now())

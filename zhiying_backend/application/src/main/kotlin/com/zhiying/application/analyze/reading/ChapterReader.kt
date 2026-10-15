@@ -5,6 +5,7 @@ import com.zhiying.application.diagnostics.ModelFailure
 import com.zhiying.application.llm.ModelCallControl
 import com.zhiying.application.llm.ModelCallStats
 import com.zhiying.application.llm.ModelSnapshot
+import com.zhiying.application.llm.PromptSnapshot
 import com.zhiying.domain.extraction.ChapterExtraction
 import com.zhiying.domain.extraction.ExtractionProvenance
 import com.zhiying.domain.extraction.ReadingUnit
@@ -57,5 +58,9 @@ interface ChapterReader {
     fun read(request: ChapterReadRequest): ChapterReadResult
 
     /** 当前读章所用的模型与提示词版本；已存抽取的溯源与它相等（正文修订也相同）时才可复用。 */
-    fun provenanceFor(textRevision: TextRevision, models: ModelSnapshot? = null): ExtractionProvenance
+    fun provenanceFor(
+        textRevision: TextRevision,
+        models: ModelSnapshot,
+        prompts: PromptSnapshot,
+    ): ExtractionProvenance
 }

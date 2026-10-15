@@ -76,7 +76,7 @@ class Feedbacks(
                     input.category,
                     input.note?.trim()?.takeIf(String::isNotEmpty),
                     input.scope,
-                )
+                ).also { it.requireCurrentScope() }
             } catch (e: IllegalArgumentException) {
                 throw AppException(ErrorCode.INVALID_ARGUMENT, e.message ?: "反馈参数不合法")
             }

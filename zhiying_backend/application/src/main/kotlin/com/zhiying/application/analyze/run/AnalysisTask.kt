@@ -9,7 +9,9 @@ import java.time.Instant
 
 /** 分析任务的身份。 */
 @JvmInline
-value class TaskId(val value: String) {
+value class TaskId(
+    val value: String,
+) {
     init {
         require(value.isNotBlank()) { "任务 ID 不能为空" }
     }
@@ -97,9 +99,15 @@ enum class AnalysisEventKind { PROGRESS, DONE }
 
 /**
  * 一条进度事件：单调递增的 [id]（供断线重连去重）、种类、事件产生时的任务快照，
- * 以及触发事件的章（章级变化时有值，阶段切换时为 null）。
+ * 以及触发事件的章（章级变化时有值，阶段切换时为 null）；[newPersons] 仅在新抽取提交成功时实时推送，不回放。
  */
-data class AnalysisEvent(val id: Long, val kind: AnalysisEventKind, val task: AnalysisTask, val chapter: ChapterRun? = null)
+data class AnalysisEvent(
+    val id: Long,
+    val kind: AnalysisEventKind,
+    val task: AnalysisTask,
+    val chapter: ChapterRun? = null,
+    val newPersons: List<String>? = null,
+)
 
 /**
  * 书的分析状态，供书库列表展示：取自该书最近一次任务。
@@ -122,17 +130,19 @@ data class BookAnalysisStatus(
         val UPLOADED = BookAnalysisStatus(State.UPLOADED)
 
         /** 由任务快照推出书的状态：运行中 → ANALYZING，完成 → ANALYZED，失败 / 取消照实记录。 */
-        fun of(task: AnalysisTask) = BookAnalysisStatus(
-            state = when (task.status) {
-                TaskStatus.RUNNING -> State.ANALYZING
-                TaskStatus.COMPLETED -> State.ANALYZED
-                TaskStatus.FAILED -> State.FAILED
-                TaskStatus.CANCELLED -> State.CANCELLED
-            },
-            taskId = task.id,
-            totalChapters = task.chapters.size,
-            chaptersDone = task.chapters.filter { it.succeeded }.map { it.order },
-            chaptersFailed = task.chapters.filter { it.status == ChapterRunStatus.FAILED }.map { it.order },
-        )
+        fun of(task: AnalysisTask) =
+            BookAnalysisStatus(
+                state =
+                    when (task.status) {
+                        TaskStatus.RUNNING -> State.ANALYZING
+                        TaskStatus.COMPLETED -> State.ANALYZED
+                        TaskStatus.FAILED -> State.FAILED
+                        TaskStatus.CANCELLED -> State.CANCELLED
+                    },
+                taskId = task.id,
+                totalChapters = task.chapters.size,
+                chaptersDone = task.chapters.filter { it.succeeded }.map { it.order },
+                chaptersFailed = task.chapters.filter { it.status == ChapterRunStatus.FAILED }.map { it.order },
+            )
     }
 }

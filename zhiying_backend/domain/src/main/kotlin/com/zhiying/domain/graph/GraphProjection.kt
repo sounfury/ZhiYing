@@ -15,7 +15,6 @@ private typealias Pair2 = Pair<PersonId, PersonId>
 
 /** 图谱投影入口，无状态、无副作用。 */
 object GraphProjection {
-
     private val pairOrder = compareBy<Pair2>({ it.first.value }, { it.second.value })
     private val labelOrder = compareByDescending<RelationLabel> { it.score }.thenBy { it.key.type.value }
 
@@ -25,25 +24,42 @@ object GraphProjection {
      * 入参：[revision] 已发布的结果版本；[query] 过滤、聚焦、筛选条件；[scoring] 展示分参数。
      * 出参：[GraphView]。聚焦人物必须是版本内人物，否则抛出 IllegalArgumentException。
      */
-    fun project(revision: AnalysisRevision, query: GraphQuery, scoring: DisplayScoring = DisplayScoring()): GraphView {
+    fun project(
+        revision: AnalysisRevision,
+        query: GraphQuery,
+        scoring: DisplayScoring = DisplayScoring(),
+    ): GraphView {
         query.focus?.let { require(it in revision.personsById) { "聚焦人物不在本结果版本内: ${it.value}" } }
         val numbers = revision.chapterNumbers()
         val scope = AnalysisScope(numbers.keys.toList(), numbers)
-        val cutoff = query.chapterFocus?.number ?: Int.MAX_VALUE
-        // 0. 章节聚焦：先按截止章裁剪出现记录与人物出场章（章节序号 <= N）
-        val occurrences = revision.occurrences.filter { scope.numberOf(it.chapterId) <= cutoff }
-        val appearances = revision.appearances.mapValues { (_, chapters) ->
-            chapters.mapNotNullTo(mutableSetOf()) { scope.numberOf(it).takeIf { n -> n <= cutoff } }
-        }
+        val clipRange = query.chapterFocus?.clipRange ?: (1..Int.MAX_VALUE)
+        // 0. 先裁剪出现记录、依据与人物出场章，再汇总标签和展示分。
+        val occurrences =
+            if (query.chapterFocus == null) {
+                revision.occurrences
+            } else {
+                revision.occurrences.mapNotNull { occurrence ->
+                    if (scope.numberOf(occurrence.chapterId) !in clipRange) return@mapNotNull null
+                    val evidence = occurrence.evidence.filter { ref -> numbers[ref.chapterId]?.let { it in clipRange } == true }
+                    if (evidence.isEmpty()) null else occurrence.copy(evidence = evidence)
+                }
+            }
+        val appearances =
+            revision.appearances.mapValues { (_, chapters) ->
+                chapters.mapNotNullTo(mutableSetOf()) { scope.numberOf(it).takeIf { n -> n in clipRange } }
+            }
         // 1. 多标签汇总，再按类型、硬度筛选
         val labels = RelationFact.aggregate(occurrences).map { labelOf(it, revision, scope, scoring) }.filter { matches(it, query) }
         // 2. 路人过滤：有硬关系的人物与聚焦人物例外；软边不能让人绕过阈值
         val (visible, hidden) = filterPersons(revision, labels, query, appearances)
         // 3. 两端都可见的标签；聚焦时只保留与聚焦人物相连的边，节点只留聚焦人物及其一度关系
         val shown = labels.filter { it.from in visible && it.to in visible && touchesFocus(it, query.focus) }
-        val shownPersons = if (query.focus == null) visible else {
-            shown.flatMapTo(mutableSetOf(query.focus)) { listOf(it.from, it.to) }
-        }
+        val shownPersons =
+            if (query.focus == null) {
+                visible
+            } else {
+                shown.flatMapTo(visible.filterTo(mutableSetOf()) { it == query.focus }) { listOf(it.from, it.to) }
+            }
         // 4. 软标签折叠
         val edges = buildEdges(shown)
         // 5. 势力分区
@@ -52,10 +68,11 @@ object GraphProjection {
             bookId = revision.bookId,
             revision = revision.id,
             scope = scope,
-            nodes = shownPersons.sortedBy { it.value }.map { id ->
-                val chapters = appearances[id].orEmpty().sorted()
-                nodeOf(revision, revision.personsById.getValue(id), chapters, plan)
-            },
+            nodes =
+                shownPersons.sortedBy { it.value }.map { id ->
+                    val chapters = appearances[id].orEmpty().sorted()
+                    nodeOf(revision, revision.personsById.getValue(id), chapters, plan)
+                },
             edges = edges,
             partitions = plan,
             filter = FilterReport(query.minAppearance, query.focus, hidden),
@@ -74,23 +91,29 @@ object GraphProjection {
         val type = revision.types[fact.key.type] ?: error("类型库缺少 ${fact.key.type.value}")
         val chapters = fact.chapters.sortedBy { scope.numberOf(it) }
         val quoted = fact.evidence.any { it.quoted }
-        val score = scoring.base(type.hardness) + chapters.size * scoring.perChapter +
-            (if (quoted) scoring.quotedEvidenceBonus else 0.0)
+        val score =
+            scoring.base(type.hardness) + chapters.size * scoring.perChapter +
+                (if (quoted) scoring.quotedEvidenceBonus else 0.0)
         return RelationLabel(fact.key, type, chapters, fact.evidence, fact.occurrences.map { it.id }, score)
     }
 
     /** 标签是否满足类型与硬度筛选（筛选集合为空表示不限）。 */
-    private fun matches(label: RelationLabel, query: GraphQuery): Boolean =
+    private fun matches(
+        label: RelationLabel,
+        query: GraphQuery,
+    ): Boolean =
         (query.types.isEmpty() || label.key.type in query.types) &&
             (query.hardness.isEmpty() || label.hardness in query.hardness)
 
     /** 标签是否与聚焦人物相连；未聚焦时恒为真。 */
-    private fun touchesFocus(label: RelationLabel, focus: PersonId?): Boolean =
-        focus == null || label.from == focus || label.to == focus
+    private fun touchesFocus(
+        label: RelationLabel,
+        focus: PersonId?,
+    ): Boolean = focus == null || label.from == focus || label.to == focus
 
     /**
      * 路人过滤：按章计数，出场章数达到阈值、有硬关系、或是聚焦人物才可见。
-     * 章节聚焦时 [appearances] 已按截止章裁剪：单章模式只留第 N 章出场者且不做阈值过滤；累计模式只考虑前 N 章出场过的人物。
+     * 章节聚焦时 [appearances] 已按范围裁剪：单章只留第 N 章出场者且不做阈值过滤；区间只考虑区间内出场过的人物。
      * 出参：可见人物集合，以及被隐藏人物名单（仅含确有出场或关系的人物）。
      */
     private fun filterPersons(
@@ -108,22 +131,34 @@ object GraphProjection {
             val count = appearances[person.id]?.size ?: 0
             val keep = isVisible(person.id, appearances[person.id].orEmpty(), query, person.id in hardPersons)
             when {
-                keep -> visible += person.id
-                chapterFocus != null && (chapterFocus.mode == ChapterMode.SINGLE || count == 0) -> Unit
-                count > 0 || person.id in related ->
+                keep -> {
+                    visible += person.id
+                }
+
+                chapterFocus != null && (chapterFocus.mode == ChapterMode.SINGLE || count == 0) -> {
+                    Unit
+                }
+
+                count > 0 || person.id in related -> {
                     hidden += HiddenPerson(person.id, person.displayName, count, HideReason.BELOW_MIN_APPEARANCE)
+                }
             }
         }
         return visible to hidden
     }
 
-    /** 人物是否可见：聚焦人物例外；单章只看本章出场者；累计须前 N 章出场过；其余按阈值与硬关系例外。 */
-    private fun isVisible(person: PersonId, chapters: Set<Int>, query: GraphQuery, hard: Boolean): Boolean {
+    /** 人物是否可见：章节范围先限定出场者，再按阈值、硬关系和人物聚焦例外过滤。 */
+    private fun isVisible(
+        person: PersonId,
+        chapters: Set<Int>,
+        query: GraphQuery,
+        hard: Boolean,
+    ): Boolean {
         val chapterFocus = query.chapterFocus
         return when {
-            person == query.focus -> true
-            chapterFocus?.mode == ChapterMode.SINGLE -> chapterFocus.number in chapters
+            chapterFocus?.mode == ChapterMode.SINGLE -> chapterFocus.to in chapters
             chapterFocus != null && chapters.isEmpty() -> false
+            person == query.focus -> true
             else -> chapters.size >= query.minAppearance || hard
         }
     }
@@ -136,10 +171,11 @@ object GraphProjection {
         val strongPairs = shown.filter { it.hardness.strong }.map { unordered(it.from to it.to) }.toSet()
         val (folded, visible) = shown.partition { it.hardness == Hardness.SOFT && unordered(it.from to it.to) in strongPairs }
         val visibleByPair = visible.groupBy { it.from to it.to }
-        val foldedByPair = folded.groupBy { label ->
-            val own = label.from to label.to
-            if (own in visibleByPair) own else visibleByPair.keys.filter { unordered(it) == unordered(own) }.minWith(pairOrder)
-        }
+        val foldedByPair =
+            folded.groupBy { label ->
+                val own = label.from to label.to
+                if (own in visibleByPair) own else visibleByPair.keys.filter { unordered(it) == unordered(own) }.minWith(pairOrder)
+            }
         return (visibleByPair.keys + foldedByPair.keys).sortedWith(pairOrder).map { pair ->
             GraphEdge(
                 first = pair.first,
@@ -171,7 +207,11 @@ object GraphProjection {
             bio = person.profile.orEmpty(),
             appearanceCount = chapters.size,
             chapters = chapters,
-            groups = revision.affiliations.groupsOf(person.id).map { it.id }.filter { it.value in blockIds },
+            groups =
+                revision.affiliations
+                    .groupsOf(person.id)
+                    .map { it.id }
+                    .filter { it.value in blockIds },
             partition = placement?.blockId,
             placementInferred = placement?.inferred ?: false,
         )

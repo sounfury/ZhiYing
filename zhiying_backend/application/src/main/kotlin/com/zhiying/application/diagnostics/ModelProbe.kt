@@ -2,11 +2,14 @@
 package com.zhiying.application.diagnostics
 
 /** 探测目标：服务商 ID 与模型名。 */
-data class ModelTarget(val provider: String, val model: String)
+data class ModelTarget(
+    val provider: String,
+    val model: String,
+)
 
 /** 探测时的思考模式。 */
 enum class ThinkingMode {
-    /** 沿用全局配置（当前默认关闭思考，速度优先）。 */
+    /** 由服务商采用自身默认行为。 */
     DEFAULT,
 
     /** 显式开启。 */
@@ -65,22 +68,40 @@ enum class ModelFailure {
 }
 
 /** 一次调用的 token 用量。 */
-data class TokenUsage(val input: Int, val output: Int, val total: Int)
+data class TokenUsage(
+    val input: Int,
+    val output: Int,
+    val total: Int,
+)
 
 /** 单项探测的结果。 */
 sealed interface CheckOutcome {
     /** 通过：附回复摘要与用量。 */
-    data class Passed(val detail: String, val usage: TokenUsage?) : CheckOutcome
+    data class Passed(
+        val detail: String,
+        val usage: TokenUsage?,
+    ) : CheckOutcome
 
     /** 失败：附执行失败类别与原始信息。 */
-    data class Failed(val failure: ModelFailure, val message: String) : CheckOutcome
+    data class Failed(
+        val failure: ModelFailure,
+        val message: String,
+    ) : CheckOutcome
 }
 
 /** 模型探针：对真实模型服务执行单项协议检查。实现方负责把厂商异常归类为 [ModelFailure]。 */
 interface ModelProbe {
     /** 当前探测目标。 */
-    fun target(provider: String, model: String? = null): ModelTarget
+    fun target(
+        provider: String,
+        model: String,
+    ): ModelTarget
 
     /** 以指定思考模式执行一项检查；每次调用都会向模型服务发出真实请求。 */
-    fun run(check: ProbeCheck, thinking: ThinkingMode, provider: String, model: String? = null): CheckOutcome
+    fun run(
+        check: ProbeCheck,
+        thinking: ThinkingMode,
+        provider: String,
+        model: String,
+    ): CheckOutcome
 }

@@ -19,7 +19,9 @@ import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
 /** 模型回复：每个人物对一项结论。 */
-internal data class FallbackReply(val results: List<FallbackResultDto> = emptyList())
+internal data class FallbackReply(
+    val results: List<FallbackResultDto> = emptyList(),
+)
 
 /**
  * 对一个人物对的结论。
@@ -62,17 +64,21 @@ class SpringAiSoftFallbackFinder(
     override fun find(request: SoftFallbackRequest): List<FallbackResult> {
         // 兜底只能用无向软类型（领域规则同样要求），提示里也只列这些
         val softTypes = request.softTypes.filter { it.direction == Direction.Undirected }
-        val outcome = executor.askPostProcess<FallbackReply>(
-            system = FallbackPrompts.SYSTEM,
-            user = FallbackPrompts.user(softTypes, request.strongTypes, request.items, config.fallbackInteractionsPerPair),
-            control = request.control,
-            config = config,
-        )
+        val outcome =
+            executor.askPostProcess<FallbackReply>(
+                system = requireNotNull(request.control.prompts).system("fallback"),
+                user = FallbackPrompts.user(softTypes, request.strongTypes, request.items, config.fallbackInteractionsPerPair),
+                control = request.control,
+            )
         if (outcome is StructuredOutcome.Failed) {
             log.warn("软兜底未完成（{}），{} 个人物对不连边：{}", outcome.failure, request.items.size, outcome.message)
             return request.items.map { FallbackResult.NotCompleted(it.case.pair, "${outcome.failure}: ${outcome.message}") }
         }
-        val byId = (outcome as StructuredOutcome.Success).value.results.distinctBy { it.id }.associateBy { it.id }
+        val byId =
+            (outcome as StructuredOutcome.Success)
+                .value.results
+                .distinctBy { it.id }
+                .associateBy { it.id }
         val allowed = softTypes.associateBy { it.id }
         val strong = request.strongTypes.associateBy { it.id }
         return request.items.mapIndexed { index, item -> resultFor(item, byId[FallbackPrompts.pairId(index)], allowed, strong) }
@@ -90,19 +96,28 @@ class SpringAiSoftFallbackFinder(
         if (!dto.found) return FallbackResult.NotFound(pair, dto.reason.trim().ifBlank { "模型未找到有依据的兜底" })
         val shown = item.case.interactions.take(config.fallbackInteractionsPerPair)
         val refs = dto.interactions.map { it.trim() }.distinct()
-        val evidence = refs.mapNotNull { ref -> shown.withIndex().firstOrNull { FallbackPrompts.interactionId(it.index) == ref }?.value?.evidence }
+        val evidence =
+            refs.mapNotNull { ref ->
+                shown
+                    .withIndex()
+                    .firstOrNull { FallbackPrompts.interactionId(it.index) == ref }
+                    ?.value
+                    ?.evidence
+            }
         val evidenceProblem = if (evidence.isEmpty() || evidence.size != refs.size) "引用了不存在的交流编号 ${dto.interactions}" else null
         val typeId = dto.typeId?.trim().orEmpty()
-        val softProblem = when {
-            typeId.isEmpty() || allowed[RelationTypeId(typeId)] == null -> "类型「$typeId」不在可选软类型之中"
-            dto.basis.isBlank() -> "没有说明依据"
-            else -> evidenceProblem
-        }
-        val soft = if (softProblem == null) {
-            SoftFallbackProposal(pair, RelationTypeId(typeId), dto.basis.trim(), evidence.distinctBy { it.id })
-        } else {
-            null
-        }
+        val softProblem =
+            when {
+                typeId.isEmpty() || allowed[RelationTypeId(typeId)] == null -> "类型「$typeId」不在可选软类型之中"
+                dto.basis.isBlank() -> "没有说明依据"
+                else -> evidenceProblem
+            }
+        val soft =
+            if (softProblem == null) {
+                SoftFallbackProposal(pair, RelationTypeId(typeId), dto.basis.trim(), evidence.distinctBy { it.id })
+            } else {
+                null
+            }
         if (dto.kind.trim().lowercase() == "strong") {
             val upgrade = upgradeOf(item, dto, strong, evidence, evidenceProblem)
             if (upgrade.first != null) return FallbackResult.UpgradeStrong(upgrade.first!!, soft)
@@ -128,12 +143,13 @@ class SpringAiSoftFallbackFinder(
         val refs = mapOf(AnalysisPromptText.personRef(0) to item.first.id, AnalysisPromptText.personRef(1) to item.second.id)
         val source = AnalysisPromptText.resolvePerson(raw, refs)
         val pair = item.case.pair
-        val problem = when {
-            typeId.isEmpty() || strong[RelationTypeId(typeId)] == null -> "强类型「$typeId」不在可选硬 / 中类型之中"
-            source == null || (source != pair.first && source != pair.second) -> "源端「$raw」不属于该人物对"
-            dto.strongBasis.isBlank() -> "没有说明依据"
-            else -> evidenceProblem
-        }
+        val problem =
+            when {
+                typeId.isEmpty() || strong[RelationTypeId(typeId)] == null -> "强类型「$typeId」不在可选硬 / 中类型之中"
+                source == null || (source != pair.first && source != pair.second) -> "源端「$raw」不属于该人物对"
+                dto.strongBasis.isBlank() -> "没有说明依据"
+                else -> evidenceProblem
+            }
         if (problem != null) return null to problem
         return StrongUpgradeProposal(pair, RelationTypeId(typeId), source!!, dto.strongBasis.trim(), evidence.distinctBy { it.id }) to null
     }

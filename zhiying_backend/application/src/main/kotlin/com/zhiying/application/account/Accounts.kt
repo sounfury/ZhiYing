@@ -21,6 +21,13 @@ data class Invitation(
     val code: String,
     val maxUses: Int,
     val usedCount: Int,
+    val maxBooks: Long? = null,
+    val maxTokens: Long? = null,
+)
+
+data class AccountQuota(
+    val maxBooks: Long?,
+    val maxTokens: Long?,
 )
 
 data class StoredAccount(
@@ -72,6 +79,8 @@ interface AccountStore {
     fun deleteSession(token: String)
 
     fun listUsers(): List<Account>
+
+    fun quota(userId: String): AccountQuota
 
     fun createInvitation(
         invitation: Invitation,
@@ -143,10 +152,15 @@ class Accounts(
     fun createInvitation(
         actor: Account,
         maxUses: Int,
+        maxBooks: Long? = null,
+        maxTokens: Long? = null,
     ): Invitation {
         requireAdministrator(actor)
         if (maxUses < 1) throw AppException(ErrorCode.INVALID_ARGUMENT, "邀请码可用次数必须为正")
-        val invitation = Invitation(UUID.randomUUID().toString(), maxUses, 0)
+        if ((maxBooks != null && maxBooks < 0) || (maxTokens != null && maxTokens < 0)) {
+            throw AppException(ErrorCode.INVALID_ARGUMENT, "邀请码额度必须是非负整数或 null")
+        }
+        val invitation = Invitation(UUID.randomUUID().toString(), maxUses, 0, maxBooks, maxTokens)
         store.createInvitation(invitation, actor.id)
         return invitation
     }

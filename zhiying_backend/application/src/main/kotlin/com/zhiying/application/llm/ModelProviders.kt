@@ -1,4 +1,4 @@
-// 模型服务商管理：内置服务商来自部署配置，管理员可新增 OpenAI 兼容服务商；密钥只写不读，列表只给末尾几位。
+// 模型服务商管理：管理员维护 OpenAI 兼容服务商；密钥只写不读，列表只给末尾几位。
 package com.zhiying.application.llm
 
 import com.zhiying.application.account.Accounts
@@ -7,9 +7,6 @@ import com.zhiying.application.error.ErrorCode
 import com.zhiying.domain.account.Account
 import org.springframework.stereotype.Service
 import java.util.UUID
-
-/** 内置服务商 ID，连接信息来自 `zhiying.llm.*`。 */
-const val DEFAULT_PROVIDER = "default"
 
 /** 服务商开关思考模式的请求参数写法。 */
 enum class ThinkingStyle {
@@ -30,7 +27,6 @@ data class ModelProvider(
     val baseUrl: String,
     val thinkingStyle: ThinkingStyle,
     val keyHint: String,
-    val builtIn: Boolean,
 )
 
 /** 新增或修改服务商的输入；[apiKey] 为空表示修改时保留原密钥。 */
@@ -66,14 +62,12 @@ fun interface ModelCatalog {
 class ModelProviders(
     private val store: ModelProviderStore,
     private val settings: ModelSettingsStore,
-    private val defaults: ModelDefaults,
     private val catalog: ModelCatalog,
     private val accounts: Accounts,
 ) {
-    /** 内置服务商在前，其余按存储顺序。 */
-    fun all(): List<ModelProvider> = listOf(defaults.provider) + store.list()
+    fun all(): List<ModelProvider> = store.list()
 
-    fun exists(id: String) = id == DEFAULT_PROVIDER || store.find(id) != null
+    fun exists(id: String) = store.find(id) != null
 
     fun list(user: Account): List<ModelProvider> {
         accounts.requireAdministrator(user)
@@ -126,7 +120,6 @@ class ModelProviders(
     }
 
     private fun editable(id: String) {
-        if (id == DEFAULT_PROVIDER) throw AppException(ErrorCode.READ_ONLY, "内置服务商由部署配置提供，不能在后台修改")
         if (store.find(id) == null) throw AppException(ErrorCode.NOT_FOUND)
     }
 

@@ -10,13 +10,15 @@ import com.zhiying.application.analyze.reading.ChapterReader
 import com.zhiying.application.error.AppException
 import com.zhiying.application.error.ErrorCode
 import com.zhiying.application.graphquery.RevisionStore
-import com.zhiying.application.library.LibraryQueries
 import com.zhiying.application.library.ForkBook
+import com.zhiying.application.library.LibraryQueries
 import com.zhiying.application.library.ShelfItems
 import com.zhiying.application.llm.ModelSettings
 import com.zhiying.application.llm.ModelSnapshot
+import com.zhiying.application.llm.PromptSnapshot
 import com.zhiying.application.quota.QuotaUsage
 import com.zhiying.application.quota.UsageLedger
+import com.zhiying.application.settings.AppSettings
 import com.zhiying.domain.account.Account
 import com.zhiying.domain.library.BookId
 import com.zhiying.domain.library.Chapter
@@ -56,8 +58,9 @@ class AnalysisRunner(
     private val forks: ForkBook,
     private val method: AnalysisMethod,
     private val models: ModelSettings,
-) : SmartInitializingSingleton, DisposableBean {
-
+    private val appSettings: AppSettings,
+) : SmartInitializingSingleton,
+    DisposableBean {
     private val log = LogFactory.getLog(AnalysisRunner::class.java)
     private val runs = ConcurrentHashMap<BookId, AnalysisRun>()
 
@@ -80,34 +83,60 @@ class AnalysisRunner(
      * [force] 为 false 时沿用章抽取存储里仍有效的抽取（正文修订、模型、提示词版本都未变），true 时全部重读。
      * 书不存在抛 NOT_FOUND；没有可分析章节或 [toChapter] 不合法抛 INVALID_ARGUMENT；已有任务在运行抛 ANALYSIS_ALREADY_RUNNING。
      */
-    fun startFull(itemId: BookId, toChapter: Int?, force: Boolean, user: Account): AnalysisTask = withRegistrationLock {
-        if (toChapter != null && toChapter < 1) throw AppException(ErrorCode.INVALID_ARGUMENT, "to_chapter 必须 >= 1")
-        val item = shelfItems.get(itemId)
-        requireIdle(item.bookId)
-        requireIdle(item.taskBookId)
-        if (library.listAnalyzableChapters(item.taskBookId).none { toChapter == null || it.order <= toChapter }) {
-            throw AppException(ErrorCode.INVALID_ARGUMENT, "没有可分析的章节")
+    fun startFull(
+        itemId: BookId,
+        toChapter: Int?,
+        force: Boolean,
+        user: Account,
+    ): AnalysisTask =
+        withRegistrationLock {
+            if (toChapter != null && toChapter < 1) throw AppException(ErrorCode.INVALID_ARGUMENT, "to_chapter 必须 >= 1")
+            val item = shelfItems.get(itemId)
+            requireIdle(item.bookId)
+            requireIdle(item.taskBookId)
+            if (library.listAnalyzableChapters(item.taskBookId).none { toChapter == null || it.order <= toChapter }) {
+                throw AppException(ErrorCode.INVALID_ARGUMENT, "没有可分析的章节")
+            }
+            val bookId = forks.forWrite(itemId)
+            val outlines = library.listAnalyzableChapters(bookId).filter { toChapter == null || it.order <= toChapter }
+            launch(
+                bookId,
+                itemId,
+                TaskKind.FULL,
+                outlines,
+                user,
+                force,
+            ) { run, items -> runFull(run, outlines, items, toChapter == null, itemId) }
         }
-        val bookId = forks.forWrite(itemId)
-        val outlines = library.listAnalyzableChapters(bookId).filter { toChapter == null || it.order <= toChapter }
-        launch(bookId, itemId, TaskKind.FULL, outlines, user, force) { run, items -> runFull(run, outlines, items, toChapter == null, itemId) }
-    }
 
     /**
      * 重跑单章（异步执行）：只重读这一章，其余章沿用已存抽取，注入当前已发布版本的人名册保持人物 ID 稳定，
      * 重新后处理并发布。章不存在抛 NOT_FOUND，章不参与分析抛 INVALID_ARGUMENT。
      */
-    fun rerunChapter(itemId: BookId, order: Int, user: Account): AnalysisTask = withRegistrationLock {
-        val item = shelfItems.get(itemId)
-        requireIdle(item.bookId)
-        requireIdle(item.taskBookId)
-        val previous = library.listChapters(item.taskBookId).firstOrNull { it.order == order }
-            ?: throw AppException(ErrorCode.NOT_FOUND, "章节不存在：${itemId.value} 第 $order 章")
-        if (!previous.inclusion.included) throw AppException(ErrorCode.INVALID_ARGUMENT, "第 $order 章不参与分析，不能重跑")
-        val bookId = forks.forWrite(itemId)
-        val outline = library.listChapters(bookId).first { it.order == order }
-        launch(bookId, itemId, TaskKind.RERUN, listOf(outline), user, true) { run, items -> runRerun(run, items.single().chapter, itemId) }
-    }
+    fun rerunChapter(
+        itemId: BookId,
+        order: Int,
+        user: Account,
+    ): AnalysisTask =
+        withRegistrationLock {
+            val item = shelfItems.get(itemId)
+            requireIdle(item.bookId)
+            requireIdle(item.taskBookId)
+            val previous =
+                library.listChapters(item.taskBookId).firstOrNull { it.order == order }
+                    ?: throw AppException(ErrorCode.NOT_FOUND, "章节不存在：${itemId.value} 第 $order 章")
+            if (!previous.inclusion.included) throw AppException(ErrorCode.INVALID_ARGUMENT, "第 $order 章不参与分析，不能重跑")
+            val bookId = forks.forWrite(itemId)
+            val outline = library.listChapters(bookId).first { it.order == order }
+            launch(
+                bookId,
+                itemId,
+                TaskKind.RERUN,
+                listOf(outline),
+                user,
+                true,
+            ) { run, items -> runRerun(run, items.single().chapter, itemId) }
+        }
 
     /** 请求取消该书运行中的任务；没有运行中的任务返回 false。 */
     fun cancel(bookId: BookId): Boolean {
@@ -122,12 +151,16 @@ class AnalysisRunner(
      * 完成后丢弃该书内存中已结束的任务，进度订阅不再回放旧事件。有运行中任务抛 ANALYSIS_ALREADY_RUNNING。
      * [block] 只应做短小的存储操作：执行期间所有书的任务启动都要等它。
      */
-    fun <T> whileIdle(bookId: BookId, block: () -> T): T = synchronized(runs) {
-        if (runs[bookId]?.quotaSettled == false) {
-            throw AppException(ErrorCode.ANALYSIS_ALREADY_RUNNING, "该书正在分析，请先停止分析")
+    fun <T> whileIdle(
+        bookId: BookId,
+        block: () -> T,
+    ): T =
+        synchronized(runs) {
+            if (runs[bookId]?.quotaSettled == false) {
+                throw AppException(ErrorCode.ANALYSIS_ALREADY_RUNNING, "该书正在分析，请先停止分析")
+            }
+            block().also { runs.remove(bookId) }
         }
-        block().also { runs.remove(bookId) }
-    }
 
     /** 上传命中、分叉、删除与任务登记共用此锁。 */
     fun <T> withRegistrationLock(block: () -> T): T = synchronized(runs) { block() }
@@ -148,7 +181,11 @@ class AnalysisRunner(
      * 订阅该书当前（或刚结束）任务的进度事件：先回放 id 大于 [lastEventId] 的历史事件，再转入实时。
      * 没有内存中的任务（进程重启后、从未运行）返回 null，调用方改用持久化的任务快照。回调须是非阻塞的。
      */
-    fun subscribe(bookId: BookId, lastEventId: Long, listener: (AnalysisEvent) -> Unit): AnalysisSubscription? {
+    fun subscribe(
+        bookId: BookId,
+        lastEventId: Long,
+        listener: (AnalysisEvent) -> Unit,
+    ): AnalysisSubscription? {
         val actualId = shelfItems.taskBookId(bookId)
         val run = runs[actualId] ?: return null
         if (tasks.latestForItem(actualId, bookId)?.id != run.id) return null
@@ -164,45 +201,53 @@ class AnalysisRunner(
         user: Account,
         force: Boolean,
         body: (AnalysisRun, List<ReadItem>) -> Unit,
-    ): AnalysisTask = synchronized(runs) {
-        if (runs[bookId]?.quotaSettled == false) throw AppException(ErrorCode.ANALYSIS_ALREADY_RUNNING)
-        val modelSnapshot = models.snapshot()
-        val items = outlines.map { outline ->
-            val chapter = library.readChapter(outline.id)
-            ReadItem(chapter, if (force) null else reusable(chapter, modelSnapshot))
+    ): AnalysisTask =
+        synchronized(runs) {
+            if (runs[bookId]?.quotaSettled == false) throw AppException(ErrorCode.ANALYSIS_ALREADY_RUNNING)
+            val modelSnapshot = models.snapshot()
+            val promptSnapshot = appSettings.promptSnapshot()
+            val items =
+                outlines.map { outline ->
+                    val chapter = library.readChapter(outline.id)
+                    ReadItem(chapter, if (force) null else reusable(chapter, modelSnapshot, promptSnapshot))
+                }
+            val chars = outlines.zip(items).sumOf { (outline, item) -> if (item.reused == null) outline.wordCount.toLong() else 0L }
+            val now = Instant.now()
+            val day = now.atZone(quota.settings.timeZone).toLocalDate()
+            val dayStart = day.atStartOfDay(quota.settings.timeZone).toInstant()
+            val dayEnd = day.plusDays(1).atStartOfDay(quota.settings.timeZone).toInstant()
+            val running = runs.values.filter { !it.quotaSettled }
+            val todayTokens = ledger.tokensBetween(dayStart, dayEnd) + running.sumOf { it.control.budget.usedTokens }
+            quota.requireAllowed(quota.snapshot(user, running.count { it.userId == user.id }.toLong(), todayTokens).checkAnalysis(chars))
+            val task =
+                AnalysisTask(
+                    id = TaskId(UUID.randomUUID().toString()),
+                    bookId = bookId,
+                    kind = kind,
+                    status = TaskStatus.RUNNING,
+                    phase = TaskPhase.PREPARING,
+                    startedAt = now,
+                    chapters = outlines.map { ChapterRun(it.id, it.order, it.title) },
+                )
+            ledger.reserve(task, user.id, chars, itemId)
+            val run = AnalysisRun(task, tasks, settings.maxRequests, settings.maxTokens, user.id, modelSnapshot, promptSnapshot)
+            runs[bookId] = run
+            try {
+                Thread.ofPlatform().name("analysis-${bookId.value}").start { execute(run, outlines) { body(it, items) } }
+            } catch (e: Exception) {
+                run.finish(TaskStatus.FAILED, "无法启动分析任务")
+                settle(run, outlines)
+                throw e
+            }
+            run.snapshot
         }
-        val chars = outlines.zip(items).sumOf { (outline, item) -> if (item.reused == null) outline.wordCount.toLong() else 0L }
-        val now = Instant.now()
-        val day = now.atZone(quota.settings.timeZone).toLocalDate()
-        val dayStart = day.atStartOfDay(quota.settings.timeZone).toInstant()
-        val dayEnd = day.plusDays(1).atStartOfDay(quota.settings.timeZone).toInstant()
-        val running = runs.values.filter { !it.quotaSettled }
-        val todayTokens = ledger.tokensBetween(dayStart, dayEnd) + running.sumOf { it.control.budget.usedTokens }
-        quota.requireAllowed(quota.snapshot(user, running.count { it.userId == user.id }.toLong(), todayTokens).checkAnalysis(chars))
-        val task = AnalysisTask(
-            id = TaskId(UUID.randomUUID().toString()),
-            bookId = bookId,
-            kind = kind,
-            status = TaskStatus.RUNNING,
-            phase = TaskPhase.PREPARING,
-            startedAt = now,
-            chapters = outlines.map { ChapterRun(it.id, it.order, it.title) },
-        )
-        ledger.reserve(task, user.id, chars, itemId)
-        val run = AnalysisRun(task, tasks, settings.maxRequests, settings.maxTokens, user.id, modelSnapshot)
-        runs[bookId] = run
-        try {
-            Thread.ofPlatform().name("analysis-${bookId.value}").start { execute(run, outlines) { body(it, items) } }
-        } catch (e: Exception) {
-            run.finish(TaskStatus.FAILED, "无法启动分析任务")
-            settle(run, outlines)
-            throw e
-        }
-        run.snapshot
-    }
 
     /** 任务线程主体：任何未预期异常都收口成失败终态，保证任务一定会结束。 */
-    private fun execute(run: AnalysisRun, outlines: List<ChapterOutline>, body: (AnalysisRun) -> Unit) {
+    private fun execute(
+        run: AnalysisRun,
+        outlines: List<ChapterOutline>,
+        body: (AnalysisRun) -> Unit,
+    ) {
         try {
             body(run)
         } catch (e: Exception) {
@@ -214,72 +259,125 @@ class AnalysisRunner(
         }
     }
 
-    private fun settle(run: AnalysisRun, outlines: List<ChapterOutline>) {
-        val started = run.snapshot.chapters.filter { it.startedAt != null }.map { it.chapterId }.toSet()
-        ledger.settle(run.id, outlines.filter { it.id in started }.sumOf { it.wordCount.toLong() }, run.control.budget.usedTokens, run.snapshot.usage)
+    private fun settle(
+        run: AnalysisRun,
+        outlines: List<ChapterOutline>,
+    ) {
+        val started =
+            run.snapshot.chapters
+                .filter { it.startedAt != null }
+                .map { it.chapterId }
+                .toSet()
+        ledger.settle(
+            run.id,
+            outlines
+                .filter {
+                    it.id in started
+                }.sumOf { it.wordCount.toLong() },
+            run.control.budget.usedTokens,
+            run.snapshot.usage,
+        )
         run.markQuotaSettled()
     }
 
     // ───────────────────────── 整书分析 ─────────────────────────
 
     /** 整书分析：读取章节 → 阅读阶段 → 校验是否可发布 → 后处理、归纳与发布。 */
-    private fun runFull(run: AnalysisRun, outlines: List<ChapterOutline>, items: List<ReadItem>, unrestricted: Boolean, itemId: BookId) {
+    private fun runFull(
+        run: AnalysisRun,
+        outlines: List<ChapterOutline>,
+        items: List<ReadItem>,
+        unrestricted: Boolean,
+        itemId: BookId,
+    ) {
         val bookId = run.snapshot.bookId
         val expected = revisions.publishedId(bookId)
         val chapters = items.map { it.chapter }
-        val context = if (shelfItems.resultBookId(itemId) != bookId && items.any { it.reused != null }) publishedContext(itemId, bookId) else null
+        val context =
+            if (shelfItems.resultBookId(itemId) != bookId &&
+                items.any { it.reused != null }
+            ) {
+                publishedContext(itemId, bookId)
+            } else {
+                null
+            }
         val types = context?.types ?: BuiltInRelationTypes.library()
         run.setPhase(TaskPhase.READING)
-        val extracted = ReadingPhase(reader, settings, run, extractions, bookId)
-            .execute(items, context?.persons.orEmpty(), types)
+        val extracted =
+            ReadingPhase(reader, settings, run, extractions, bookId)
+                .execute(items, context?.persons.orEmpty(), types)
         if (!readingSucceeded(run)) return
         val ordered = chapters.map { extracted.getValue(it.id) }
-        val input = PostProcessInput(
-            bookId = bookId,
-            revisionId = RevisionId(UUID.randomUUID().toString()),
-            extractions = ordered,
-            roster = context?.persons.orEmpty(),
-            types = types,
-            chapterOrder = outlines.associate { it.id to it.order },
+        val input =
+            PostProcessInput(
+                bookId = bookId,
+                revisionId = RevisionId(UUID.randomUUID().toString()),
+                extractions = ordered,
+                roster = context?.persons.orEmpty(),
+                types = types,
+                chapterOrder = outlines.associate { it.id to it.order },
+            )
+        publish(
+            run,
+            input,
+            expected,
+            fullBook =
+                unrestricted &&
+                    input.extractions.map { it.chapterId }.toSet() == library.listAnalyzableChapters(bookId).map { it.id }.toSet(),
         )
-        publish(run, input, expected, fullBook = unrestricted && input.extractions.map { it.chapterId }.toSet() == library.listAnalyzableChapters(bookId).map { it.id }.toSet())
     }
 
     /** 已存抽取在正文修订、模型、提示词版本都未变时可沿用。 */
-    private fun reusable(chapter: Chapter, models: ModelSnapshot): StoredExtraction? =
-        extractions.findCurrent(chapter.id)?.takeIf { it.extraction.provenance == reader.provenanceFor(chapter.revision, models) }
+    private fun reusable(
+        chapter: Chapter,
+        models: ModelSnapshot,
+        prompts: PromptSnapshot,
+    ): StoredExtraction? =
+        extractions.findCurrent(chapter.id)?.takeIf { it.extraction.provenance == reader.provenanceFor(chapter.revision, models, prompts) }
 
     // ───────────────────────── 单章重跑 ─────────────────────────
 
     /** 单章重跑：重读本章 → 用其余章的当前抽取与已发布版本的人名册 / 类型库 / 历史软关系重建 → 发布。 */
-    private fun runRerun(run: AnalysisRun, chapter: Chapter, itemId: BookId) {
+    private fun runRerun(
+        run: AnalysisRun,
+        chapter: Chapter,
+        itemId: BookId,
+    ) {
         val bookId = run.snapshot.bookId
         val expected = revisions.publishedId(bookId)
         val published = publishedContext(itemId, bookId)
         run.setPhase(TaskPhase.READING)
-        val extracted = ReadingPhase(reader, settings, run, extractions, bookId)
-            .execute(listOf(ReadItem(chapter)), published?.persons.orEmpty(), published?.types ?: BuiltInRelationTypes.library())
+        val extracted =
+            ReadingPhase(reader, settings, run, extractions, bookId)
+                .execute(listOf(ReadItem(chapter)), published?.persons.orEmpty(), published?.types ?: BuiltInRelationTypes.library())
         if (!readingSucceeded(run)) return
         val orderOf = library.listChapters(bookId).associate { it.id to it.order }
         // 其余章取当前抽取；已有发布版本时保持它的覆盖范围，本章无论是否在范围内都计入
-        val others = extractions.listCurrent(bookId).map { it.extraction }
-            .filter { it.chapterId != chapter.id && (published == null || it.chapterId in published.analyzedChapters) }
+        val others =
+            extractions
+                .listCurrent(bookId)
+                .map { it.extraction }
+                .filter { it.chapterId != chapter.id && (published == null || it.chapterId in published.analyzedChapters) }
         val ordered = (others + extracted.getValue(chapter.id)).sortedBy { orderOf[it.chapterId] ?: Int.MAX_VALUE }
-        val input = PostProcessInput(
-            bookId = bookId,
-            revisionId = RevisionId(UUID.randomUUID().toString()),
-            extractions = ordered,
-            roster = published?.persons.orEmpty(),
-            retained = retainedSoftRelations(published, chapter),
-            types = published?.types ?: BuiltInRelationTypes.library(),
-            chapterOrder = orderOf.filterKeys { id -> ordered.any { it.chapterId == id } },
-            rerunChapter = chapter.id,
-        )
+        val input =
+            PostProcessInput(
+                bookId = bookId,
+                revisionId = RevisionId(UUID.randomUUID().toString()),
+                extractions = ordered,
+                roster = published?.persons.orEmpty(),
+                retained = retainedSoftRelations(published, chapter),
+                types = published?.types ?: BuiltInRelationTypes.library(),
+                chapterOrder = orderOf.filterKeys { id -> ordered.any { it.chapterId == id } },
+                rerunChapter = chapter.id,
+            )
         publish(run, input, expected)
     }
 
     /** 新书首次发布前借用原结果上下文，发布比较仍使用新书自身的指针。 */
-    private fun publishedContext(itemId: BookId, bookId: BookId): AnalysisRevision? {
+    private fun publishedContext(
+        itemId: BookId,
+        bookId: BookId,
+    ): AnalysisRevision? {
         revisions.findPublished(bookId)?.let { return it }
         val sourceId = shelfItems.resultBookId(itemId)
         if (sourceId == bookId) return null
@@ -290,14 +388,16 @@ class AnalysisRunner(
     }
 
     /** 上一版中由软兜底产生、且来源章不是被重跑章的记录：来源仍然有效，交给后处理保留。 */
-    private fun retainedSoftRelations(published: AnalysisRevision?, rerun: Chapter) =
-        published?.occurrences
-            ?.filter {
-                (it.assessment.source == AssessmentSource.SOFT_FALLBACK || it.assessment.source == AssessmentSource.RULE) &&
-                    it.chapterId != rerun.id &&
-                    published.types[it.key.type]?.hardness == Hardness.SOFT
-            }
-            .orEmpty()
+    private fun retainedSoftRelations(
+        published: AnalysisRevision?,
+        rerun: Chapter,
+    ) = published
+        ?.occurrences
+        ?.filter {
+            (it.assessment.source == AssessmentSource.SOFT_FALLBACK || it.assessment.source == AssessmentSource.RULE) &&
+                it.chapterId != rerun.id &&
+                published.types[it.key.type]?.hardness == Hardness.SOFT
+        }.orEmpty()
 
     // ───────────────────────── 共用收尾 ─────────────────────────
 
@@ -310,23 +410,33 @@ class AnalysisRunner(
         val failed = run.snapshot.chapters.filter { it.status == ChapterRunStatus.FAILED }
         if (failed.isEmpty()) return true
         val orders = failed.take(MAX_LISTED).joinToString("、") { "第${it.order}章" } + if (failed.size > MAX_LISTED) " 等" else ""
-        val advice = if (run.snapshot.kind == TaskKind.RERUN) {
-            "重跑失败，上一版结果保持不变"
-        } else {
-            "本次未发布，上一版结果保持不变；已读成功的章抽取已保存，重新启动分析会沿用它们，只补读失败章"
-        }
+        val advice =
+            if (run.snapshot.kind == TaskKind.RERUN) {
+                "重跑失败，上一版结果保持不变"
+            } else {
+                "本次未发布，上一版结果保持不变；已读成功的章抽取已保存，重新启动分析会沿用它们，只补读失败章"
+            }
         run.finish(TaskStatus.FAILED, "${failed.size} 章读取失败（$orders），$advice")
         return false
     }
 
     /** 后处理 → 团体归纳 → 保存 → 条件发布；每个阶段后检查取消。 */
-    private fun publish(run: AnalysisRun, input: PostProcessInput, expected: RevisionId?, fullBook: Boolean = false) {
+    private fun publish(
+        run: AnalysisRun,
+        input: PostProcessInput,
+        expected: RevisionId?,
+        fullBook: Boolean = false,
+    ) {
         run.setPhase(TaskPhase.POST_PROCESSING)
         val processed = postProcessors.create(run.control).process(input)
         if (cancelled(run)) return
         run.setPhase(TaskPhase.INDUCING_AFFILIATIONS)
         val induction = affiliations.run(processed.revision, input.extractions, run.control)
-        val revision = induction.revision.withMethod(method.version(requireNotNull(run.control.models)), fullBook)
+        val revision =
+            induction.revision.withMethod(
+                method.version(requireNotNull(run.control.models), requireNotNull(run.control.prompts)),
+                fullBook,
+            )
         if (cancelled(run)) return
         run.setPhase(TaskPhase.PUBLISHING)
         revisions.save(revision)

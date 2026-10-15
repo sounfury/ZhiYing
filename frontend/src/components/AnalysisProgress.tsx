@@ -9,6 +9,7 @@ import { useEffect, useMemo, useState } from 'react'
 import type { AnalysisTaskChapter, AnalysisTaskSnapshot, ChapterBrief } from '../api'
 import { formatTokens, formatWords, shortTitle } from '../labels'
 import type { AnalysisUi } from '../types'
+import { AnalysisLoom } from './AnalysisLoom'
 
 interface AnalysisProgressProps {
   analysis: AnalysisUi
@@ -301,6 +302,7 @@ export function AnalysisProgress({
       <section className="progress-card" aria-label="分析进度" aria-live="polite">
         <h2>{isRerun ? `正在重跑「${rerunTitle}」` : title ? `正在分析《${title}》` : '正在分析'}</h2>
         <Steps phase={phase} />
+        {task && !isRerun && <AnalysisLoom chapters={list} phase={phase} newPersons={analysis.newPersons} />}
         {collapsible && (
           <button type="button" className="text-link pfold" onClick={() => setShowSettled((v) => !v)}>
             {showSettled ? '收起已完成的章' : `已完成 ${settled.length} 章 · 展开`}

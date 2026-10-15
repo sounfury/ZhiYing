@@ -8,6 +8,7 @@ data class QuotaLimits(
     val maxFileBytes: Long,
     val maxConcurrentTasks: Long,
     val dailyTokenBudget: Long,
+    val maxTokens: Long = 0,
 )
 
 sealed interface QuotaCheck {
@@ -20,7 +21,7 @@ sealed interface QuotaCheck {
     ) : QuotaCheck
 }
 
-enum class QuotaItem { FILE_SIZE, BOOKS, DAILY_TOKENS, CONCURRENT_TASKS, ANALYSIS_CHARS }
+enum class QuotaItem { FILE_SIZE, BOOKS, DAILY_TOKENS, CONCURRENT_TASKS, ANALYSIS_CHARS, TOKENS }
 
 /** 字数包含未结算任务的预占；管理员只豁免每人额度。 */
 data class UsageSnapshot(
@@ -30,6 +31,7 @@ data class UsageSnapshot(
     val runningTasks: Long = 0,
     val todayTokens: Long = 0,
     val isAdministrator: Boolean = false,
+    val tokens: Long = 0,
 ) {
     fun checkUpload(fileBytes: Long): QuotaCheck {
         val file = check(QuotaItem.FILE_SIZE, limits.maxFileBytes, 0, fileBytes)
@@ -42,6 +44,9 @@ data class UsageSnapshot(
             return QuotaCheck.Exceeded(QuotaItem.DAILY_TOKENS, 1, 0)
         }
         if (isAdministrator) return QuotaCheck.Allowed
+        if (limits.maxTokens > 0 && tokens >= limits.maxTokens) {
+            return QuotaCheck.Exceeded(QuotaItem.TOKENS, 1, 0)
+        }
         val concurrent = check(QuotaItem.CONCURRENT_TASKS, limits.maxConcurrentTasks, runningTasks, 1)
         if (concurrent != QuotaCheck.Allowed) return concurrent
         return check(QuotaItem.ANALYSIS_CHARS, limits.maxAnalysisChars, this.chars, chars)

@@ -34,15 +34,17 @@ cd zhiying_backend
 cp .env.example .env
 ```
 
-在 `.env` 填写模型服务地址、密钥与模型名，并增加以下管理员引导配置：
+在 `.env` 填写管理员引导配置与服务商密钥的加密主密钥：
 
 ```properties
 ZHIYING_ADMIN_USERNAME=admin
 ZHIYING_ADMIN_PASSWORD=填写8至128字符的管理员密码
 ZHIYING_COOKIE_SECURE=false
-# 可选：后台新增模型服务商时加密其 API Key，不设则不能新增
+# 加密后台服务商的 API Key；不设仍可启动，但不能保存或使用服务商密钥
 LLM_SECRET_KEY=任意长随机串
 ```
+
+模型服务商、API Key、各分析环节的模型名与思考开关均在管理员后台维护，不再读取 `LLM_BASE_URL`、`LLM_API_KEY` 或 `LLM_MODEL`。`LLM_SECRET_KEY` 应使用随机串（如 `openssl rand -base64 32`），需妥善保存；更换后须在后台重填各服务商 API Key。首次使用或旧部署内置配置被丢弃后，管理员须为未配置的分析环节选择服务商与模型；阅读、后处理、团体归纳任一环节未配置时不能启动分析。
 
 `ZHIYING_ADMIN_USERNAME` 默认 `admin`；首次创建管理员时必须提供 8–128 字符的密码。启动会创建一个管理员，并把已有无主书归入该管理员，保留已有书与分析数据；已有管理员时不会用引导密码重置它。后续重置密码通过管理员界面完成，并撤销目标账号的所有会话。
 
@@ -56,7 +58,7 @@ npm install
 npm run dev
 ```
 
-浏览器打开 **http://127.0.0.1:5173/**，先用管理员账号登录，再在书架拖入 EPUB 上传后开始分析。管理员可生成邀请码供其他用户注册。Vite 已把 `/api` 代理到 `http://127.0.0.1:8080`，浏览器会话使用同一站点的 Cookie。
+浏览器打开 **http://127.0.0.1:5173/**，先用管理员账号登录，在后台添加服务商并配置三个分析环节的模型，再在书架拖入 EPUB 上传后开始分析。管理员可生成邀请码供其他用户注册。Vite 已把 `/api` 代理到 `http://127.0.0.1:8080`，浏览器会话使用同一站点的 Cookie。
 
 开发时打开一本书后，可在地址后加 `&mockProgress=reading|post|failed|done|cancelled|rerun|many`，用假数据查看各种分析状态，不调用模型。
 

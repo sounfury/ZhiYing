@@ -2,7 +2,6 @@
 // 只负责循环与执行统计，不理解工具语义；工具的校验与状态在调用方（如章阅读会话）里。
 package com.zhiying.infrastructure.llm
 
-import com.zhiying.application.llm.DEFAULT_PROVIDER
 import com.zhiying.application.diagnostics.ModelFailure
 import com.zhiying.application.llm.ModelCallControl
 import com.zhiying.application.llm.ModelCallStats
@@ -27,10 +26,10 @@ class ToolLoopRequest(
     val user: String,
     val tools: List<ToolCallback>,
     val maxSteps: Int,
-    val model: String? = null,
+    val model: String,
     val thinking: Boolean = false,
     val control: ModelCallControl = ModelCallControl(),
-    val provider: String = DEFAULT_PROVIDER,
+    val provider: String,
     val nudge: String = "",
     val nudges: Int = 0,
     val isDone: () -> Boolean,
@@ -48,7 +47,10 @@ sealed interface LoopEnd {
     data object StepsExhausted : LoopEnd
 
     /** 模型请求失败、预算耗尽或被取消。 */
-    data class Failed(val failure: ModelFailure, val message: String) : LoopEnd
+    data class Failed(
+        val failure: ModelFailure,
+        val message: String,
+    ) : LoopEnd
 }
 
 /** 工具循环的结果：结束方式、实际轮数、模型最后一次的文字回复与统计。 */
@@ -66,8 +68,9 @@ data class ToolLoopOutcome(
  * 思考模式下 AssistantMessage 的思考内容保存在其元数据中，随消息一起回传，满足 DeepSeek 的多轮要求。
  */
 @Component
-class ToolLoopExecutor(private val invoker: ModelInvoker) {
-
+class ToolLoopExecutor(
+    private val invoker: ModelInvoker,
+) {
     /**
      * 运行工具循环。
      *
@@ -83,10 +86,11 @@ class ToolLoopExecutor(private val invoker: ModelInvoker) {
         var lastText = ""
         for (step in 1..request.maxSteps) {
             // 流程：请求模型 → 有工具调用则执行并回传 → 完成判定；无工具调用则提醒或结束
-            val reply = when (val result = invoker.invoke(messages, spec, request.control, meter)) {
-                is InvokeResult.Failed -> return outcome(LoopEnd.Failed(result.failure, result.message), step, lastText, meter)
-                is InvokeResult.Reply -> result.response.result?.output ?: AssistantMessage("")
-            }
+            val reply =
+                when (val result = invoker.invoke(messages, spec, request.control, meter)) {
+                    is InvokeResult.Failed -> return outcome(LoopEnd.Failed(result.failure, result.message), step, lastText, meter)
+                    is InvokeResult.Reply -> result.response.result?.output ?: AssistantMessage("")
+                }
             lastText = reply.text.orEmpty().ifBlank { lastText }
             messages += reply
             if (reply.hasToolCalls()) {
@@ -105,21 +109,30 @@ class ToolLoopExecutor(private val invoker: ModelInvoker) {
     }
 
     /** 执行模型要求的全部工具调用，汇成一条工具结果消息；未知工具与工具异常转为错误 JSON。 */
-    private fun executeTools(reply: AssistantMessage, tools: Map<String, ToolCallback>): ToolResponseMessage {
-        val responses = reply.toolCalls.map { call ->
-            val data = tools[call.name()]?.let { tool ->
-                try {
-                    tool.call(call.arguments())
-                } catch (e: Exception) {
-                    LlmJson.write(mapOf("error" to "TOOL_FAILED", "message" to (e.message ?: e.javaClass.name)))
-                }
-            } ?: LlmJson.write(mapOf("error" to "UNKNOWN_TOOL", "message" to "没有名为 ${call.name()} 的工具"))
-            ToolResponseMessage.ToolResponse(call.id(), call.name(), data)
-        }
+    private fun executeTools(
+        reply: AssistantMessage,
+        tools: Map<String, ToolCallback>,
+    ): ToolResponseMessage {
+        val responses =
+            reply.toolCalls.map { call ->
+                val data =
+                    tools[call.name()]?.let { tool ->
+                        try {
+                            tool.call(call.arguments())
+                        } catch (e: Exception) {
+                            LlmJson.write(mapOf("error" to "TOOL_FAILED", "message" to (e.message ?: e.javaClass.name)))
+                        }
+                    } ?: LlmJson.write(mapOf("error" to "UNKNOWN_TOOL", "message" to "没有名为 ${call.name()} 的工具"))
+                ToolResponseMessage.ToolResponse(call.id(), call.name(), data)
+            }
         return ToolResponseMessage.builder().responses(responses).build()
     }
 
     /** 汇总结束方式与统计。 */
-    private fun outcome(end: LoopEnd, steps: Int, lastText: String, meter: CallMeter) =
-        ToolLoopOutcome(end, steps, lastText, meter.stats())
+    private fun outcome(
+        end: LoopEnd,
+        steps: Int,
+        lastText: String,
+        meter: CallMeter,
+    ) = ToolLoopOutcome(end, steps, lastText, meter.stats())
 }

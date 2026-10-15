@@ -10,28 +10,6 @@ spring:
   config:
     # 本机密钥放在工程根目录 .env（不入库）；同名环境变量优先于 .env
     import: optional:file:.env[.properties]
-  ai:
-    model:
-      # 只启用对话模型；DeepSeek 不提供嵌入、图像、语音与审核接口
-      embedding: none
-      image: none
-      moderation: none
-      audio:
-        speech: none
-        transcription: none
-    openai:
-      # 连接参数统一来自 zhiying.llm，此处只做引用
-      base-url: ${zhiying.llm.base-url}
-      api-key: ${zhiying.llm.api-key}
-      # 失败重试由应用层按执行政策控制，避免 SDK 内部重试掩盖失败与真实耗时
-      max-retries: 0
-      chat:
-        model: ${zhiying.llm.model}
-        # 默认关闭 DeepSeek 思考模式（速度优先）；需要时按请求单独开启
-        extra-body:
-          thinking:
-            type: disabled
-
   sql:
     init:
       # 不用迁移工具：每次启动执行各模块的建表脚本（须用 CREATE TABLE IF NOT EXISTS）
@@ -42,12 +20,7 @@ spring:
 # 项目自有配置，类型化绑定见 infrastructure 的 ZhiYingProperties；新增可调参数统一加在这里
 zhiying:
   quota:
-    # 0 表示不限；每人上限和全站预算初始值由运营方设置
-    max-books: 0
-    max-analysis-chars: 0
-    max-file-size: 200MB
-    max-concurrent-tasks: 0
-    daily-token-budget: 0
+    # 用量上限由后台设置维护，部署只保留计量时区
     time-zone: Asia/Shanghai
   accounts:
     admin-username: ${ZHIYING_ADMIN_USERNAME:admin}
@@ -61,9 +34,6 @@ zhiying:
       portrait-of-the-artist: >-
         ${ZHIYING_EXAMPLE_PORTRAIT_ID:332b960c-564b-4a7f-8195-245689c0a90c}
   llm:
-    base-url: ${LLM_BASE_URL:https://api.deepseek.com}
-    api-key: ${LLM_API_KEY:}
-    model: ${LLM_MODEL:deepseek-flash}
     # 加密后台新增服务商的 API Key；丢失后需在后台重新填写各服务商密钥
     secret-key: ${LLM_SECRET_KEY:}
   storage:
@@ -92,10 +62,6 @@ zhiying:
     parse-retries: 1
     temperature: 0.0
   reading:
-    # 章阅读专用模型名，留空则用 zhiying.llm.model
-    model: ""
-    # 思考模式默认关闭（速度优先）；开启后工具循环会回传思考内容
-    thinking: false
     # 短章工具循环最大步数；长章按 15 + 2 × 窗数，不超过 max-steps
     base-steps: 20
     max-steps: 60
@@ -121,9 +87,6 @@ zhiying:
     max-tokens: 0
 
   post-process:
-    # 后处理（身份歧义 / 类型归一 / 定向补查 / 软兜底）专用模型名，留空则用 zhiying.llm.model；思考模式默认关闭
-    model: ""
-    thinking: false
     # 各调用点单次请求的条数与近似输入字符数上限
     identity-max-items: 8
     identity-max-chars: 12000
@@ -175,9 +138,6 @@ zhiying:
     default-min-appearance: 2
 
   affiliations:
-    # 团体归纳（全书级一次结构化调用）；model 留空则用 zhiying.llm.model
-    model: ""
-    thinking: false
     # 提示中建议的团体数范围
     min-groups: 5
     max-groups: 12

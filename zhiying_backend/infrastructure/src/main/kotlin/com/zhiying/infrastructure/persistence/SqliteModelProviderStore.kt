@@ -103,7 +103,6 @@ class SqliteModelProviderStore(
             rs.getString("base_url"),
             ThinkingStyle.valueOf(rs.getString("thinking_style")),
             rs.getString("key_hint"),
-            builtIn = false,
         )
 
     /** 密文格式：Base64(12 字节 IV + GCM 密文)。 */

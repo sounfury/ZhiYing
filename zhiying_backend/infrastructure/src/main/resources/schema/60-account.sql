@@ -4,6 +4,8 @@ CREATE TABLE IF NOT EXISTS accounts (
     username      TEXT NOT NULL COLLATE NOCASE UNIQUE,
     password_hash TEXT NOT NULL,
     role          TEXT NOT NULL CHECK (role IN ('ADMIN', 'USER')),
+    max_books     INTEGER CHECK (max_books >= 0),
+    max_tokens    INTEGER CHECK (max_tokens >= 0),
     created_at    TEXT NOT NULL
 );
 
@@ -11,6 +13,8 @@ CREATE TABLE IF NOT EXISTS invitations (
     code       TEXT PRIMARY KEY,
     max_uses   INTEGER NOT NULL CHECK (max_uses > 0),
     used_count INTEGER NOT NULL DEFAULT 0 CHECK (used_count >= 0 AND used_count <= max_uses),
+    max_books  INTEGER CHECK (max_books >= 0),
+    max_tokens INTEGER CHECK (max_tokens >= 0),
     created_by TEXT NOT NULL REFERENCES accounts(id),
     created_at TEXT NOT NULL
 );

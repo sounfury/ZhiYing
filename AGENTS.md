@@ -58,6 +58,7 @@ Never cut: validation at trust boundaries, error handling that prevents data los
 2. **按需精准阅读**：只指明目标文件与具体章节（如 `docs/DESIGN.md §3.5`），指示其按需局部检索，严禁全量 dump 文档。
 3. **划定死边界**：显式声明“只做 X，严禁做 Y”，阻断顺带重构或提前实现后续功能的倾向。
 4. **编译即交付**：约束验证仅限编译测试（如 `./gradlew compileKotlin compileTestKotlin`），不做多余测试；按 Ponytail 风格报告改动与风险。
+5. 禁止子代理再开子代理
 
 ## 本地启动
 - 后端：在 `zhiying_backend/` 执行 `nohup setsid ./gradlew :web:bootRun --console=plain > /tmp/zhiying/backend.log 2>&1 &`，监听 8080，配置读 `zhiying_backend/.env`。

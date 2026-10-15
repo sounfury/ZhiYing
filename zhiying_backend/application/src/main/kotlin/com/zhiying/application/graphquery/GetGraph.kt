@@ -35,7 +35,10 @@ data class GraphRequest(
 )
 
 /** 出图结果：图视图加书籍总章数（含不参与分析的章节，与分析范围内的章数不同）。 */
-data class GraphResult(val view: GraphView, val totalChapters: Int)
+data class GraphResult(
+    val view: GraphView,
+    val totalChapters: Int,
+)
 
 /**
  * 查询某本书的关系图。
@@ -50,27 +53,34 @@ class GetGraph(
     private val settings: GraphSettings,
     private val items: ShelfItems,
 ) {
-
     /**
      * 执行查询。
      *
      * 入参：[bookId] 书 ID；[request] 过滤、聚焦、筛选条件。
      * 出参：[GraphResult]。阈值为负时抛出 INVALID_ARGUMENT；聚焦人物不在当前结果版本内时抛出 NOT_FOUND。
      */
-    fun execute(bookId: BookId, request: GraphRequest = GraphRequest()): GraphResult {
+    fun execute(
+        bookId: BookId,
+        request: GraphRequest = GraphRequest(),
+    ): GraphResult {
         val min = request.minAppearance ?: settings.defaultMinAppearance
         if (min < 0) throw AppException(ErrorCode.INVALID_ARGUMENT, "min_appearance 不能为负")
         // 1. 读书库：书不存在直接 404，并取书籍总章数
         val actualId = items.resultBookId(bookId)
         val totalChapters = library.getBook(actualId).profile.totalChapters
+        val chapterFocus =
+            request.chapterFocus?.takeIf { totalChapters > 0 }?.let {
+                it.copy(from = it.from.coerceAtMost(totalChapters), to = it.to.coerceAtMost(totalChapters))
+            }
         // 2. 读取当前已发布版本（固定一个版本）
-        val revision = store.findPublished(actualId)
-            ?: return GraphResult(GraphView.empty(bookId, min, request.focus), totalChapters)
+        val revision =
+            store.findPublished(actualId)
+                ?: return GraphResult(GraphView.empty(bookId, min, request.focus).copy(chapterFocus = chapterFocus), totalChapters)
         if (request.focus != null && request.focus !in revision.personsById) {
             throw AppException(ErrorCode.NOT_FOUND, "人物不存在: ${request.focus!!.value}")
         }
         // 3. 纯计算投影
-        val query = GraphQuery(min, request.focus, request.types, request.hardness, request.chapterFocus)
+        val query = GraphQuery(min, request.focus, request.types, request.hardness, chapterFocus)
         return GraphResult(GraphProjection.project(revision, query, settings.scoring).copy(bookId = bookId), totalChapters)
     }
 }

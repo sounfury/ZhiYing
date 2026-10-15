@@ -4,6 +4,7 @@ package com.zhiying.web.graph
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.zhiying.application.graphquery.GraphResult
 import com.zhiying.domain.graph.ChapterFocus
+import com.zhiying.domain.graph.ChapterMode
 import com.zhiying.domain.graph.GraphEdge
 import com.zhiying.domain.graph.GraphNode
 import com.zhiying.domain.graph.PartitionBlock
@@ -26,13 +27,18 @@ data class EvidenceResponse(
 ) {
     companion object {
         /** 由证据转换；[number] 把章节 ID 转为阅读序号。 */
-        internal fun from(e: EvidenceRef, number: ChapterNumber) =
-            EvidenceResponse(number(e.chapterId), e.note, e.quotes.map { SpanResponse(it.start, it.end) })
+        internal fun from(
+            e: EvidenceRef,
+            number: ChapterNumber,
+        ) = EvidenceResponse(number(e.chapterId), e.note, e.quotes.map { SpanResponse(it.start, it.end) })
     }
 }
 
 /** 原文区间（UTF-16 代码单元，半开）。 */
-data class SpanResponse(val start: Int, val end: Int)
+data class SpanResponse(
+    val start: Int,
+    val end: Int,
+)
 
 /** 边上的一个关系标签。 */
 data class TagResponse(
@@ -54,8 +60,12 @@ data class TagResponse(
     @JsonProperty("in_focus_chapter") val inFocusChapter: Boolean,
 ) {
     companion object {
-        /** 由标签转换；[focus] 非空且标签的章节含聚焦章时 in_focus_chapter 为 true。 */
-        internal fun from(l: RelationLabel, number: ChapterNumber, focus: ChapterFocus?): TagResponse {
+        /** 由标签转换；仅单章模式标记标签是否包含本章依据。 */
+        internal fun from(
+            l: RelationLabel,
+            number: ChapterNumber,
+            focus: ChapterFocus?,
+        ): TagResponse {
             val directed = l.type.direction as? Direction.Directed
             val chapterIds = l.chapters.map(number)
             return TagResponse(
@@ -74,25 +84,27 @@ data class TagResponse(
                 displayScore = l.score,
                 sourcePersonId = l.from.value,
                 targetPersonId = l.to.value,
-                inFocusChapter = focus != null && focus.number in chapterIds,
+                inFocusChapter = focus?.mode == ChapterMode.SINGLE && l.evidence.any { number(it.chapterId) == focus.to },
             )
         }
     }
 }
 
 /** 硬度的中文分类名，兼容前端按 category 分组与筛选。 */
-internal fun categoryOf(h: Hardness): String = when (h) {
-    Hardness.HARD -> "硬关系"
-    Hardness.MEDIUM -> "中关系"
-    Hardness.SOFT -> "软关系"
-}
+internal fun categoryOf(h: Hardness): String =
+    when (h) {
+        Hardness.HARD -> "硬关系"
+        Hardness.MEDIUM -> "中关系"
+        Hardness.SOFT -> "软关系"
+    }
 
 /** 重要度的前端取值：main / supporting / minor（未标注按 minor）。 */
-internal fun importanceOf(i: Importance?): String = when (i) {
-    Importance.PROTAGONIST -> "main"
-    Importance.SUPPORTING -> "supporting"
-    else -> "minor"
-}
+internal fun importanceOf(i: Importance?): String =
+    when (i) {
+        Importance.PROTAGONIST -> "main"
+        Importance.SUPPORTING -> "supporting"
+        else -> "minor"
+    }
 
 /** 一条边：[tags] 默认可见标签，[moreTags] 被折叠进更多的软标签。 */
 data class EdgeResponse(
@@ -103,9 +115,15 @@ data class EdgeResponse(
 ) {
     companion object {
         /** 由边转换。 */
-        internal fun from(e: GraphEdge, number: ChapterNumber, focus: ChapterFocus?) = EdgeResponse(
-            e.first.value, e.second.value,
-            e.labels.map { TagResponse.from(it, number, focus) }, e.folded.map { TagResponse.from(it, number, focus) },
+        internal fun from(
+            e: GraphEdge,
+            number: ChapterNumber,
+            focus: ChapterFocus?,
+        ) = EdgeResponse(
+            e.first.value,
+            e.second.value,
+            e.labels.map { TagResponse.from(it, number, focus) },
+            e.folded.map { TagResponse.from(it, number, focus) },
         )
     }
 }
@@ -126,11 +144,20 @@ data class NodeResponse(
 ) {
     companion object {
         /** 由节点转换；重要度按前端约定映射为 main / supporting / minor，出场章节为阅读序号。 */
-        fun from(n: GraphNode) = NodeResponse(
-            n.person.value, n.name, n.aliases, n.gender.name.lowercase(), importanceOf(n.importance),
-            n.appearanceCount, n.bio, n.groups.map { it.value }, n.partition, n.placementInferred,
-            n.chapters,
-        )
+        fun from(n: GraphNode) =
+            NodeResponse(
+                n.person.value,
+                n.name,
+                n.aliases,
+                n.gender.name.lowercase(),
+                importanceOf(n.importance),
+                n.appearanceCount,
+                n.bio,
+                n.groups.map { it.value },
+                n.partition,
+                n.placementInferred,
+                n.chapters,
+            )
     }
 }
 
@@ -148,12 +175,20 @@ data class FactionResponse(
 ) {
     companion object {
         /** 由分区块转换；成员按 ID 排序以保证输出稳定。 */
-        fun from(b: PartitionBlock) = FactionResponse(
-            b.id, b.name, b.kind, b.order,
-            b.partition.members.map { it.value }.sorted(), b.allMembers.map { it.value }.sorted(),
-            b.partition.inferred, if (b.partition.inferred) "inferred" else "group",
-            b.needsReview.map { it.value }.sorted(),
-        )
+        fun from(b: PartitionBlock) =
+            FactionResponse(
+                b.id,
+                b.name,
+                b.kind,
+                b.order,
+                b.partition.members
+                    .map { it.value }
+                    .sorted(),
+                b.allMembers.map { it.value }.sorted(),
+                b.partition.inferred,
+                if (b.partition.inferred) "inferred" else "group",
+                b.needsReview.map { it.value }.sorted(),
+            )
     }
 }
 
@@ -165,8 +200,12 @@ data class FilteredPersonResponse(
     val reason: String,
 )
 
-/** 章节聚焦回显：chapter 为阅读序号，mode 为 single / upto。 */
-data class ChapterFocusResponse(val chapter: Int, val mode: String)
+/** 章节聚焦回显：mode 为 single / range，from、to 为裁剪到本书章数后的阅读序号。 */
+data class ChapterFocusResponse(
+    val mode: String,
+    val from: Int,
+    val to: Int,
+)
 
 /** GET /api/books/{id}/graph 的响应体。 */
 data class GraphResponse(
@@ -202,22 +241,24 @@ data class GraphResponse(
                 nodes = v.nodes.map(NodeResponse::from),
                 edges = v.edges.map { EdgeResponse.from(it, number, v.chapterFocus) },
                 factions = v.partitions.blocks.map(FactionResponse::from),
-                partitionMode = when (v.partitions.mode) {
-                    PartitionMode.GROUPS -> "groups"
-                    PartitionMode.INFERRED_STAGES -> "inferred_stages"
-                    PartitionMode.DEGRADED -> "degraded"
-                },
+                partitionMode =
+                    when (v.partitions.mode) {
+                        PartitionMode.GROUPS -> "groups"
+                        PartitionMode.INFERRED_STAGES -> "inferred_stages"
+                        PartitionMode.DEGRADED -> "degraded"
+                    },
                 partitionDegradedReason = v.partitions.degradedReason,
                 minAppearance = v.filter.minAppearance,
                 focusPersonId = v.filter.focus?.value,
                 filteredCount = v.filter.hiddenCount,
-                filteredPersons = v.filter.hidden.map {
-                    FilteredPersonResponse(it.person.value, it.name, it.appearanceCount, it.reason.name.lowercase())
-                },
+                filteredPersons =
+                    v.filter.hidden.map {
+                        FilteredPersonResponse(it.person.value, it.name, it.appearanceCount, it.reason.name.lowercase())
+                    },
                 pendingRelationCount = v.withheld.undetermined,
                 rejectedRelationCount = v.withheld.refuted,
                 unclassifiedRelationCount = 0,
-                chapterFocus = v.chapterFocus?.let { ChapterFocusResponse(it.number, it.mode.name.lowercase()) },
+                chapterFocus = v.chapterFocus?.let { ChapterFocusResponse(it.mode.name.lowercase(), it.from, it.to) },
             )
         }
     }
@@ -229,4 +270,12 @@ data class ExportResponse(
     val version: Int,
     @JsonProperty("exported_at") val exportedAt: String,
     val graph: GraphResponse,
-)
+) {
+    /** 导出标注使用实际生效的章节范围。 */
+    @get:JsonProperty("scope_label")
+    val scopeLabel: String?
+        get() =
+            graph.chapterFocus?.let {
+                if (it.mode == "single") "第${it.to}章" else "第${it.from}–${it.to}章"
+            }
+}

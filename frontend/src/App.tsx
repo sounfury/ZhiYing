@@ -217,7 +217,7 @@ function AppLayout() {
                 focusLedgerLoading={s.focusLedgerLoading}
                 onSetEgo={s.setEgoPersonId}
                 onFocusPerson={s.onFocusCastPerson}
-                onJumpChapter={(chapter) => s.setChapterFocus({ mode: 'single', chapter })}
+                onJumpChapter={(chapter) => s.setChapterFocus({ mode: 'single', from: chapter, to: chapter })}
                 onSelectEdge={(edge) => {
                   s.setSelectedNode(null)
                   s.setSelectedEdge(edge)
@@ -243,7 +243,7 @@ function AppLayout() {
                 disabled={s.isRunning}
                 readOnly={s.publicOnly || (Boolean(s.selectedBook?.example_slug) && !isAdmin)}
                 nameOf={s.personName}
-                onFocusChapter={(chapter) => s.setChapterFocus({ mode: 'single', chapter })}
+                onFocusChapter={(chapter) => s.setChapterFocus({ mode: 'single', from: chapter, to: chapter })}
                 onRerun={(chapterId) => void s.onRerunChapter(chapterId)}
                 onFocusPerson={s.onFocusCastPerson}
               />

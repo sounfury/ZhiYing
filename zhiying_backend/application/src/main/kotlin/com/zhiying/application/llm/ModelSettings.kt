@@ -1,4 +1,4 @@
-// 生效模型配置与任务快照：后台为每个分析环节选服务商、模型名与思考开关；连接信息见 ModelProviders。
+// 后台模型配置与任务快照：三个分析环节必须显式选择服务商、模型名与思考开关。
 package com.zhiying.application.llm
 
 import com.zhiying.application.account.Accounts
@@ -12,10 +12,10 @@ enum class ModelCallPoint { READING, POST_PROCESS, AFFILIATION }
 data class ModelSetting(
     val model: String,
     val thinking: Boolean,
-    val providerId: String = DEFAULT_PROVIDER,
+    val providerId: String,
 ) {
-    /** 写入抽取来源与方法版本的模型标识；内置服务商只写模型名，保持已有结果可沿用。 */
-    val label: String get() = if (providerId == DEFAULT_PROVIDER) model else "$providerId/$model"
+    /** 来源版本只包含模型名，切换同名模型的服务商不改变版本。 */
+    val label: String get() = model
 }
 
 data class ModelSnapshot(
@@ -24,18 +24,12 @@ data class ModelSnapshot(
     val affiliation: ModelSetting,
 )
 
-data class ModelDefaults(
-    val defaultModel: String,
-    val values: Map<ModelCallPoint, ModelSetting>,
-    val provider: ModelProvider,
-)
-
 data class EffectiveModel(
     val callPoint: ModelCallPoint,
-    val providerId: String,
+    val providerId: String?,
     val model: String,
     val thinking: Boolean,
-    val source: String,
+    val configured: Boolean,
 )
 
 interface ModelSettingsStore {
@@ -46,27 +40,29 @@ interface ModelSettingsStore {
         setting: ModelSetting,
         userId: String,
     )
-
-    fun remove(point: ModelCallPoint)
 }
 
 @Service
 class ModelSettings(
     private val store: ModelSettingsStore,
-    private val defaults: ModelDefaults,
     private val accounts: Accounts,
     private val providers: ModelProviderStore,
 ) {
     fun current(): List<EffectiveModel> {
         val stored = store.list()
         return ModelCallPoint.entries.map { point ->
-            val setting = stored[point] ?: defaults.values.getValue(point)
-            EffectiveModel(point, setting.providerId, setting.model.ifBlank { defaults.defaultModel }, setting.thinking, if (point in stored) "后台" else "配置文件")
+            val setting = stored[point]
+            val configured = setting != null && setting.model.isNotBlank() && providers.find(setting.providerId) != null
+            EffectiveModel(point, setting?.providerId, setting?.model.orEmpty(), setting?.thinking ?: false, configured)
         }
     }
 
     fun snapshot(): ModelSnapshot {
-        val values = current().associate { it.callPoint to ModelSetting(it.model, it.thinking, it.providerId) }
+        val values =
+            current().associate { effective ->
+                if (!effective.configured) throw AppException(ErrorCode.MODEL_NOT_CONFIGURED)
+                effective.callPoint to ModelSetting(effective.model, effective.thinking, requireNotNull(effective.providerId))
+            }
         return ModelSnapshot(
             values.getValue(ModelCallPoint.READING),
             values.getValue(ModelCallPoint.POST_PROCESS),
@@ -87,16 +83,8 @@ class ModelSettings(
         thinking: Boolean,
     ) {
         accounts.requireAdministrator(user)
-        if (providerId != DEFAULT_PROVIDER && providers.find(providerId) == null) throw AppException(ErrorCode.NOT_FOUND, "服务商不存在")
-        if (providerId != DEFAULT_PROVIDER && model.isBlank()) throw AppException(ErrorCode.INVALID_ARGUMENT, "非内置服务商需填写模型名")
+        if (providerId.isBlank() || model.isBlank()) throw AppException(ErrorCode.INVALID_ARGUMENT, "服务商与模型名必填")
+        if (providers.find(providerId) == null) throw AppException(ErrorCode.NOT_FOUND, "服务商不存在")
         store.save(point, ModelSetting(model.trim(), thinking, providerId), user.id)
-    }
-
-    fun reset(
-        user: Account,
-        point: ModelCallPoint,
-    ) {
-        accounts.requireAdministrator(user)
-        store.remove(point)
     }
 }

@@ -61,7 +61,7 @@ flowchart TD
 
 基础约定：
 - **错误码**：对外错误统一登记在 `application` 的 `ErrorCode`，用例拒绝请求时抛 `AppException(code)`；`web` 的 `ApiExceptionHandler` 是错误码到 HTTP 状态的唯一映射，响应为带 `code` 字段的 ProblemDetail。模型调用的执行失败（`ModelFailure`）是业务结果，不是错误码。
-- **配置**：项目自有可调参数统一放在 `zhiying.*`，由 `infrastructure` 的 `ZhiYingProperties` 类型化绑定并在启动时校验，不使用散落的 `@Value`；应用层需要的参数由基础设施组装成应用层自己的设置对象注入。唯一例外是后台的服务商、模型名与思考开关存于 `model_settings` / `model_providers`，部署值作缺省与内置服务商；后台服务商密钥加密存储（DESIGN §5.7）。
+- **配置**：项目自有可调参数统一放在 `zhiying.*`，由 `infrastructure` 的 `ZhiYingProperties` 类型化绑定并在启动时校验，不使用散落的 `@Value`；应用层需要的参数由基础设施组装成应用层自己的设置对象注入。例外是后台可改的项：用量上限、提示词与各环节模型存于 `app_settings`，服务商存于 `model_providers`（密钥加密），见 DESIGN §5.7。
 - **不建 common 模块**：值对象放 `domain`，错误码放 `application`，技术工具放 `infrastructure`。
 
 ### web · HTTP 接口与启动
@@ -223,7 +223,7 @@ flowchart TD
 | :--- | :--- |
 | Kotlin 2.4 / JDK 21 | 后端语言与运行时；四个 Gradle 模块对应四层 |
 | Spring Boot 4（Web MVC） | HTTP 接口与依赖装配，只用于 `web` 与 `infrastructure` |
-| Spring AI 2（OpenAI 兼容协议） | 模型接入；部署配置 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 为内置服务商，后台可新增其他 OpenAI 兼容服务商（密钥由 `LLM_SECRET_KEY` 加密） |
+| Spring AI 2（OpenAI 兼容协议） | 模型接入；服务商全部在后台维护（OpenAI 兼容，密钥由 `LLM_SECRET_KEY` 加密） |
 | SQLite + `JdbcClient` + 文件 | 结构化记录与章节正文走 SQLite，访问只用 Spring `JdbcClient`（查询少，不引入 ORM）；表结构由 `resources/schema/*.sql` 启动时以 `CREATE TABLE IF NOT EXISTS` 建立，不用迁移工具；账号上线新增表并补齐已有书归属，用量上线通过表结构检查补齐首次读取标记列，秒传上线通过事务迁移旧归属为同 ID 条目并补导入、方法、完整标记和流水用量列，保留现有数据库；源 EPUB 按内容摘要存文件 |
 | JDK 密码与随机数 API + Cookie | 密码派生与会话哈希由基础设施实现，应用层生成随机会话 token，HTTP Cookie 与 CSRF 请求头检查由 web 处理，安全参数见 DESIGN §5.5 |
 | jsoup | 解析 EPUB 内的 XHTML |

@@ -108,10 +108,17 @@ export type GraphFaction = {
   needs_review: string[]
 }
 
-/** 章节聚焦：single = 仅第 N 章；upto = 前 N 章累计 */
-export type ChapterMode = 'single' | 'upto'
+/** 章节聚焦：single = 仅第 to 章（from = to）；range = 第 from～to 章 */
+export type ChapterMode = 'single' | 'range'
 
-export type ChapterFocusParam = { chapter: number; mode: ChapterMode }
+export type ChapterFocusParam = { mode: ChapterMode; from: number; to: number }
+
+/** 图、导出与分享链接共用的章节聚焦查询参数 */
+export function chapterFocusParams(focus: ChapterFocusParam): Record<string, string> {
+  return focus.mode === 'single'
+    ? { chapter_mode: 'single', chapter: String(focus.to) }
+    : { chapter_mode: 'range', chapter_from: String(focus.from), chapter_to: String(focus.to) }
+}
 
 export type GraphData = {
   book_id: string
@@ -208,6 +215,8 @@ export type ProgressEvent = {
   input_tokens?: number
   output_tokens?: number
   total_tokens?: number
+  /** 本章新登场人物名（仅章读完的实时事件，至多 5 个） */
+  new_persons?: string[]
 }
 
 /** SSE done：任务终态（status 为 analyzed / failed / cancelled / idle）；published 表示本次是否发布了新结果 */
@@ -305,19 +314,14 @@ export function analysisChapters(chapters: ChapterBrief[]): ChapterBrief[] {
 
 export type GraphQuery = {
   /** 章节聚焦；缺省 = 全书 */
-  chapter?: number
-  chapter_mode?: ChapterMode
+  focus?: ChapterFocusParam
   min_appearance?: number
   predicate_filter?: string
   category_filter?: string
 }
 
 export function getGraph(bookId: string, q: GraphQuery = {}): Promise<GraphData> {
-  const params = new URLSearchParams()
-  if (q.chapter != null) {
-    params.set('chapter', String(q.chapter))
-    params.set('chapter_mode', q.chapter_mode ?? 'upto')
-  }
+  const params = new URLSearchParams(q.focus ? chapterFocusParams(q.focus) : {})
   if (q.min_appearance != null) params.set('min_appearance', String(q.min_appearance))
   if (q.category_filter) params.set('category_filter', q.category_filter)
   if (q.predicate_filter) params.set('predicate_filter', q.predicate_filter)
@@ -649,7 +653,7 @@ export async function readError(res: Response): Promise<string> {
  * Triggers a browser download using Content-Disposition when present.
  */
 export async function downloadExport(bookId: string, focus?: ChapterFocusParam | null): Promise<string> {
-  const qs = focus ? `?chapter=${focus.chapter}&chapter_mode=${focus.mode}` : ''
+  const qs = focus ? `?${new URLSearchParams(chapterFocusParams(focus))}` : ''
   const version = sessionVersion
   const res = await apiFetch(`/api/books/${bookId}/export${qs}`)
   if (!res.ok) throw new Error(await readError(res))

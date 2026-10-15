@@ -14,7 +14,9 @@ import com.zhiying.domain.extraction.ExtractionId
 import com.zhiying.domain.extraction.ReadingUnit
 import com.zhiying.domain.extraction.ReadingUnits
 import com.zhiying.domain.identity.IdentityAlignment
+import com.zhiying.domain.identity.NameKind
 import com.zhiying.domain.identity.Person
+import com.zhiying.domain.identity.PersonId
 import com.zhiying.domain.library.BookId
 import com.zhiying.domain.library.Chapter
 import com.zhiying.domain.library.ChapterId
@@ -45,6 +47,7 @@ class ReadingPhase(
         val parts = sortedMapOf<Int, ChapterExtraction>()
         val failures = mutableListOf<String>()
         val warnings = mutableListOf<String>()
+        val newPersonIds = mutableSetOf<PersonId>()
         var done = 0
         var started = false
         var running = false
@@ -183,7 +186,9 @@ class ReadingPhase(
         when (val result = finished.result) {
             is ChapterReadResult.Completed -> {
                 val scoped = ReadingUnits.scope(result.extraction, unit)
+                val knownIds = roster.mapTo(hashSetOf()) { it.id }
                 roster = align(scoped)
+                slot.newPersonIds += roster.filter { it.id !in knownIds }.map { it.id }
                 slot.parts[unit.index] = scoped
                 slot.warnings += result.warnings.map { label + it }
             }
@@ -213,7 +218,13 @@ class ReadingPhase(
             return abandon(slot, "保存章抽取失败：${e.message ?: e.javaClass.simpleName}")
         }
         settled[chapter.id] = merged
-        run.updateChapter(chapter.id) { it.copy(status = ChapterRunStatus.DONE, unitsDone = it.unitsTotal, warnings = slot.warnings.toList()) }
+        val newPersons = roster.filter { it.id in slot.newPersonIds }
+            .sortedBy { it.importance?.ordinal ?: Int.MAX_VALUE }
+            .take(5)
+            .map { person -> (person.bindings.firstOrNull { it.kind == NameKind.FORMAL } ?: person.bindings.first()).name }
+        run.updateChapter(chapter.id, newPersons = newPersons) {
+            it.copy(status = ChapterRunStatus.DONE, unitsDone = it.unitsTotal, warnings = slot.warnings.toList())
+        }
     }
 
     /** 本章没能产出抽取：用户取消记为 CANCELLED，否则记为 FAILED 并写明原因（未启动的章说明阶段被中止的原因）。 */

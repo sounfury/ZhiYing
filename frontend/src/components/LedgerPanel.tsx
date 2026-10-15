@@ -57,7 +57,7 @@ export function LedgerPanel({
           chapter={c}
           index={i}
           status={statusOf(c.chapter_id)}
-          current={focus.mode !== 'all' && focus.chapter === c.chapter_id}
+          current={focus.mode !== 'all' && focus.to === c.chapter_id}
           entry={entries[c.chapter_id]}
           onRequest={onRequest}
           rerunning={rerunningChapterId === c.chapter_id}

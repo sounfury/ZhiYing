@@ -1,4 +1,4 @@
-// 模型调用的任务级控制与统计：预算、取消信号、用量；由应用层创建并在同一任务的多次调用间共享。
+// 模型调用的任务级控制与统计：预算、取消信号、模型与提示快照；同一任务的多次调用间共享。
 package com.zhiying.application.llm
 
 import com.zhiying.application.diagnostics.TokenUsage
@@ -69,6 +69,7 @@ data class ModelCallControl(
     val budget: ModelCallBudget = ModelCallBudget(),
     val cancel: CancelSignal = CancelSignal.NEVER,
     val models: ModelSnapshot? = null,
+    val prompts: PromptSnapshot? = null,
 )
 
 /**
@@ -82,13 +83,14 @@ data class ModelCallStats(
     val elapsedMillis: Long = 0,
 ) {
     /** 合并两份统计。 */
-    operator fun plus(other: ModelCallStats) = ModelCallStats(
-        requests + other.requests,
-        TokenUsage(
-            usage.input + other.usage.input,
-            usage.output + other.usage.output,
-            usage.total + other.usage.total,
-        ),
-        elapsedMillis + other.elapsedMillis,
-    )
+    operator fun plus(other: ModelCallStats) =
+        ModelCallStats(
+            requests + other.requests,
+            TokenUsage(
+                usage.input + other.usage.input,
+                usage.output + other.usage.output,
+                usage.total + other.usage.total,
+            ),
+            elapsedMillis + other.elapsedMillis,
+        )
 }

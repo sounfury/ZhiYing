@@ -67,7 +67,7 @@ export function FeedbackButton({ target, children = '这里不对', compact = fa
     const focus = graph.chapter_focus
     setSubmission({
       itemId: selectedBook.book_id,
-      input: { ...target, revisionId: graph.revision_id, scope: focus ? `${focus.mode}:${focus.chapter}` : 'all' },
+      input: { ...target, revisionId: graph.revision_id, scope: !focus ? 'all' : focus.mode === 'single' ? `single:${focus.to}` : `range:${focus.from}-${focus.to}` },
     })
   }
   const title = !ready ? '图谱加载完成后可反馈' : !user ? '登录后反馈' : general ? '反馈产品问题或建议' : `反馈：${target.targetLabel}有误`
@@ -84,10 +84,12 @@ export function FeedbackButton({ target, children = '这里不对', compact = fa
   </>
 }
 
-/** 「single:3」→「第 3 章」，「upto:3」→「前 3 章」 */
+/** 「single:3」→「第 3 章」，「range:2-5」→「第 2–5 章」，历史「upto:3」→「前 3 章」 */
 function scopeLabel(scope?: string) {
   const [mode, chapter] = scope?.split(':') ?? []
-  return mode === 'single' ? `第 ${chapter} 章` : mode === 'upto' ? `前 ${chapter} 章` : scope ? '全书' : ''
+  if (mode === 'single') return `第 ${chapter} 章`
+  if (mode === 'range') return `第 ${chapter.replace('-', '–')} 章`
+  return mode === 'upto' ? `前 ${chapter} 章` : scope ? '全书' : ''
 }
 
 function FeedbackDialog({ submission, onClose, onReceived }: { submission: Submission; onClose: () => void; onReceived: () => void }) {

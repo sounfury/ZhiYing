@@ -58,7 +58,7 @@ class AdminUsage(
                     val tokens = ledger.tokensBetween(date.atStartOfDay(zone).toInstant(), date.plusDays(1).atStartOfDay(zone).toInstant())
                     DailyUsage(date, tokens + if (date == today) runner.unsettledTokens() else 0)
                 }
-            mapOf("daily" to daily, "limits" to quota.settings.limits, "timeZone" to zone.id)
+            mapOf("daily" to daily, "limits" to quota.limits(), "timeZone" to zone.id)
         }
     }
 

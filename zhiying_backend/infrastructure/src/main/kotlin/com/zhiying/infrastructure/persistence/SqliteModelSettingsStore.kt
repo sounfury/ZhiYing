@@ -1,41 +1,32 @@
-// 后台模型覆盖配置：每个分析环节的服务商 ID、模型名与思考开关；连接信息在 model_providers。
+// 模型专用设置存入 app_settings 的 model 组，通用设置列表不暴露这些键。
 package com.zhiying.infrastructure.persistence
 
 import com.zhiying.application.llm.ModelCallPoint
 import com.zhiying.application.llm.ModelSetting
 import com.zhiying.application.llm.ModelSettingsStore
-import org.springframework.jdbc.core.simple.JdbcClient
+import com.zhiying.application.settings.AppSettings
+import com.zhiying.infrastructure.llm.LlmJson
 import org.springframework.stereotype.Repository
-import java.time.Instant
 
 @Repository
 class SqliteModelSettingsStore(
-    private val jdbc: JdbcClient,
+    private val settings: AppSettings,
 ) : ModelSettingsStore {
-    override fun list(): Map<ModelCallPoint, ModelSetting> =
-        jdbc
-            .sql("SELECT call_point, provider_id, model, thinking FROM model_settings")
-            .query { rs, _ ->
-                ModelCallPoint.valueOf(rs.getString("call_point")) to
-                    ModelSetting(rs.getString("model"), rs.getInt("thinking") != 0, rs.getString("provider_id"))
-            }.list()
-            .toMap()
+    override fun list(): Map<ModelCallPoint, ModelSetting> {
+        val stored = settings.list("model")
+        return ModelCallPoint.entries
+            .mapNotNull { point ->
+                stored[point.name]?.let { point to LlmJson.mapper.readValue(it, ModelSetting::class.java) }
+            }.toMap()
+    }
 
     override fun save(
         point: ModelCallPoint,
         setting: ModelSetting,
         userId: String,
     ) {
-        jdbc
-            .sql(
-                """INSERT INTO model_settings (call_point, provider_id, model, thinking, updated_at, updated_by) VALUES (?, ?, ?, ?, ?, ?)
-            ON CONFLICT(call_point) DO UPDATE SET provider_id = excluded.provider_id, model = excluded.model, thinking = excluded.thinking,
-            updated_at = excluded.updated_at, updated_by = excluded.updated_by""",
-            ).params(point.name, setting.providerId, setting.model, if (setting.thinking) 1 else 0, Instant.now().toString(), userId)
-            .update()
-    }
-
-    override fun remove(point: ModelCallPoint) {
-        jdbc.sql("DELETE FROM model_settings WHERE call_point = ?").param(point.name).update()
+        // label 是计算属性，不属于持久化模型设置。
+        val value = LlmJson.write(mapOf("providerId" to setting.providerId, "model" to setting.model, "thinking" to setting.thinking))
+        settings.put("model", point.name, value, userId)
     }
 }

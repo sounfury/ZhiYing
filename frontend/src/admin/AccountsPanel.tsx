@@ -1,7 +1,9 @@
-/** 管理员账号页签：生成并查看邀请码，为指定用户重置密码。 */
+/** 管理员账号页签：生成并查看邀请码（可指定被邀请用户的书数与 token 上限），为指定用户重置密码。 */
 import { useEffect, useState, type FormEvent } from 'react'
 import { createInvitation, listInvitations, listUsers, resetPassword, type Invitation, type User } from '../authApi'
 import { useAuth } from '../useAuth'
+
+const quota = (n: number | null) => (n === null ? '沿用设置' : n === 0 ? '不限' : n.toLocaleString())
 
 export default function AccountsPanel() {
   const { user, refresh } = useAuth()
@@ -9,6 +11,8 @@ export default function AccountsPanel() {
   const [users, setUsers] = useState<User[]>([])
   const [loaded, setLoaded] = useState(false)
   const [maxUses, setMaxUses] = useState('1')
+  const [maxBooks, setMaxBooks] = useState('')
+  const [maxTokens, setMaxTokens] = useState('')
   const [userId, setUserId] = useState('')
   const [password, setPassword] = useState('')
   const [busy, setBusy] = useState(false)
@@ -37,11 +41,18 @@ export default function AccountsPanel() {
       setError('可用次数必须为 1–2147483647 的整数')
       return
     }
+    // 留空沿用全站设置
+    const books = maxBooks.trim() === '' ? null : Number(maxBooks)
+    const tokens = maxTokens.trim() === '' ? null : Number(maxTokens)
+    if ([books, tokens].some((n) => n !== null && (!Number.isSafeInteger(n) || n < 0))) {
+      setError('书数与 token 上限须为非负整数，留空沿用设置')
+      return
+    }
     setBusy(true)
     setError('')
     setMessage('')
     try {
-      const invitation = await createInvitation(uses)
+      const invitation = await createInvitation({ maxUses: uses, maxBooks: books, maxTokens: tokens })
       setInvitations((prev) => [invitation, ...prev])
       setMessage(`邀请码已生成：${invitation.code}`)
     } catch (e) {
@@ -79,16 +90,20 @@ export default function AccountsPanel() {
     {message && <p className="adm-note" role="status">{message}</p>}
     <div className="adm-grid">
       <div className="adm-card">
-        <div className="adm-card-head"><div><h3>邀请码</h3><p className="hint">每个邀请码可被使用的注册次数。</p></div></div>
+        <div className="adm-card-head"><div><h3>邀请码</h3><p className="hint">可用次数为能注册的人数；书数与 token 上限对用它注册的每个用户生效，留空沿用「设置」里的每人上限，0 表示不限。</p></div></div>
         <form className="adm-inline" onSubmit={(e) => void onCreate(e)}>
           <label className="adm-field">可用次数<input type="number" min="1" max="2147483647" step="1" required value={maxUses} onChange={(e) => setMaxUses(e.target.value)} disabled={busy} /></label>
+          <label className="adm-field">每人书数<input type="number" min="0" step="1" placeholder="沿用设置" value={maxBooks} onChange={(e) => setMaxBooks(e.target.value)} disabled={busy} /></label>
+          <label className="adm-field">每人 token<input type="number" min="0" step="1" placeholder="沿用设置" value={maxTokens} onChange={(e) => setMaxTokens(e.target.value)} disabled={busy} /></label>
           <button type="submit" className="btn primary" disabled={busy || !loaded}>生成邀请码</button>
         </form>
         {loaded && (invitations.length === 0 ? <p className="adm-empty">还没有邀请码</p> : <div className="adm-table-wrap" style={{ marginTop: 16 }}><table className="adm-table">
-          <thead><tr><th>邀请码</th><th className="num">已用 / 上限</th><th /></tr></thead>
+          <thead><tr><th>邀请码</th><th className="num">已用 / 上限</th><th className="num">每人书数</th><th className="num">每人 token</th><th /></tr></thead>
           <tbody>{invitations.map((invitation) => <tr key={invitation.code}>
             <td className="clip" title={invitation.code}><code>{invitation.code}</code></td>
             <td className="num">{invitation.usedCount} / {invitation.maxUses}</td>
+            <td className="num">{quota(invitation.maxBooks)}</td>
+            <td className="num">{quota(invitation.maxTokens)}</td>
             <td><div className="row-actions"><button type="button" className="btn ghost" onClick={() => copy(invitation.code)}>{copied === invitation.code ? '已复制' : '复制'}</button></div></td>
           </tr>)}</tbody>
         </table></div>)}
