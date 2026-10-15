@@ -1,4 +1,4 @@
-/** EPUB 上传拖放区：拖入或点击选择 .epub 文件，交给上层上传；书架抽屉与空态共用。 */
+/** 书籍上传拖放区：拖入或点击选择 .epub / .txt 文件，交给上层上传；书架抽屉与空态共用。 */
 import { useRef, useState, type DragEvent } from 'react'
 
 interface EpubDropZoneProps {
@@ -14,8 +14,8 @@ export function EpubDropZone({ onUpload, className = '' }: EpubDropZoneProps) {
 
   const send = async (file: File | undefined) => {
     if (!file) return
-    if (!file.name.toLowerCase().endsWith('.epub')) {
-      setHint(`「${file.name}」不是 EPUB 文件`)
+    if (!/\.(epub|txt)$/i.test(file.name)) {
+      setHint(`「${file.name}」不是 EPUB 或 TXT 文件`)
       return
     }
     setHint('')
@@ -38,7 +38,7 @@ export function EpubDropZone({ onUpload, className = '' }: EpubDropZoneProps) {
       className={`drop${over ? ' over' : ''}${busy ? ' busy' : ''} ${className}`.trim()}
       role="button"
       tabIndex={0}
-      aria-label="上传 EPUB"
+      aria-label="上传 EPUB 或 TXT"
       onClick={() => !busy && inputRef.current?.click()}
       onKeyDown={(e) => {
         if ((e.key === 'Enter' || e.key === ' ') && !busy) {
@@ -53,13 +53,13 @@ export function EpubDropZone({ onUpload, className = '' }: EpubDropZoneProps) {
       onDragLeave={() => setOver(false)}
       onDrop={onDrop}
     >
-      <b>{busy ? '正在上传…' : '把 EPUB 拖到这里'}</b>
+      <b>{busy ? '正在上传…' : '把 EPUB 或 TXT 拖到这里'}</b>
       或 <u>选择文件</u> · 导入后自动识别正文章节
       {hint && <span className="drop-hint">{hint}</span>}
       <input
         ref={inputRef}
         type="file"
-        accept=".epub"
+        accept=".epub,.txt"
         hidden
         onChange={(e) => {
           const file = e.currentTarget.files?.[0]

@@ -72,6 +72,11 @@ zhiying:
     min-chapter-words: 200
     # 按「第X回 / Chapter N」正则切章时，章节标记所在行不超过该字符数就整行作为标题（如「第一回 甄士隐梦幻识通灵」），否则只取标记本身
     max-title-line-length: 40
+    # TXT 都识别不出章节标题时按长度分段，每段约该字数，在附近段落边界切开
+    txt-segment-chars: 10000
+    # TXT 自动选分章方案：章数 ≥ 2 且平均章长落在该范围内的第一个方案胜出
+    txt-auto-min-chars: 500
+    txt-auto-max-chars: 50000
   model-call:
     # 模型调用执行政策（所有调用点共用）；SDK 内部重试已关闭，重试只在这里发生
     timeout: 120s

@@ -246,6 +246,7 @@ flowchart TD
 | jsoup | 解析 EPUB 内的 XHTML |
 | SSE | 分析进度推送（Spring MVC `SseEmitter`，事件带递增 id，断线按 Last-Event-ID 回放） |
 | crap | 提交时的函数复杂度门禁，阈值见 `crap.toml` |
+| Woodpecker CI（detekt / jscpd / gitleaks） | push / PR 质量门禁：文件行数、认知与圈复杂度、嵌套深度、参数个数、死代码、重复代码、密钥扫描；工作流在 `.woodpecker/`，配置在 `quality/`，阈值与跳过方式见 [ci-quality.md](./ci-quality.md) |
 | React 19 + TypeScript + Vite + AntV G6 5 | 前端（`frontend/`），见「前端」一节 |
 
 ## 常用运行命令速查

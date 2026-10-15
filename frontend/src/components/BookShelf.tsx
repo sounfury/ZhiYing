@@ -1,9 +1,9 @@
 /**
  * 书架抽屉：从左侧滑出，列出所有书（封面色块、作者、章数字数、状态、用量），点书切换，底部拖放上传；Esc 或点遮罩关闭。
- * 每本书可清空分析或删除（PRD §5.10），先弹窗确认；分析中两者都不可用。
+ * 每本书可清空分析或删除（PRD §5.10），先弹窗确认；分析中两者都不可用。TXT 书可预览并改选分章方案（会清空分析）。
  */
 import { useEffect, useRef, useState } from 'react'
-import { apiUrl, getUsage, type BookMeta, type PersonalUsage } from '../api'
+import { apiUrl, getSplitPreview, getUsage, type BookMeta, type PersonalUsage, type SplitPreview } from '../api'
 import { formatTokens, formatWords, shortTitle, statusIsWarn, statusLabel } from '../labels'
 import { coverGradient } from '../bookCover'
 import { EpubDropZone } from './EpubDropZone'
@@ -20,7 +20,7 @@ interface BookShelfProps {
   onSelect: (bookId: string) => void
   onUpload: (file: File | null) => Promise<void>
   onDelete: (bookId: string) => Promise<void>
-  onClearAnalysis: (bookId: string) => Promise<void>
+  onClearAnalysis: (bookId: string, rule?: string) => Promise<void>
 }
 
 export function BookShelf({ open, books, publicOnly, isAdmin, userId, onLogin, bookId, onClose, onSelect, onUpload, onDelete, onClearAnalysis }: BookShelfProps) {
@@ -87,6 +87,7 @@ export function BookShelf({ open, books, publicOnly, isAdmin, userId, onLogin, b
               }}
               onDelete={() => void onDelete(b.book_id)}
               onClearAnalysis={() => void onClearAnalysis(b.book_id)}
+              onResplit={(rule) => void onClearAnalysis(b.book_id, rule)}
             />
               ))}
             </section>
@@ -116,9 +117,12 @@ interface BookCardProps {
   onClick: () => void
   onDelete: () => void
   onClearAnalysis: () => void
+  onResplit: (rule: string) => void
 }
 
-function BookCard({ book, current, onClick, onDelete, onClearAnalysis }: BookCardProps) {
+function BookCard({ book, current, onClick, onDelete, onClearAnalysis, onResplit }: BookCardProps) {
+  const [rules, setRules] = useState<SplitPreview[] | null>(null)
+  const [rulesError, setRulesError] = useState('')
   const title = shortTitle(book.title || '未题名')
   const chapters = book.analysis_chapter_count || book.total_chapters
   const meta = [
@@ -149,6 +153,20 @@ function BookCard({ book, current, onClick, onDelete, onClearAnalysis }: BookCar
     )
     if (ok) onDelete()
   }
+  const toggleRules = () => {
+    if (rules) {
+      setRules(null)
+      return
+    }
+    setRulesError('')
+    getSplitPreview(book.book_id).then(setRules, (e: unknown) => setRulesError(e instanceof Error ? e.message : String(e)))
+  }
+  const chooseRule = (r: SplitPreview) => {
+    const warn = book.status === 'uploaded' ? '' : '\n\n会清空现有分析结果，不可恢复；已用分析额度不退还。'
+    if (!window.confirm(`把「${fullTitle}」改按「${r.name}」分章（${r.chapter_count} 章）？${warn}`)) return
+    setRules(null)
+    onResplit(r.id)
+  }
 
   return (
     <div className={`bk${current ? ' cur' : ''}`}>
@@ -169,9 +187,30 @@ function BookCard({ book, current, onClick, onDelete, onClearAnalysis }: BookCar
             <span className={`pill${statusIsWarn(book.status) ? ' warn' : ''}`}>{statusLabel(book.status)}</span>
             {tokens ? <span className="bk-tokens">{formatTokens(tokens)} token</span> : null}
           </p>
+          {book.split_rule === 'length' && <p className="hint">未识别到章节标题，已按长度分段</p>}
         </span>
       </button>
+      {rulesError && <p className="hint" role="alert">分章预览失败：{rulesError}</p>}
+      {rules && <ul className="hint" aria-label="分章方案">
+        {rules.map((r) => (
+          <li key={r.id}>
+            <button type="button" className="btn ghost" disabled={r.current || r.chapter_count === 0} onClick={() => chooseRule(r)}>
+              {r.name} · {r.chapter_count} 章{r.current ? '（当前）' : ''}
+            </button>
+            <div>{[r.beginning, r.middle, r.end].filter((t) => t.length > 0).map((t) => t.join('、')).join(' … ')}</div>
+          </li>
+        ))}
+      </ul>}
       {!book.example_slug && <div className="bk-actions">
+        {book.split_rule && <button
+          type="button"
+          className="btn ghost"
+          onClick={toggleRules}
+          disabled={running}
+          title={busyHint ?? '预览并改选 TXT 分章方案'}
+        >
+          {rules ? '收起分章' : '换分章'}
+        </button>}
         <button
           type="button"
           className="btn ghost"

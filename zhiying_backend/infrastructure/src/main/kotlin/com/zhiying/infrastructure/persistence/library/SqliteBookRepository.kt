@@ -36,13 +36,13 @@ class SqliteBookRepository(private val jdbc: JdbcClient) : BookRepository {
         val p = overview.profile
         jdbc.sql(
             """INSERT INTO books (id, title, author, source_ref, original_name, imported_at, total_chapters,
-               analysis_chapters, total_words, max_chapter_words, median_chapter_words, import_version)
-               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
+               analysis_chapters, total_words, max_chapter_words, median_chapter_words, import_version, split_rule)
+               VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)""",
         ).params(
             listOf(
                 book.id.value, book.title, book.author, book.source.value, overview.originalName,
                 overview.importedAt.toString(), p.totalChapters, p.analysisChapters, p.totalWords,
-                p.maxChapterWords, p.medianChapterWords, book.importVersion,
+                p.maxChapterWords, p.medianChapterWords, book.importVersion, book.splitRule,
             ),
         ).update()
         if (ownerId != null) {
@@ -97,7 +97,7 @@ class SqliteBookRepository(private val jdbc: JdbcClient) : BookRepository {
 
     /** 当前行转书概览。 */
     private fun overviewOf(rs: ResultSet) = BookOverview(
-        book = Book(BookId(rs.getString("id")), rs.getString("title"), rs.getString("author"), SourceFileRef(rs.getString("source_ref")), rs.getInt("import_version")),
+        book = Book(BookId(rs.getString("id")), rs.getString("title"), rs.getString("author"), SourceFileRef(rs.getString("source_ref")), rs.getInt("import_version"), rs.getString("split_rule")),
         originalName = rs.getString("original_name"),
         importedAt = Instant.parse(rs.getString("imported_at")),
         profile = BookProfile(

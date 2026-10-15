@@ -28,10 +28,11 @@ interface ShelfItemStore {
         source: SourceFileRef,
     ): ShelfItem?
 
-    /** 按最近发布时间倒序返回同文件、当前导入版本的已发布候选。 */
+    /** 按最近发布时间倒序返回同文件、当前导入版本及分章方案的已发布候选。 */
     fun candidates(
         source: SourceFileRef,
         importVersion: Int,
+        splitRule: String?,
     ): List<BookId>
 
     fun add(item: ShelfItem)

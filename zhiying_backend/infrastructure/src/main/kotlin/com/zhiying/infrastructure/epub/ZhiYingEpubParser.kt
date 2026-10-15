@@ -34,12 +34,10 @@ class ZhiYingEpubParser(properties: ZhiYingProperties) : EpubParser {
         }
         return ParsedBook(contents.title, contents.author, chapters)
     }
-
-    /** 字数统计：CJK 汉字按字计，连续英文字母序列按一词计。 */
-    private fun countWords(text: String): Int =
-        text.count { it in '一'..'鿿' || it in '㐀'..'䶿' } + ENGLISH_WORD.findAll(text).count()
-
-    private companion object {
-        val ENGLISH_WORD = Regex("[a-zA-Z]+")
-    }
 }
+
+private val ENGLISH_WORD = Regex("[a-zA-Z]+")
+
+/** 字数统计：CJK 汉字按字计，连续英文字母序列按一词计；EPUB 与 TXT 共用。 */
+internal fun countWords(text: String): Int =
+    text.count { it in '一'..'鿿' || it in '㐀'..'䶿' } + ENGLISH_WORD.findAll(text).count()

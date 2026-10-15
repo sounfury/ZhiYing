@@ -23,8 +23,10 @@ class ForkBook(
         val item = items.get(itemId)
         if (!clear && item.pendingBookId != null) return item.pendingBookId
         if (shelves.referenceCount(item.bookId) <= 1 && item.pendingBookId == null) return item.bookId
-        val source = requireNotNull(books.findBook(item.bookId)).book.source
-        val (book, chapters) = importer.prepare(item.originalName, sources.read(source), source)
+        val current = requireNotNull(books.findBook(item.bookId)).book
+        // TXT 沿用当前分章方案，章序才能与被复制的章抽取对上
+        val parsed = importer.parse(item.originalName, sources.read(current.source), current.splitRule)
+        val (book, chapters) = importer.prepare(item.originalName, current.source, parsed)
         val copied = if (clear) emptyList() else extractions.listCurrent(item.bookId)
         shelves.fork(item, book, chapters, copied, pending = !clear)
         return book.book.id

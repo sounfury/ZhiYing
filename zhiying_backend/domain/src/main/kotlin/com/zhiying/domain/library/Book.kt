@@ -11,6 +11,7 @@ data class Book(
     val author: String?,
     val source: SourceFileRef,
     val importVersion: Int = IMPORT_VERSION,
+    val splitRule: String? = null,
 ) {
     init {
         require(title.isNotBlank()) { "书名不能为空" }

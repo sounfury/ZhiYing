@@ -118,15 +118,21 @@ data class StorageProperties(
  * 书籍导入参数（zhiying.import.*）。
  *
  * 入参：[minChapterWords] 章节参与分析的最低字数，低于它的章节仍保留在书中但标记为不参与分析；
- * [maxTitleLineLength] 正则切章时，章节标记所在行不超过此长度就整行作为章节标题。
+ * [maxTitleLineLength] 正则切章时，章节标记所在行不超过此长度就整行作为章节标题；
+ * [txtSegmentChars] TXT 按长度分段时每段约多少字；[txtAutoMinChars]、[txtAutoMaxChars] 自动选分章方案时平均章长的可接受范围。
  */
 data class ImportProperties(
     val minChapterWords: Int,
     val maxTitleLineLength: Int,
+    val txtSegmentChars: Int = 10000,
+    val txtAutoMinChars: Int = 500,
+    val txtAutoMaxChars: Int = 50000,
 ) {
     init {
         require(minChapterWords >= 0) { "zhiying.import.min-chapter-words 不能为负" }
         require(maxTitleLineLength >= 0) { "zhiying.import.max-title-line-length 不能为负" }
+        require(txtSegmentChars > 0) { "zhiying.import.txt-segment-chars 必须为正" }
+        require(txtAutoMinChars in 1..txtAutoMaxChars) { "zhiying.import.txt-auto-min-chars / txt-auto-max-chars 范围不合法" }
     }
 }
 

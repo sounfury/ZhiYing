@@ -41,7 +41,31 @@ data class ParsedBook(
     val title: String?,
     val author: String?,
     val chapters: List<ParsedChapter>,
+    /** TXT 的分章方案 id；EPUB 为 null。 */
+    val splitRule: String? = null,
 )
+
+/** 一种分章方案的试切结果：章数与开头、中间、结尾各几章的标题。 */
+data class SplitPreview(
+    val id: String,
+    val name: String,
+    val example: String,
+    val chapterCount: Int,
+    val beginning: List<String>,
+    val middle: List<String>,
+    val end: List<String>,
+    val current: Boolean,
+)
+
+/** TXT 解析：[rule] 为 null 时自动选择分章方案；方案不存在抛 INVALID_ARGUMENT，无法解码或无有效章节抛 UNREADABLE_BOOK。 */
+interface TxtParser {
+    fun parse(content: ByteArray, rule: String? = null): ParsedBook
+
+    /** 按全部方案试切，不落库。 */
+    fun preview(content: ByteArray, currentRule: String): List<SplitPreview>
+}
+
+fun isTxt(fileName: String) = fileName.endsWith(".txt", ignoreCase = true)
 
 interface EpubParser {
     fun parse(content: ByteArray): ParsedBook
@@ -57,13 +81,19 @@ data class ImportResult(
 @Service
 class BookImporter(
     private val parser: EpubParser,
+    private val txtParser: TxtParser,
 ) {
+    /** 按扩展名选解析器；[rule] 只对 TXT 生效。 */
+    fun parse(fileName: String, content: ByteArray, rule: String? = null): ParsedBook =
+        if (isTxt(fileName)) txtParser.parse(content, rule) else parser.parse(content)
+
+    fun preview(content: ByteArray, currentRule: String) = txtParser.preview(content, currentRule)
+
     fun prepare(
         fileName: String,
-        content: ByteArray,
         source: SourceFileRef,
+        parsed: ParsedBook,
     ): Pair<BookOverview, List<ChapterRecord>> {
-        val parsed = parser.parse(content)
         val bookId = BookId(UUID.randomUUID().toString())
         val title = parsed.title?.takeIf { it.isNotBlank() } ?: fileName.substringBeforeLast('.')
         val records =
@@ -81,7 +111,7 @@ class BookImporter(
                 ChapterRecord(outline, c.text)
             }
         return BookOverview(
-            Book(bookId, title.trim(), parsed.author?.takeIf { it.isNotBlank() }, source),
+            Book(bookId, title.trim(), parsed.author?.takeIf { it.isNotBlank() }, source, splitRule = parsed.splitRule),
             fileName,
             Instant.now(),
             BookProfile.of(records.map { it.outline }),
@@ -108,8 +138,8 @@ class ImportBook(
         user: Account,
     ): ImportResult =
         runner.withRegistrationLock {
-            if (!fileName.endsWith(".epub", ignoreCase = true)) {
-                throw AppException(ErrorCode.INVALID_ARGUMENT, "只接受 .epub 文件")
+            if (!fileName.endsWith(".epub", ignoreCase = true) && !isTxt(fileName)) {
+                throw AppException(ErrorCode.INVALID_ARGUMENT, "只接受 .epub 或 .txt 文件")
             }
             val usage = quota.snapshot(user)
             // 重复上传不新增条目，仍受单文件大小限制。
@@ -117,9 +147,12 @@ class ImportBook(
             val source = SourceFileRef(MessageDigest.getInstance("SHA-256").digest(content).joinToString("") { "%02x".format(it) })
             shelves.findExisting(user.id, source)?.let { return@withRegistrationLock ImportResult(items.overview(it.id), existing = true) }
             quota.requireAllowed(usage.checkUpload(content.size.toLong()))
+            // TXT 秒传要按自动选出的分章方案匹配，所以先解析；EPUB 仍在未命中时才解析。
+            val parsedTxt = if (isTxt(fileName)) importer.parse(fileName, content) else null
+            val splitRule = parsedTxt?.splitRule
             val currentMethod = method.version(models.snapshot())
             val candidate =
-                shelves.candidates(source, IMPORT_VERSION).firstOrNull {
+                shelves.candidates(source, IMPORT_VERSION, splitRule).firstOrNull {
                     !runner.hasUnsettledTask(it) && revisions.findPublished(it)?.reusableFor(currentMethod) == true
                 }
             if (candidate != null) {
@@ -127,7 +160,7 @@ class ImportBook(
                 shelves.add(item)
                 return@withRegistrationLock ImportResult(items.overview(item.id), reused = true)
             }
-            val (overview, chapters) = importer.prepare(fileName, content, source)
+            val (overview, chapters) = importer.prepare(fileName, source, parsedTxt ?: importer.parse(fileName, content))
             sources.save(content)
             books.save(overview, chapters, user.id)
             ImportResult(overview)

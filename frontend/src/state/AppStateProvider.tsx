@@ -7,6 +7,7 @@ import {
   analysisChapters,
   clearAnalysis,
   deleteBook,
+  splitBook,
   downloadExport,
   getBook,
   uploadBook,
@@ -80,10 +81,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [bookId, books, booksLoaded, initialLink])
   const [bookDetail, setBookDetail] = useState<BookMeta | undefined>(undefined)
 
+  const [chaptersVersion, setChaptersVersion] = useState(0)
   const { contentChapters, chapterLabel } = useChapters(readableBookId, (list) => {
     const allowed = new Set(analysisChapters(list).map((c) => c.chapter_id))
     setToChapter((prev) => (prev !== '' && allowed.has(prev) ? prev : ''))
-  })
+  }, chaptersVersion)
 
   const [toChapter, setToChapter] = useState<number | ''>('')
   const [chapterFocus, setChapterFocusRaw] = useState<ChapterFocusState>(initialLink.chapterFocus)
@@ -371,13 +373,15 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   )
 
   const onClearAnalysis = useCallback(
-    async (id: string) => {
+    async (id: string, rule?: string) => {
       if (publicOnly || !books.some((b) => b.book_id === id && !b.example_slug)) return
       const title = books.find((b) => b.book_id === id)?.title ?? ''
       setError('')
       setMsg('')
       try {
-        await clearAnalysis(id)
+        if (rule) await splitBook(id, rule)
+        else await clearAnalysis(id)
+        if (rule && id === bookId) setChaptersVersion((v) => v + 1)
         if (id === bookId) {
           // 进度卡、选中与人物聚焦都属于旧结果；图随书详情刷新后自动重载为空
           disconnectAnalysis()
@@ -392,7 +396,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
           await refreshCast()
           await refreshFocusLedger()
         }
-        setMsg(`已清空「${title}」的分析结果，可以重新分析`)
+        setMsg(rule ? `已重新切分「${title}」的章节，可以重新分析` : `已清空「${title}」的分析结果，可以重新分析`)
       } catch (e) {
         setError(e instanceof Error ? e.message : String(e))
       }

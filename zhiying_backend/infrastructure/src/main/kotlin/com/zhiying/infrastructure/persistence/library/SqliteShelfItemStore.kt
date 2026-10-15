@@ -49,12 +49,13 @@ class SqliteShelfItemStore(
     override fun candidates(
         source: SourceFileRef,
         importVersion: Int,
+        splitRule: String?,
     ): List<BookId> =
         jdbc
             .sql(
                 """SELECT b.id FROM books b JOIN published_revision p ON p.book_id = b.id
-            WHERE b.source_ref = ? AND b.import_version = ? ORDER BY p.published_at DESC, b.id""",
-            ).params(source.value, importVersion)
+            WHERE b.source_ref = ? AND b.import_version = ? AND b.split_rule IS ? ORDER BY p.published_at DESC, b.id""",
+            ).params(listOf(source.value, importVersion, splitRule))
             .query { rs, _ -> BookId(rs.getString("id")) }
             .list()
 

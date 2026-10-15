@@ -27,6 +27,8 @@ export type BookMeta = {
   analysis_chapter_count?: number
   /** 本书累计模型用量（整书分析与单章重跑合计） */
   token_usage?: TokenUsage
+  /** TXT 的分章方案 id（length 为按长度分段）；EPUB 为 null */
+  split_rule?: string | null
 }
 
 export type TokenUsage = {
@@ -373,6 +375,31 @@ export function deleteBook(bookId: string): Promise<void> {
 /** 清空书的分析结果，书与章节保留、回到未分析（PRD §5.10）；分析中会被拒绝（409）。 */
 export function clearAnalysis(bookId: string): Promise<void> {
   return send(`/api/books/${bookId}/analysis`, { method: 'DELETE' })
+}
+
+/** 一种 TXT 分章方案的试切结果 */
+export type SplitPreview = {
+  id: string
+  name: string
+  example: string
+  chapter_count: number
+  beginning: string[]
+  middle: string[]
+  end: string[]
+  current: boolean
+}
+
+export async function getSplitPreview(bookId: string): Promise<SplitPreview[]> {
+  return (await request<{ rules: SplitPreview[] }>(`/api/books/${bookId}/split-preview`)).rules
+}
+
+/** 改选 TXT 分章方案：重新切章并清空分析；分析中会被拒绝（409）。 */
+export function splitBook(bookId: string, rule: string): Promise<void> {
+  return send(`/api/books/${bookId}/split`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ rule }),
+  })
 }
 
 /**

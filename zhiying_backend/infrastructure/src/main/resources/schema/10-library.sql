@@ -5,7 +5,7 @@ CREATE TABLE IF NOT EXISTS books (
     id                    TEXT PRIMARY KEY,
     title                 TEXT NOT NULL,
     author                TEXT,
-    source_ref            TEXT NOT NULL,     -- 源 EPUB 的内容摘要，文件在 booksDir 下
+    source_ref            TEXT NOT NULL,     -- 源文件（EPUB / TXT）的内容摘要，文件在 booksDir 下
     original_name         TEXT NOT NULL,     -- 上传时的文件名
     imported_at           TEXT NOT NULL,     -- ISO-8601 UTC 时间
     total_chapters        INTEGER NOT NULL,
@@ -13,7 +13,8 @@ CREATE TABLE IF NOT EXISTS books (
     total_words           INTEGER NOT NULL,
     max_chapter_words     INTEGER NOT NULL,
     import_version        INTEGER NOT NULL DEFAULT 1,
-    median_chapter_words  INTEGER NOT NULL
+    median_chapter_words  INTEGER NOT NULL,
+    split_rule            TEXT               -- TXT 分章方案 id；EPUB 为 NULL
 );
 
 CREATE TABLE IF NOT EXISTS chapters (

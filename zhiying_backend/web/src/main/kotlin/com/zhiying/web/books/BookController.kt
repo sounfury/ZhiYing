@@ -1,4 +1,4 @@
-// 书籍接口：上传 EPUB、书目列表、书详情、章节列表、删除书、清空分析；字段名沿用前端现有的 snake_case 约定。
+// 书籍接口：上传 EPUB / TXT、书目列表、书详情、章节列表、删除书、清空分析；字段名沿用前端现有的 snake_case 约定。
 package com.zhiying.web.books
 
 import com.fasterxml.jackson.annotation.JsonInclude
@@ -43,7 +43,7 @@ class BookController(
     private val access: BookAccess,
     private val accounts: Accounts,
 ) {
-    /** 上传 EPUB（表单字段 file）：解析并保存，返回 201 与新书摘要；无法解析返回 UNREADABLE_BOOK。 */
+    /** 上传 EPUB 或 TXT（表单字段 file）：解析并保存，返回 201 与新书摘要；无法解析返回 UNREADABLE_BOOK。 */
     @PostMapping("/upload")
     fun upload(
         @RequestParam("file") file: MultipartFile,
@@ -152,6 +152,8 @@ data class BookResponse(
     @get:JsonInclude(JsonInclude.Include.NON_NULL)
     @JsonProperty("token_usage") val tokenUsage: TokenUsageResponse?,
     @JsonProperty("example_slug") val exampleSlug: String? = null,
+    /** TXT 的分章方案 id（length 表示未识别到标题、按长度分段）；EPUB 为 null。 */
+    @JsonProperty("split_rule") val splitRule: String? = null,
 ) {
     companion object {
         /** 由书概览与分析状态构造；作者缺失时给空串，与前端类型一致。 */
@@ -177,6 +179,7 @@ data class BookResponse(
                 analysis.state == BookAnalysisStatus.State.ANALYZED,
             ),
             TokenUsageResponse(usage.inputTokens, usage.outputTokens, usage.totalTokens, usage.requests),
+            splitRule = o.book.splitRule,
         )
     }
 }

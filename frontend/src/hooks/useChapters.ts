@@ -12,6 +12,8 @@ import { chapterShortName } from '../chapterNames'
 export function useChapters(
   bookId: string,
   onLoaded?: (chapters: ChapterBrief[]) => void,
+  /** 变化时重新加载（书 ID 不变但章节被重切，如 TXT 换分章方案） */
+  reloadKey = 0,
 ) {
   const [chapters, setChapters] = useState<ChapterBrief[]>([])
   const chaptersRef = useRef<ChapterBrief[]>([])
@@ -54,7 +56,7 @@ export function useChapters(
     return () => {
       cancelled = true
     }
-  }, [bookId])
+  }, [bookId, reloadKey])
 
   return { chapters, contentChapters, chapterLabel }
 }
