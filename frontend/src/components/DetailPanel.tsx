@@ -497,7 +497,7 @@ function RelRow({
         role="button"
         tabIndex={0}
         aria-expanded={open}
-        title={`${tag.label}（${tag.category}）· 点击查看依据`}
+        title={`${tag.label}（${HARDNESS_LABEL[hardnessOf(tag)]}关系）· 点击查看依据`}
         onClick={onToggle}
         onKeyDown={(e) => {
           if (e.key === 'Enter' || e.key === ' ') {

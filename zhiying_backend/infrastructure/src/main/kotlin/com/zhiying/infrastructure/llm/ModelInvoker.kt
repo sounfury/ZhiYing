@@ -4,11 +4,11 @@ package com.zhiying.infrastructure.llm
 
 import com.zhiying.application.diagnostics.ModelFailure
 import com.zhiying.application.diagnostics.TokenUsage
+import com.zhiying.application.llm.DEFAULT_PROVIDER
 import com.zhiying.application.llm.ModelCallControl
 import com.zhiying.application.llm.ModelCallStats
 import com.zhiying.infrastructure.config.ZhiYingProperties
 import org.springframework.ai.chat.messages.Message
-import org.springframework.ai.chat.model.ChatModel
 import org.springframework.ai.chat.model.ChatResponse
 import org.springframework.ai.chat.prompt.Prompt
 import org.springframework.ai.openai.OpenAiChatOptions
@@ -19,12 +19,13 @@ import java.util.concurrent.Semaphore
 /**
  * 单次请求的差异化设置。
  *
- * 入参：[model] 模型名，null 用默认模型；[thinking] 是否开启 DeepSeek 思考模式；[tools] 本次请求携带的工具定义。
+ * 入参：[provider] 服务商 ID；[model] 模型名，null 用默认模型；[thinking] 是否开启思考模式；[tools] 本次请求携带的工具定义。
  */
 data class CallSpec(
     val model: String? = null,
     val thinking: Boolean = false,
     val tools: List<ToolCallback> = emptyList(),
+    val provider: String = DEFAULT_PROVIDER,
 )
 
 /** 一次执行内的累计统计器；同一次执行中的多次请求（含重试）都累加到这里。非线程安全，一次执行一个。 */
@@ -76,7 +77,7 @@ sealed interface InvokeResult {
  */
 @Component
 class ModelInvoker(
-    private val chatModel: ChatModel,
+    private val providers: ProviderChatModels,
     private val properties: ZhiYingProperties,
 ) {
     private val policy = properties.modelCall
@@ -92,7 +93,13 @@ class ModelInvoker(
      * 出参：[InvokeResult.Reply] 或带失败类别的 [InvokeResult.Failed]，不抛出模型调用异常。
      */
     fun invoke(messages: List<Message>, spec: CallSpec, control: ModelCallControl, meter: CallMeter): InvokeResult {
-        val prompt = Prompt(messages, optionsOf(spec))
+        val provider =
+            try {
+                providers.of(spec.provider)
+            } catch (e: Exception) {
+                return InvokeResult.Failed(ModelFailure.AUTHENTICATION, e.message ?: "模型服务商不可用")
+            }
+        val prompt = Prompt(messages, optionsOf(spec, provider))
         var retries = 0
         while (true) {
             // 流程：取消检查 → 预算预留 → 带并发许可发请求 → 成功则记用量返回；可重试失败则退避后再来
@@ -101,7 +108,7 @@ class ModelInvoker(
                 return InvokeResult.Failed(ModelFailure.BUDGET_EXHAUSTED, "请求数或 token 预算已耗尽")
             }
             meter.requestSent()
-            val attempt = attemptOnce(prompt)
+            val attempt = attemptOnce(provider, prompt)
             if (attempt is Attempt.Ok) {
                 val usage = usageOf(attempt.response)
                 meter.addUsage(usage)
@@ -118,7 +125,7 @@ class ModelInvoker(
     }
 
     /** 在并发许可内发一次请求，异常归类后返回，不外抛。 */
-    private fun attemptOnce(prompt: Prompt): Attempt {
+    private fun attemptOnce(provider: ProviderModel, prompt: Prompt): Attempt {
         try {
             permits.acquire()
         } catch (e: InterruptedException) {
@@ -126,7 +133,7 @@ class ModelInvoker(
             return Attempt.Err(ModelFailure.CANCELLED, "等待并发许可时被中断")
         }
         return try {
-            Attempt.Ok(chatModel.call(prompt))
+            Attempt.Ok(provider.chatModel.call(prompt))
         } catch (e: Exception) {
             Attempt.Err(classifyFailure(e), e.message ?: e.javaClass.name)
         } finally {
@@ -148,13 +155,13 @@ class ModelInvoker(
     }
 
     /** 由请求设置构造选项：显式写入思考开关，覆盖全局默认；携带工具定义，工具由调用方自己执行。 */
-    private fun optionsOf(spec: CallSpec): OpenAiChatOptions {
+    private fun optionsOf(spec: CallSpec, provider: ProviderModel): OpenAiChatOptions {
         // 构建器自带默认模型名，会盖掉全局配置，所以模型名必须显式给出
         val builder = OpenAiChatOptions.builder()
             .model(spec.model?.takeIf { it.isNotBlank() } ?: properties.llm.model)
             .temperature(policy.temperature)
             .timeout(policy.timeout)
-            .extraBody(mapOf("thinking" to mapOf("type" to if (spec.thinking) "enabled" else "disabled")))
+            .extraBody(providers.thinkingBody(provider.thinkingStyle, spec.thinking))
         if (spec.tools.isNotEmpty()) builder.toolCallbacks(spec.tools)
         return builder.build()
     }

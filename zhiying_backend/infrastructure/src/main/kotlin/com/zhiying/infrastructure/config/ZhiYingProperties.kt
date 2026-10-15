@@ -71,12 +71,14 @@ data class AccountProperties(
 /**
  * 模型服务连接（OpenAI 兼容协议）。`spring.ai.openai.*` 从这里取值，保证只有一处来源。
  *
- * 入参：[baseUrl] 服务地址；[apiKey] 密钥；[model] 默认对话模型名。
+ * 入参：[baseUrl] 服务地址；[apiKey] 密钥；[model] 默认对话模型名；
+ * [secretKey] 加密后台所填服务商密钥的主密钥，为空时后台不能保存服务商密钥。
  */
 data class LlmProperties(
     val baseUrl: String,
     val apiKey: String,
     val model: String,
+    val secretKey: String = "",
 ) {
     init {
         require(baseUrl.isNotBlank()) { "zhiying.llm.base-url 不能为空" }

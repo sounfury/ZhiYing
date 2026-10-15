@@ -4,9 +4,9 @@ import { factionColor } from '../factions'
 import { chapterShortNames } from '../chapterNames'
 
 export const HARDNESS_ORDER: Hardness[] = ['hard', 'medium', 'soft']
-export const HARDNESS_LABEL: Record<Hardness, string> = { hard: '硬', medium: '中', soft: '软' }
+export const HARDNESS_LABEL: Record<Hardness, string> = { hard: '强', medium: '中', soft: '弱' }
 
-/** 关系硬度；旧数据没有 hardness 时按 category 文案推断 */
+/** 关系硬度（界面显示为强 / 中 / 弱）；旧数据没有 hardness 时按 category 文案推断 */
 export function hardnessOf(tag: GraphTag): Hardness {
   if (tag.hardness === 'hard' || tag.hardness === 'medium' || tag.hardness === 'soft') return tag.hardness
   if (tag.category.includes('硬')) return 'hard'

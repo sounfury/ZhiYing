@@ -11,9 +11,9 @@ import { edgeHardness, tagHardness } from './layout'
 import type { HoverInfo } from './useGraphInstance'
 
 const LINES = [
-  { key: 'hard', label: '硬', width: 2.2, dash: undefined, cap: undefined },
+  { key: 'hard', label: '强', width: 2.2, dash: undefined, cap: undefined },
   { key: 'medium', label: '中', width: 1.8, dash: '6 4', cap: undefined },
-  { key: 'soft', label: '软', width: 1.6, dash: '1.5 4', cap: 'round' as const },
+  { key: 'soft', label: '弱', width: 1.6, dash: '1.5 4', cap: 'round' as const },
 ]
 
 export function GraphLegend({
@@ -78,7 +78,7 @@ export function GraphLegend({
             <div key={f.faction_id} title={`${f.name} · ${f.member_ids.length} 人`}>
               <span className="dot" style={{ background: factionColor(f) }} />
               <span className="nm">{f.name}</span>
-              {f.faction_id !== UNASSIGNED_FACTION_ID && <FeedbackButton target={{ targetKind: 'GROUP', targetRef: f.faction_id, targetLabel: f.name }} />}
+              {f.faction_id !== UNASSIGNED_FACTION_ID && <FeedbackButton compact target={{ targetKind: 'GROUP', targetRef: f.faction_id, targetLabel: f.name }} />}
             </div>
           ))}
         </div>
@@ -103,7 +103,7 @@ export function EgoCrumb({ scope, name, onExit }: { scope: string; name: string;
 }
 
 const IMPORTANCE_LABEL: Record<string, string> = { main: '主角', supporting: '配角', minor: '龙套' }
-const HARDNESS_LABEL = { hard: '硬', medium: '中', soft: '软' }
+const HARDNESS_LABEL = { hard: '强', medium: '中', soft: '弱' }
 
 /** 悬停浮卡：位置跟随指针，靠右 / 靠下时翻到另一侧，不出画布 */
 export function HoverCard({

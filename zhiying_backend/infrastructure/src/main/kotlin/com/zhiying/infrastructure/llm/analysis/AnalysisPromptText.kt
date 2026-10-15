@@ -1,6 +1,7 @@
 // 后处理提示词共用的文字渲染：人物、关系类型、硬度等在四个调用点里统一的呈现方式，DTO 解析小工具，以及后处理调用的模型选择。
 package com.zhiying.infrastructure.llm.analysis
 
+import com.zhiying.application.llm.DEFAULT_PROVIDER
 import com.zhiying.application.llm.ModelCallControl
 import com.zhiying.domain.identity.Gender
 import com.zhiying.domain.identity.Person
@@ -26,6 +27,7 @@ internal inline fun <reified T : Any> StructuredCallExecutor.askPostProcess(
     model = control.models?.postProcess?.model ?: config.model.ifBlank { null },
     thinking = control.models?.postProcess?.thinking ?: config.thinking,
     control = control,
+    provider = control.models?.postProcess?.providerId ?: DEFAULT_PROVIDER,
 )
 
 /** 后处理四个调用点共用的渲染与解析函数。 */

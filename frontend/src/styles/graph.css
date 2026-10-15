@@ -328,6 +328,40 @@
   margin: 0 4px;
 }
 
+/* 悬停 / 键盘聚焦时在按钮左侧显示 data-tip 说明；筛选浮层打开时不显示，免得压住浮层 */
+.fx-tools button[data-tip]::after {
+  content: attr(data-tip);
+  position: absolute;
+  top: 50%;
+  right: calc(100% + 12px);
+  width: max-content;
+  max-width: 220px;
+  padding: 6px 10px;
+  border-radius: var(--r-sm);
+  background: var(--ink);
+  color: var(--panel);
+  font-size: 12px;
+  line-height: 1.5;
+  text-align: left;
+  white-space: pre-line;
+  box-shadow: var(--shadow);
+  pointer-events: none;
+  opacity: 0;
+  transform: translate(4px, -50%);
+  transition: opacity 0.12s ease, transform 0.12s ease;
+}
+
+.fx-tools button[data-tip]:hover::after,
+.fx-tools button[data-tip]:focus-visible::after {
+  opacity: 1;
+  transform: translate(0, -50%);
+  transition-delay: 0.25s;
+}
+
+.fx-tools button[aria-expanded='true']::after {
+  display: none;
+}
+
 /* ── 筛选浮层 ── */
 .filterpop {
   z-index: 5;

@@ -40,6 +40,8 @@ cp .env.example .env
 ZHIYING_ADMIN_USERNAME=admin
 ZHIYING_ADMIN_PASSWORD=填写8至128字符的管理员密码
 ZHIYING_COOKIE_SECURE=false
+# 可选：后台新增模型服务商时加密其 API Key，不设则不能新增
+LLM_SECRET_KEY=任意长随机串
 ```
 
 `ZHIYING_ADMIN_USERNAME` 默认 `admin`；首次创建管理员时必须提供 8–128 字符的密码。启动会创建一个管理员，并把已有无主书归入该管理员，保留已有书与分析数据；已有管理员时不会用引导密码重置它。后续重置密码通过管理员界面完成，并撤销目标账号的所有会话。

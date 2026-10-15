@@ -1,8 +1,9 @@
-// 管理员模型配置接口：只允许编辑模型名与思考开关，删除覆盖值恢复部署配置。
+// 管理员模型配置接口：编辑各分析环节的服务商、模型名与思考开关，删除覆盖值恢复部署配置。
 package com.zhiying.web.account
 
 import com.zhiying.application.error.AppException
 import com.zhiying.application.error.ErrorCode
+import com.zhiying.application.llm.DEFAULT_PROVIDER
 import com.zhiying.application.llm.ModelCallPoint
 import com.zhiying.application.llm.ModelSettings
 import com.zhiying.domain.account.Account
@@ -26,7 +27,7 @@ class ModelSettingsController(
         @PathVariable callPoint: String,
         @RequestBody body: ModelSettingRequest,
     ) {
-        settings.save(user, pointOf(callPoint), body.model, body.thinking)
+        settings.save(user, pointOf(callPoint), body.providerId, body.model, body.thinking)
     }
 
     @DeleteMapping("/{callPoint}")
@@ -46,4 +47,5 @@ class ModelSettingsController(
 data class ModelSettingRequest(
     val model: String,
     val thinking: Boolean,
+    val providerId: String = DEFAULT_PROVIDER,
 )

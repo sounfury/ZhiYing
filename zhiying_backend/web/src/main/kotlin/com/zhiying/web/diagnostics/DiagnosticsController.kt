@@ -9,6 +9,7 @@ import com.zhiying.application.diagnostics.ThinkingMode
 import com.zhiying.application.diagnostics.TokenUsage
 import com.zhiying.application.error.AppException
 import com.zhiying.application.error.ErrorCode
+import com.zhiying.application.llm.DEFAULT_PROVIDER
 import org.springframework.http.HttpStatus
 import org.springframework.http.ResponseEntity
 import org.springframework.web.bind.annotation.GetMapping
@@ -26,10 +27,14 @@ class DiagnosticsController(private val diagnostics: ModelDiagnostics) {
      * 全部通过返回 200；任一项失败返回 502，响应体同样是完整报告；thinking 取值非法时返回 INVALID_ARGUMENT。
      */
     @GetMapping("/model")
-    fun probeModel(@RequestParam(defaultValue = "default") thinking: String, @RequestParam(required = false) model: String?): ResponseEntity<ModelProbeResponse> {
+    fun probeModel(
+        @RequestParam(defaultValue = "default") thinking: String,
+        @RequestParam(required = false) model: String?,
+        @RequestParam(defaultValue = DEFAULT_PROVIDER) provider: String,
+    ): ResponseEntity<ModelProbeResponse> {
         val mode = ThinkingMode.entries.firstOrNull { it.name.equals(thinking, ignoreCase = true) }
             ?: throw AppException(ErrorCode.INVALID_ARGUMENT, "thinking 只能是 default、enabled 或 disabled")
-        val report = diagnostics.run(mode, model?.trim()?.ifBlank { null })
+        val report = diagnostics.run(mode, provider, model?.trim()?.ifBlank { null })
         val status = if (report.passed) HttpStatus.OK else HttpStatus.BAD_GATEWAY
         return ResponseEntity.status(status).body(ModelProbeResponse.from(report))
     }

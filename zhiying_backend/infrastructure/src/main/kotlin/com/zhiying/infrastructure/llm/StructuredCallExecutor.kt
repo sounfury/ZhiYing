@@ -2,6 +2,7 @@
 // 格式说明写在提示里，不强制 tool_choice（DeepSeek 思考模式会拒绝）。预算、重试、用量由 ModelInvoker 负责。
 package com.zhiying.infrastructure.llm
 
+import com.zhiying.application.llm.DEFAULT_PROVIDER
 import com.zhiying.application.diagnostics.ModelFailure
 import com.zhiying.application.llm.ModelCallControl
 import com.zhiying.application.llm.ModelCallStats
@@ -28,6 +29,7 @@ class StructuredRequest<T : Any>(
     val thinking: Boolean = false,
     val control: ModelCallControl = ModelCallControl(),
     val validate: (T) -> String? = { null },
+    val provider: String = DEFAULT_PROVIDER,
 )
 
 /** 一次结构化调用的结果；无论成败都带统计。 */
@@ -68,7 +70,7 @@ class StructuredCallExecutor(
             SystemMessage(request.system + "\n\n" + converter.format),
             UserMessage(request.user),
         )
-        val spec = CallSpec(request.model, request.thinking)
+        val spec = CallSpec(request.model, request.thinking, provider = request.provider)
         val meter = CallMeter()
         var lastProblem = ""
         repeat(properties.modelCall.parseRetries + 1) {
@@ -108,5 +110,6 @@ inline fun <reified T : Any> StructuredCallExecutor.ask(
     model: String? = null,
     thinking: Boolean = false,
     control: ModelCallControl = ModelCallControl(),
+    provider: String = DEFAULT_PROVIDER,
     noinline validate: (T) -> String? = { null },
-): StructuredOutcome<T> = call(StructuredRequest(system, user, T::class.java, model, thinking, control, validate))
+): StructuredOutcome<T> = call(StructuredRequest(system, user, T::class.java, model, thinking, control, validate, provider))

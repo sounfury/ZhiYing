@@ -1,9 +1,258 @@
-/* 反馈入口、提交提示与后台快照列表，沿用已有按钮、弹窗和主题变量。 */
-.feedback-button { white-space: nowrap; }
-.lg-factions .feedback-button { padding: 2px 6px; font-size: 11px; }
-.feedback-toast { position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%); z-index: 100; display: flex; align-items: center; gap: 20px; padding: 12px 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--panel); color: var(--text); box-shadow: 0 4px 20px #0002; }
-.feedback-toast button { border: 0; background: transparent; color: inherit; cursor: pointer; }
+/* 反馈入口（旗子 / 气泡图标按钮）、反馈弹窗（对象、类别点选、说明字数）与提交提示，沿用主题变量。 */
+
+/* 入口：弱化的小按钮，悬停转警示色；compact 只有图标 */
+.feedback-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border: 1px solid transparent;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--muted);
+  font-size: 12.5px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 0.12s ease, background 0.12s ease, border-color 0.12s ease;
+}
+
+.feedback-button:hover:not(:disabled) {
+  color: var(--warn);
+  background: var(--warn-soft);
+}
+
+.feedback-button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.feedback-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.feedback-button.compact {
+  padding: 2px;
+}
+
+.feedback-icon {
+  flex-shrink: 0;
+}
+
+/* 顶栏通用反馈与其他顶栏按钮同高 */
+.top .feedback-button {
+  padding: 7px 10px;
+  font-size: 14px;
+  color: var(--ink-2);
+}
+
+/* 图例里的势力：图标平时淡出，悬停该行时显出 */
+.lg-factions .feedback-button {
+  opacity: 0.35;
+}
+
+.lg-factions > div:hover .feedback-button,
+.lg-factions .feedback-button:focus-visible {
+  opacity: 1;
+}
+
+/* ── 弹窗 ── */
+
+.feedback-dialog {
+  width: min(460px, calc(100vw - 32px));
+}
+
+.feedback-dialog h2 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 18px;
+}
+
+.feedback-dialog h2 .feedback-icon {
+  width: 18px;
+  height: 18px;
+  color: var(--warn);
+}
+
+.feedback-target {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 6px 8px;
+  margin: 14px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+  overflow-wrap: anywhere;
+}
+
+.feedback-target .hint {
+  font-size: 12.5px;
+}
+
+.feedback-form {
+  display: grid;
+  gap: 14px;
+  margin-top: 18px;
+}
+
+.feedback-form fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+
+.feedback-form legend {
+  margin-bottom: 8px;
+  padding: 0;
+  font-weight: 500;
+}
+
+.feedback-form legend .hint {
+  font-size: 12px;
+}
+
+.feedback-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.feedback-chips label {
+  position: relative;
+  padding: 5px 12px;
+  border: 1px solid var(--line-2);
+  border-radius: 99px;
+  background: var(--panel);
+  color: var(--ink-2);
+  font-size: 13px;
+  cursor: pointer;
+  transition: background 0.12s ease, border-color 0.12s ease, color 0.12s ease;
+}
+
+.feedback-chips label:hover {
+  border-color: var(--muted);
+  color: var(--ink);
+}
+
+.feedback-chips label.on {
+  border-color: var(--warn);
+  background: var(--warn-soft);
+  color: var(--warn);
+  font-weight: 600;
+}
+
+.feedback-chips input {
+  position: absolute;
+  inset: 0;
+  opacity: 0;
+  margin: 0;
+  cursor: pointer;
+}
+
+.feedback-chips label:has(input:focus-visible) {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.feedback-form fieldset:disabled label {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.feedback-note {
+  position: relative;
+  display: block;
+}
+
+.feedback-note textarea {
+  display: block;
+  width: 100%;
+  min-height: 96px;
+  padding: 10px 12px 24px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  font-size: 14px;
+  line-height: 1.5;
+  resize: vertical;
+}
+
+.feedback-note textarea:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.feedback-count {
+  position: absolute;
+  right: 10px;
+  bottom: 6px;
+  font-size: 11.5px;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+  pointer-events: none;
+}
+
+.feedback-count.over {
+  color: var(--err);
+  font-weight: 600;
+}
+
+.feedback-foot {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.feedback-foot .hint {
+  flex: 1 1 180px;
+  font-size: 12px;
+}
+
+/* ── 提交成功提示 ── */
+
+.feedback-toast {
+  position: fixed;
+  bottom: 24px;
+  left: 50%;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px 10px 16px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
+  color: var(--ink);
+  box-shadow: var(--shadow-lg);
+  transform: translateX(-50%);
+  animation: feedback-toast-in 0.18s ease-out;
+}
+
+.feedback-toast svg {
+  color: var(--accent);
+}
+
+.feedback-toast button {
+  margin-left: 6px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+
+@keyframes feedback-toast-in {
+  from { opacity: 0; transform: translate(-50%, 8px); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .feedback-toast { animation: none; }
+}
+
+/* 图上点中势力块时的浮层 */
 .feedback-group { z-index: 5; display: flex; align-items: center; flex-wrap: wrap; gap: 8px; max-width: min(232px, calc(100% - 16px)); padding: 8px; }
 .feedback-group strong { overflow-wrap: anywhere; }
-.feedback-record { border-bottom: 1px solid var(--line); padding: 16px 0; overflow-wrap: anywhere; }
-.feedback-record p { white-space: pre-wrap; }

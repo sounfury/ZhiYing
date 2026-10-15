@@ -12,9 +12,9 @@ import java.security.MessageDigest
 class AnalysisMethodConfiguration {
     @Bean
     fun analysisMethod(): AnalysisMethod = AnalysisMethod { models ->
-        val reading = "${models.reading.model}:${models.reading.thinking}"
-        val post = "${models.postProcess.model}:${models.postProcess.thinking}"
-        val groups = "${models.affiliation.model}:${models.affiliation.thinking}"
+        val reading = "${models.reading.label}:${models.reading.thinking}"
+        val post = "${models.postProcess.label}:${models.postProcess.thinking}"
+        val groups = "${models.affiliation.label}:${models.affiliation.thinking}"
         val calls =
             listOf(
                 "reading:$reading:${ChapterReadingPrompts.VERSION}",

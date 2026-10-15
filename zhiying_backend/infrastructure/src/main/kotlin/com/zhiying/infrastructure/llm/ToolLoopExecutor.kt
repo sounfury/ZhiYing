@@ -2,6 +2,7 @@
 // 只负责循环与执行统计，不理解工具语义；工具的校验与状态在调用方（如章阅读会话）里。
 package com.zhiying.infrastructure.llm
 
+import com.zhiying.application.llm.DEFAULT_PROVIDER
 import com.zhiying.application.diagnostics.ModelFailure
 import com.zhiying.application.llm.ModelCallControl
 import com.zhiying.application.llm.ModelCallStats
@@ -29,6 +30,7 @@ class ToolLoopRequest(
     val model: String? = null,
     val thinking: Boolean = false,
     val control: ModelCallControl = ModelCallControl(),
+    val provider: String = DEFAULT_PROVIDER,
     val nudge: String = "",
     val nudges: Int = 0,
     val isDone: () -> Boolean,
@@ -75,7 +77,7 @@ class ToolLoopExecutor(private val invoker: ModelInvoker) {
     fun run(request: ToolLoopRequest): ToolLoopOutcome {
         val tools = request.tools.associateBy { it.toolDefinition.name() }
         val messages = mutableListOf<Message>(SystemMessage(request.system), UserMessage(request.user))
-        val spec = CallSpec(request.model, request.thinking, request.tools)
+        val spec = CallSpec(request.model, request.thinking, request.tools, request.provider)
         val meter = CallMeter()
         var nudgesLeft = request.nudges
         var lastText = ""

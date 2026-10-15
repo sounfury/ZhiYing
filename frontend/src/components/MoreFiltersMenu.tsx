@@ -8,9 +8,9 @@ import type { GraphFaction, RelationTypeMeta } from '../api'
 import { FactionFilter } from './FactionFilter'
 
 const STRENGTHS = [
-  { category: '硬关系', cls: 'hard', label: '硬关系', hint: '血缘、婚姻…' },
+  { category: '硬关系', cls: 'hard', label: '强关系', hint: '血缘、婚姻…' },
   { category: '中关系', cls: 'medium', label: '中关系', hint: '师生、挚友…' },
-  { category: '软关系', cls: 'soft', label: '软关系', hint: '朋友、相识' },
+  { category: '软关系', cls: 'soft', label: '弱关系', hint: '朋友、相识' },
 ]
 
 interface MoreFiltersMenuProps {
@@ -154,7 +154,7 @@ export function MoreFiltersMenu({
               aria-label="至少出场章数"
               onChange={(e) => onMinAppearanceChange(Number(e.target.value))}
             />
-            <div className="fp-note">已隐藏 {filteredCount} 位路人 · 有硬关系的人不受影响</div>
+            <div className="fp-note">已隐藏 {filteredCount} 位路人 · 有强关系的人不受影响</div>
           </>
         )}
       </section>

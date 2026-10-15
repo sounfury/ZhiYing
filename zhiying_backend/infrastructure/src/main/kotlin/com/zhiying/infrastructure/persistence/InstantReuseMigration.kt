@@ -1,4 +1,4 @@
-// 秒传上线兼容迁移：补版本列与 TXT 分章方案列，并将旧书主迁为同 ID 条目，旧结果仍可读但不可秒传。
+// 表结构兼容迁移：补版本列、TXT 分章方案列与模型服务商列，并将旧书主迁为同 ID 条目，旧结果仍可读但不可秒传。
 package com.zhiying.infrastructure.persistence
 
 import org.springframework.beans.factory.InitializingBean
@@ -17,6 +17,7 @@ class InstantReuseMigration(
         transactions.executeWithoutResult {
             addColumn("books", "import_version", "INTEGER NOT NULL DEFAULT 1")
             addColumn("books", "split_rule", "TEXT")
+            addColumn("model_settings", "provider_id", "TEXT NOT NULL DEFAULT 'default'")
             addColumn("analysis_revision", "method_version", "TEXT")
             addColumn("analysis_revision", "full_book", "INTEGER NOT NULL DEFAULT 0")
             val old =

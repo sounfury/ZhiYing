@@ -28,13 +28,7 @@
 }
 .account-form input:focus-visible, .account-form select:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 .account-error { color: var(--err); }
-.account-identity, .account-admin p { overflow-wrap: anywhere; }
-.account-admin { margin-top: 24px; border-top: 1px solid var(--line); }
-.account-table-wrap { overflow-x: auto; }
-.account-table { width: 100%; border-collapse: collapse; text-align: left; }
-.account-table caption { text-align: left; color: var(--muted); margin-bottom: 8px; }
-.account-table th, .account-table td { padding: 8px; border-bottom: 1px solid var(--line); }
-.account-table code { overflow-wrap: anywhere; }
+.account-identity { overflow-wrap: anywhere; }
 .account-button { max-width: 18ch; overflow: hidden; text-overflow: ellipsis; display: inline-block; }
 .account-tabs { margin-top: 18px; }
 .account-route-status { padding: 24px; }

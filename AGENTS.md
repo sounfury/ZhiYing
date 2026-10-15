@@ -59,6 +59,10 @@ Never cut: validation at trust boundaries, error handling that prevents data los
 3. **划定死边界**：显式声明“只做 X，严禁做 Y”，阻断顺带重构或提前实现后续功能的倾向。
 4. **编译即交付**：约束验证仅限编译测试（如 `./gradlew compileKotlin compileTestKotlin`），不做多余测试；按 Ponytail 风格报告改动与风险。
 
+## 本地启动
+- 后端：在 `zhiying_backend/` 执行 `nohup setsid ./gradlew :web:bootRun --console=plain > /tmp/zhiying/backend.log 2>&1 &`，监听 8080，配置读 `zhiying_backend/.env`。
+- 前端：用预览插件 `vite_preview`（`action: start`，`project: /home/ubuntu/project/ZhiYing/frontend`）启动，访问 `/preview/`；不要自己跑 `npm run dev`。
+
 ## CI 规则
 推送后用 Woodpecker CLI 查看本次提交的流水线结果，失败则看日志修复后再推：
 ```bash

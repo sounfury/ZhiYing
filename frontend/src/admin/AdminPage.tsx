@@ -1,10 +1,10 @@
-/** 后台统一入口：用量、模型、评测、账号与反馈，仅由管理员路由挂载。 */
+/** 后台统一入口：左侧导航切换用量、模型、评测、账号与反馈，仅由管理员路由挂载。 */
 import { Suspense, lazy, useEffect, useState } from 'react'
 import { apiUrl } from '../api'
 import { AccountButton } from '../components/AccountDialog'
-import { AdminPanel } from '../components/AdminPanel'
 import UsagePanel from './UsagePanel'
 import ModelsPanel from './ModelsPanel'
+import AccountsPanel from './AccountsPanel'
 import FeedbackPanel from './FeedbackPanel'
 import './admin.css'
 
@@ -23,20 +23,25 @@ export default function AdminPage() {
     window.addEventListener('popstate', update)
     return () => window.removeEventListener('popstate', update)
   }, [])
+  useEffect(() => { document.title = `${TABS[tab]} · 织影后台` }, [tab])
   const select = (next: Tab) => {
+    if (next === tab) return
     window.history.pushState(null, '', apiUrl(`/admin?tab=${next}`))
     setTab(next)
+    window.scrollTo(0, 0)
   }
-  return <main className="admin-page">
-    <header className="admin-header">
-      <h1>后台</h1>
-      <nav className="seg" aria-label="后台页签">{(Object.keys(TABS) as Tab[]).map((key) => <button type="button" key={key} className={tab === key ? 'on' : ''} aria-pressed={tab === key} onClick={() => select(key)}>{TABS[key]}</button>)}</nav>
-      <div className="account-actions"><AccountButton /><a className="btn ghost" href={apiUrl('/')}>返回图谱</a></div>
-    </header>
-    {tab === 'usage' && <UsagePanel />}
-    {tab === 'models' && <ModelsPanel />}
-    {tab === 'feedback' && <FeedbackPanel />}
-    {tab === 'accounts' && <section className="admin-content" aria-label="账号管理"><h2>账号</h2><AdminPanel /></section>}
-    {tab === 'eval' && <Suspense fallback={<p role="status">正在加载评测…</p>}><EvalPage /></Suspense>}
-  </main>
+  return <div className="adm">
+    <aside className="adm-side">
+      <h1 className="adm-brand">织影<small>后台</small></h1>
+      <nav className="adm-nav" aria-label="后台页签">{(Object.keys(TABS) as Tab[]).map((key) => <button type="button" key={key} aria-current={tab === key ? 'page' : undefined} onClick={() => select(key)}>{TABS[key]}</button>)}</nav>
+      <div className="adm-side-foot"><AccountButton /><a className="btn ghost" href={apiUrl('/')}>← 返回图谱</a></div>
+    </aside>
+    <main className="adm-main">
+      {tab === 'usage' && <UsagePanel />}
+      {tab === 'models' && <ModelsPanel />}
+      {tab === 'accounts' && <AccountsPanel />}
+      {tab === 'feedback' && <FeedbackPanel />}
+      {tab === 'eval' && <Suspense fallback={<p className="adm-empty" role="status">正在加载评测…</p>}><EvalPage /></Suspense>}
+    </main>
+  </div>
 }

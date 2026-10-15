@@ -41,7 +41,7 @@ export function CastPanel({ graph, chapters, loading, onFocusPerson }: CastPanel
       {graph.filtered_count > 0 && (
         <details className="filtered-note">
           <summary>
-            另有 {graph.filtered_count} 位路人未列出（出场章数低于阈值且无硬关系，可在图的筛选里调整）
+            另有 {graph.filtered_count} 位路人未列出（出场章数低于阈值且无强关系，可在图的筛选里调整）
           </summary>
           <p>{graph.filtered_persons.map((p) => p.name).join('、')}</p>
         </details>

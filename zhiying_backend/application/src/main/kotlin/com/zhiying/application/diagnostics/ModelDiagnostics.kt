@@ -27,11 +27,11 @@ data class ModelProbeReport(
 class ModelDiagnostics(private val probe: ModelProbe) {
 
     /** 以指定思考模式执行全部检查。 */
-    fun run(thinking: ThinkingMode, model: String? = null): ModelProbeReport {
+    fun run(thinking: ThinkingMode, provider: String, model: String? = null): ModelProbeReport {
         val results = ProbeCheck.entries.map { check ->
-            val (outcome, elapsed) = measureTimedValue { probe.run(check, thinking, model) }
+            val (outcome, elapsed) = measureTimedValue { probe.run(check, thinking, provider, model) }
             CheckResult(check, outcome, elapsed)
         }
-        return ModelProbeReport(probe.target(model), thinking, results)
+        return ModelProbeReport(probe.target(provider, model), thinking, results)
     }
 }

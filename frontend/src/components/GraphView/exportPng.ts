@@ -2,7 +2,7 @@
  * 关系图 PNG 导出（PRD §5.7.5）：按当前场景用 Canvas 2D 重画一张完整图，不截屏。
  *
  * - 内容：当前视图的全部人物与连线（含被拖动后的位置），不受屏幕视口与缩放分级影响
- * - 连线：按场景里已绕行的路径画，与画布一致
+ * - 连线：按场景里已绕行的路径画，与画布一致；有向关系画箭头
  * - 文字：人名全部显示；关系文字按 labels.ts 在 100% 缩放、无交互态下的避让结果标注（软关系不标）
  * - 附带：顶部书名与范围说明，底部图例（线型、本章、势力色）与水印
  * - 清晰度：默认 2 倍像素，图太大时按画布尺寸 / 面积上限降低倍数（iOS Safari 画布上限更小）
@@ -11,6 +11,7 @@
  */
 import type { GraphFaction } from '../../api'
 import { factionSlot } from '../../factions'
+import { edgeDirection } from '../../relationDirection'
 import { EDGE_LABEL_FONT, nameFontSize, pathPoint } from './geometry'
 import { placeLabels } from './labels'
 import { computeFocus, type Palette, type StyleCtx } from './style'
@@ -181,9 +182,9 @@ export async function renderGraphPng(
   const legendSize = 14 * u
   const rowH = legendSize * 2
   const items: LegendItem[] = [
-    { kind: 'line', hardness: 'hard', label: '硬关系' },
+    { kind: 'line', hardness: 'hard', label: '强关系' },
     { kind: 'line', hardness: 'medium', label: '中关系' },
-    { kind: 'line', hardness: 'soft', label: '软关系' },
+    { kind: 'line', hardness: 'soft', label: '弱关系' },
   ]
   if (scene.focusSingle) items.push({ kind: 'line', hardness: 'hard', label: '本章出现', width: 3.8 })
   for (const f of meta.factions) {
@@ -366,6 +367,14 @@ function drawGraph(
     ctx.moveTo(e.path[0].x, e.path[0].y)
     for (const pt of e.path.slice(1)) ctx.lineTo(pt.x, pt.y)
     ctx.stroke()
+    // 有向关系的箭头，与画布一致：path 从 source（person_a 端）画到 target
+    const { startArrow, endArrow } = edgeDirection(e.edge)
+    if (startArrow || endArrow) {
+      ctx.setLineDash([])
+      ctx.fillStyle = p[e.hardness]
+      if (endArrow) arrowHead(ctx, e.path, false)
+      if (startArrow) arrowHead(ctx, e.path, true)
+    }
   }
   ctx.setLineDash([])
   ctx.globalAlpha = 1
@@ -403,6 +412,26 @@ function drawGraph(
     ctx.font = font(main ? 700 : 500, nameFontSize(v.n.node.importance), p.serif)
     haloText(ctx, v.n.node.name, v.x, v.y + v.r + 3, p.ink, p.canvas)
   }
+}
+
+/** 在路径末端（atStart 时为起端）画实心三角箭头，尺寸对应画布的 arrowSize 8 */
+function arrowHead(ctx: CanvasRenderingContext2D, path: Pt[], atStart: boolean) {
+  const size = 8
+  const pts = atStart ? [...path].reverse() : path
+  const tip = pts[pts.length - 1]
+  // 取离尖端约一个箭头长的点定方向，弯曲线末端也不会歪
+  let back = pts[0]
+  for (let i = pts.length - 2; i >= 0; i--) {
+    if (Math.hypot(tip.x - pts[i].x, tip.y - pts[i].y) >= size) { back = pts[i]; break }
+  }
+  const a = Math.atan2(tip.y - back.y, tip.x - back.x)
+  const half = size * 0.5
+  ctx.beginPath()
+  ctx.moveTo(tip.x, tip.y)
+  ctx.lineTo(tip.x - size * Math.cos(a) + half * Math.sin(a), tip.y - size * Math.sin(a) - half * Math.cos(a))
+  ctx.lineTo(tip.x - size * Math.cos(a) - half * Math.sin(a), tip.y - size * Math.sin(a) + half * Math.cos(a))
+  ctx.closePath()
+  ctx.fill()
 }
 
 /** 带画布色描边的文字：压在连线上也读得清 */

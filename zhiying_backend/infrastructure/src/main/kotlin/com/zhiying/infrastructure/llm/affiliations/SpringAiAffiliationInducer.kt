@@ -2,6 +2,7 @@
 // 个别成员代号认不出只丢该成员并记日志，不让一处笔误拖垮整份回复。预算、重试、用量由 StructuredCallExecutor / ModelInvoker 负责。
 package com.zhiying.infrastructure.llm.affiliations
 
+import com.zhiying.application.llm.DEFAULT_PROVIDER
 import com.zhiying.application.analyze.affiliations.AffiliationInducer
 import com.zhiying.application.analyze.affiliations.AffiliationRequest
 import com.zhiying.application.analyze.affiliations.InducedGroup
@@ -58,6 +59,7 @@ class SpringAiAffiliationInducer(
             model = control.models?.affiliation?.model ?: config.model.ifBlank { null },
             thinking = control.models?.affiliation?.thinking ?: config.thinking,
             control = control,
+            provider = control.models?.affiliation?.providerId ?: DEFAULT_PROVIDER,
         ) { reply -> validate(reply, refs, request.forbiddenNames) }
         return when (outcome) {
             is StructuredOutcome.Failed -> InductionResult.Failed("团体归纳未完成（${outcome.failure}）：${outcome.message}")

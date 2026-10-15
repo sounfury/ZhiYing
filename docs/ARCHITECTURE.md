@@ -61,7 +61,7 @@ flowchart TD
 
 基础约定：
 - **错误码**：对外错误统一登记在 `application` 的 `ErrorCode`，用例拒绝请求时抛 `AppException(code)`；`web` 的 `ApiExceptionHandler` 是错误码到 HTTP 状态的唯一映射，响应为带 `code` 字段的 ProblemDetail。模型调用的执行失败（`ModelFailure`）是业务结果，不是错误码。
-- **配置**：项目自有可调参数统一放在 `zhiying.*`，由 `infrastructure` 的 `ZhiYingProperties` 类型化绑定并在启动时校验，不使用散落的 `@Value`；应用层需要的参数由基础设施组装成应用层自己的设置对象注入。唯一例外是后台的模型名与思考开关存于 `model_settings`，部署值作缺省；服务地址与密钥仍只由部署配置提供（DESIGN §5.7）。
+- **配置**：项目自有可调参数统一放在 `zhiying.*`，由 `infrastructure` 的 `ZhiYingProperties` 类型化绑定并在启动时校验，不使用散落的 `@Value`；应用层需要的参数由基础设施组装成应用层自己的设置对象注入。唯一例外是后台的服务商、模型名与思考开关存于 `model_settings` / `model_providers`，部署值作缺省与内置服务商；后台服务商密钥加密存储（DESIGN §5.7）。
 - **不建 common 模块**：值对象放 `domain`，错误码放 `application`，技术工具放 `infrastructure`。
 
 ### web · HTTP 接口与启动
@@ -140,7 +140,7 @@ flowchart TD
 
 ### diagnostics · 模型诊断
 
-- **职责**：仅管理员可指定模型名与思考开关，检查模型服务能否完成对话、工具调用与结构化输出；后台复用原诊断接口，报告不返回服务地址或密钥。
+- **职责**：仅管理员可指定服务商、模型名与思考开关，检查模型服务能否完成对话、工具调用与结构化输出；后台复用原诊断接口，报告不返回服务地址或密钥。
 - **对应位置**：`application/`（`com.zhiying.application.diagnostics`）。
 
 [探索这个子系统](#module=com/zhiying/application/diagnostics)
@@ -215,7 +215,7 @@ flowchart TD
 
 ## 数据模型
 
-账号拥有 `shelf_items` 书架条目，对外书 ID 即条目 ID；条目用 `book_id` 指向当前结果书，分叉首次发布前用 `pending_book_id` 指向任务书。一本书可被多个条目共享并有多个章节，写操作先分叉，发布事务内切换条目。已有归属迁移时条目 ID = 原书 ID。`books.import_version` 与结果的 `method_version`、`full_book` 判定秒传资格，方法版本由生效模型 ID、思考开关和提示版本自动生成；旧结果保留可读但不可秒传。每章每次分析产生一份章抽取记录。抽取中的人物提及经身份映射归到书内人物，关系候选经类型归一与语义判断形成章账本记录，通过准入的记录按「人物 A、人物 B、关系类型」聚合成关系事实。人物可属于多个团体。一次分析构建一个结果版本，发布后成为出图的唯一来源。字段与不变量见 [DESIGN §2](./DESIGN.md)，共享与分叉见 [DESIGN §5.4](./DESIGN.md#54-秒传与共享结果)，账号见 [DESIGN §5.5](./DESIGN.md#55-账号会话与书籍归属)。用量流水记发起者与条目、字数和输入 / 输出 / 总 token、请求数，独立保留，累计 token 仅按本人条目查询且仅管理员可见；后台通过独立流水聚合全站、用户与条目用量，不授予私人书读取权限（[DESIGN §5.6](./DESIGN.md#56-用量上限)）。`model_settings` 仅保存三个环节的模型名、思考开关与修改元数据，不保存地址、密钥，生效快照见 [DESIGN §5.7](./DESIGN.md#57-后台管理与生效模型配置)。
+账号拥有 `shelf_items` 书架条目，对外书 ID 即条目 ID；条目用 `book_id` 指向当前结果书，分叉首次发布前用 `pending_book_id` 指向任务书。一本书可被多个条目共享并有多个章节，写操作先分叉，发布事务内切换条目。已有归属迁移时条目 ID = 原书 ID。`books.import_version` 与结果的 `method_version`、`full_book` 判定秒传资格，方法版本由生效模型 ID、思考开关和提示版本自动生成；旧结果保留可读但不可秒传。每章每次分析产生一份章抽取记录。抽取中的人物提及经身份映射归到书内人物，关系候选经类型归一与语义判断形成章账本记录，通过准入的记录按「人物 A、人物 B、关系类型」聚合成关系事实。人物可属于多个团体。一次分析构建一个结果版本，发布后成为出图的唯一来源。字段与不变量见 [DESIGN §2](./DESIGN.md)，共享与分叉见 [DESIGN §5.4](./DESIGN.md#54-秒传与共享结果)，账号见 [DESIGN §5.5](./DESIGN.md#55-账号会话与书籍归属)。用量流水记发起者与条目、字数和输入 / 输出 / 总 token、请求数，独立保留，累计 token 仅按本人条目查询且仅管理员可见；后台通过独立流水聚合全站、用户与条目用量，不授予私人书读取权限（[DESIGN §5.6](./DESIGN.md#56-用量上限)）。`model_settings` 保存三个环节的服务商、模型名、思考开关与修改元数据，`model_providers` 保存后台新增服务商（密钥加密），生效快照见 [DESIGN §5.7](./DESIGN.md#57-后台管理与生效模型配置)。
 
 ## 技术栈
 
@@ -223,7 +223,7 @@ flowchart TD
 | :--- | :--- |
 | Kotlin 2.4 / JDK 21 | 后端语言与运行时；四个 Gradle 模块对应四层 |
 | Spring Boot 4（Web MVC） | HTTP 接口与依赖装配，只用于 `web` 与 `infrastructure` |
-| Spring AI 2（OpenAI 兼容协议） | 模型接入，当前接 DeepSeek；通过 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 切换 |
+| Spring AI 2（OpenAI 兼容协议） | 模型接入；部署配置 `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` 为内置服务商，后台可新增其他 OpenAI 兼容服务商（密钥由 `LLM_SECRET_KEY` 加密） |
 | SQLite + `JdbcClient` + 文件 | 结构化记录与章节正文走 SQLite，访问只用 Spring `JdbcClient`（查询少，不引入 ORM）；表结构由 `resources/schema/*.sql` 启动时以 `CREATE TABLE IF NOT EXISTS` 建立，不用迁移工具；账号上线新增表并补齐已有书归属，用量上线通过表结构检查补齐首次读取标记列，秒传上线通过事务迁移旧归属为同 ID 条目并补导入、方法、完整标记和流水用量列，保留现有数据库；源 EPUB 按内容摘要存文件 |
 | JDK 密码与随机数 API + Cookie | 密码派生与会话哈希由基础设施实现，应用层生成随机会话 token，HTTP Cookie 与 CSRF 请求头检查由 web 处理，安全参数见 DESIGN §5.5 |
 | jsoup | 解析 EPUB 内的 XHTML |

@@ -1,9 +1,616 @@
-/* 后台布局：沿用账号表单、按钮和表格样式，窄屏自动换行。 */
-.admin-header { display: flex; align-items: center; flex-wrap: wrap; gap: 16px; padding: 16px 24px; border-bottom: 1px solid var(--line); background: var(--panel); }
-.admin-header h1 { margin: 0; font-size: 20px; }
-.admin-header > .account-actions { margin-left: auto; }
-.admin-content { max-width: 1100px; margin: 0 auto; padding: 24px; }
-.admin-content .account-table-wrap { margin: 24px 0; }
-.admin-content .account-admin { margin-top: 0; border-top: 0; }
-.admin-model { max-width: 560px; border-bottom: 1px solid var(--line); padding-bottom: 20px; }
-.admin-page .ev { min-height: 0; }
+/* 后台样式：左侧导航 + 右侧内容；页头、卡片、表格、表单字段、指标卡、柱状图与开关，窄屏导航改为顶栏。 */
+
+.adm {
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  min-height: 100dvh;
+}
+
+/* ── 侧栏 ── */
+
+.adm-side {
+  position: sticky;
+  top: 0;
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  padding: 20px 14px;
+  border-right: 1px solid var(--line);
+  background: var(--panel);
+}
+
+.adm-brand {
+  margin: 0;
+  padding: 0 10px;
+  font-size: 18px;
+}
+
+.adm-brand small {
+  margin-left: 6px;
+  font-family: var(--sans);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--muted);
+}
+
+.adm-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.adm-nav button {
+  padding: 8px 12px;
+  border: 0;
+  border-radius: var(--r-sm);
+  background: none;
+  color: var(--ink-2);
+  text-align: left;
+  cursor: pointer;
+}
+
+.adm-nav button:hover {
+  background: var(--panel-2);
+  color: var(--ink);
+}
+
+.adm-nav button[aria-current='page'] {
+  background: var(--accent-soft);
+  color: var(--accent);
+  font-weight: 600;
+}
+
+.adm-nav button:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 1px;
+}
+
+.adm-side-foot {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
+  margin-top: auto;
+  padding-top: 14px;
+  border-top: 1px solid var(--line);
+}
+
+/* ── 内容区 ── */
+
+.adm-main {
+  min-width: 0;
+}
+
+.adm-page {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 1160px;
+  margin: 0 auto;
+  padding: 28px 32px 48px;
+}
+
+.adm-page-head {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 12px 20px;
+}
+
+.adm-page-head h2 {
+  margin: 0;
+  font-size: 22px;
+}
+
+.adm-page-head p {
+  margin: 4px 0 0;
+  max-width: 68ch;
+}
+
+.adm-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.adm-card {
+  min-width: 0;
+  padding: 18px 20px;
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--panel);
+}
+
+.adm-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  margin-bottom: 14px;
+}
+
+.adm-card-head h3 {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  font-size: 16px;
+}
+
+.adm-card-head .hint {
+  margin: 2px 0 0;
+}
+
+.adm-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+/* 状态提示：成功 / 错误 / 加载 */
+.adm-note {
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: var(--r-sm);
+  background: var(--accent-soft);
+  color: var(--accent);
+  overflow-wrap: anywhere;
+}
+
+.adm-note.err {
+  background: var(--err-soft);
+  color: var(--err);
+}
+
+.adm-empty {
+  margin: 0;
+  padding: 28px 0;
+  text-align: center;
+  color: var(--muted);
+}
+
+/* ── 表单字段 ── */
+
+.adm-form {
+  display: grid;
+  gap: 14px;
+}
+
+.adm-form.cols {
+  grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+}
+
+.adm-field {
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--ink-2);
+  font-weight: 500;
+}
+
+.adm-field .hint {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.adm input:not([type='checkbox']),
+.adm select {
+  width: 100%;
+  min-width: 0;
+  height: 36px;
+  padding: 0 10px;
+  border: 1px solid var(--line-2);
+  border-radius: var(--r-sm);
+  background: var(--panel);
+  color: var(--ink);
+  font-size: 14px;
+}
+
+.adm input:hover:not(:disabled),
+.adm select:hover:not(:disabled) {
+  border-color: var(--muted);
+}
+
+.adm input:focus-visible,
+.adm select:focus-visible {
+  outline: none;
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px var(--accent-soft);
+}
+
+.adm input:disabled,
+.adm select:disabled {
+  background: var(--panel-2);
+  color: var(--muted);
+}
+
+/* 行内表单：输入框与按钮同一行 */
+.adm-inline {
+  display: flex;
+  align-items: flex-end;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.adm-inline .adm-field {
+  flex: 1 1 160px;
+}
+
+/* 开关 */
+.adm-switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  font-size: 14px;
+  color: var(--ink);
+  font-weight: 400;
+}
+
+.adm-switch input {
+  appearance: none;
+  position: relative;
+  width: 34px;
+  height: 20px;
+  margin: 0;
+  border-radius: 10px;
+  background: var(--line-2);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+
+.adm-switch input::after {
+  content: '';
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #fff;
+  box-shadow: 0 1px 2px rgb(0 0 0 / 25%);
+  transition: transform 0.15s ease;
+}
+
+.adm-switch input:checked {
+  background: var(--accent);
+}
+
+.adm-switch input:checked::after {
+  transform: translateX(14px);
+}
+
+.adm-switch input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+.adm-switch input:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ── 表格 ── */
+
+.adm-table-wrap {
+  overflow-x: auto;
+  margin: 0 -20px;
+}
+
+.adm-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 13.5px;
+}
+
+.adm-table th,
+.adm-table td {
+  padding: 9px 12px;
+  border-bottom: 1px solid var(--line);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.adm-table th:first-child,
+.adm-table td:first-child {
+  padding-left: 20px;
+}
+
+.adm-table th:last-child,
+.adm-table td:last-child {
+  padding-right: 20px;
+}
+
+.adm-table thead th {
+  border-bottom-color: var(--line-2);
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.adm-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+.adm-table tbody tr:hover {
+  background: var(--panel-2);
+}
+
+.adm-table .num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.adm-table .clip {
+  max-width: 0;
+  width: 100%;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.adm-table code {
+  font-family: var(--mono);
+  font-size: 13px;
+}
+
+.adm-table .row-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.adm-table .btn {
+  padding: 3px 10px;
+  font-size: 12.5px;
+}
+
+/* ── 用量：指标卡 / 柱状图 / 额度 ── */
+
+.adm-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.adm-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.adm-stat span {
+  font-size: 12.5px;
+  color: var(--muted);
+}
+
+.adm-stat strong {
+  font-size: 26px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.2;
+}
+
+.adm-stat small {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.adm-meter {
+  height: 6px;
+  margin-top: 6px;
+  border-radius: 3px;
+  background: var(--panel-2);
+  overflow: hidden;
+}
+
+.adm-meter i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+}
+
+.adm-meter.warn i {
+  background: var(--warn);
+}
+
+.adm-chart {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 160px;
+  padding-top: 8px;
+  border-bottom: 1px solid var(--line-2);
+}
+
+.adm-chart div {
+  flex: 1;
+  display: flex;
+  align-items: flex-end;
+  height: 100%;
+}
+
+.adm-chart i {
+  width: 100%;
+  min-height: 2px;
+  border-radius: 3px 3px 0 0;
+  background: var(--accent);
+  opacity: 0.75;
+}
+
+.adm-chart div:hover i {
+  opacity: 1;
+}
+
+.adm-chart div:last-child i {
+  opacity: 1;
+}
+
+.adm-chart-axis {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.adm-limits {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 12px;
+  margin: 0;
+}
+
+.adm-limits div {
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+}
+
+.adm-limits dt {
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.adm-limits dd {
+  margin: 2px 0 0;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── 模型 ── */
+
+.adm-probe {
+  margin: 0;
+  padding: 10px 12px;
+  border-radius: var(--r-sm);
+  background: var(--panel-2);
+  font-size: 13px;
+}
+
+.adm-probe ul {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.adm-probe li {
+  display: grid;
+  grid-template-columns: 1.2em minmax(0, 1fr) auto;
+  gap: 6px;
+  padding: 2px 0;
+  overflow-wrap: anywhere;
+}
+
+.adm-probe .ok {
+  color: var(--accent);
+}
+
+.adm-probe .bad {
+  color: var(--err);
+}
+
+/* ── 反馈 ── */
+
+.adm-feedback {
+  display: grid;
+  gap: 6px;
+  padding: 14px 0;
+  border-top: 1px solid var(--line);
+  overflow-wrap: anywhere;
+}
+
+.adm-feedback:first-of-type {
+  padding-top: 0;
+  border-top: 0;
+}
+
+.adm-feedback-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.adm-feedback p {
+  margin: 0;
+  white-space: pre-wrap;
+}
+
+.adm-feedback .hint {
+  font-size: 12px;
+}
+
+/* 评测页嵌入后台：去掉独立页面的满屏高度与吸顶偏移 */
+.adm .ev {
+  min-height: 0;
+}
+
+.adm .ev-top {
+  top: 0;
+}
+
+.adm .rv-nav {
+  top: 76px;
+}
+
+/* ── 窄屏：侧栏变顶栏 ── */
+
+@media (max-width: 860px) {
+  .adm {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .adm-side {
+    position: static;
+    height: auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px;
+    padding: 10px 12px;
+    border-right: 0;
+    border-bottom: 1px solid var(--line);
+  }
+
+  .adm-nav {
+    order: 3;
+    flex-direction: row;
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .adm-nav button {
+    white-space: nowrap;
+  }
+
+  .adm-side-foot {
+    flex-direction: row;
+    align-items: center;
+    margin: 0 0 0 auto;
+    padding: 0;
+    border: 0;
+  }
+
+  .adm-page {
+    padding: 18px 14px 36px;
+  }
+
+  .adm-table-wrap {
+    margin: 0 -14px;
+  }
+
+  .adm-card {
+    padding: 16px 14px;
+  }
+}

@@ -64,6 +64,8 @@ zhiying:
     base-url: ${LLM_BASE_URL:https://api.deepseek.com}
     api-key: ${LLM_API_KEY:}
     model: ${LLM_MODEL:deepseek-flash}
+    # 加密后台新增服务商的 API Key；丢失后需在后台重新填写各服务商密钥
+    secret-key: ${LLM_SECRET_KEY:}
   storage:
     # 数据库与书籍文件所在目录；启动保留已有数据并补齐新增表 / 列
     data-dir: ${ZHIYING_DATA_DIR:data}

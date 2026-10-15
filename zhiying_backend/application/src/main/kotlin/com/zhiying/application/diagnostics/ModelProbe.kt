@@ -1,8 +1,8 @@
 // 模型接入诊断协议与结果：不向调用者提供服务地址或密钥。
 package com.zhiying.application.diagnostics
 
-/** 探测目标只含模型名。 */
-data class ModelTarget(val model: String)
+/** 探测目标：服务商 ID 与模型名。 */
+data class ModelTarget(val provider: String, val model: String)
 
 /** 探测时的思考模式。 */
 enum class ThinkingMode {
@@ -79,8 +79,8 @@ sealed interface CheckOutcome {
 /** 模型探针：对真实模型服务执行单项协议检查。实现方负责把厂商异常归类为 [ModelFailure]。 */
 interface ModelProbe {
     /** 当前探测目标。 */
-    fun target(model: String? = null): ModelTarget
+    fun target(provider: String, model: String? = null): ModelTarget
 
     /** 以指定思考模式执行一项检查；每次调用都会向模型服务发出真实请求。 */
-    fun run(check: ProbeCheck, thinking: ThinkingMode, model: String? = null): CheckOutcome
+    fun run(check: ProbeCheck, thinking: ThinkingMode, provider: String, model: String? = null): CheckOutcome
 }

@@ -2,6 +2,7 @@
 // 步数、预算、重试、用量由执行器负责；规则校验在 ChapterSession；这里只做装配与收尾。
 package com.zhiying.infrastructure.llm.reading
 
+import com.zhiying.application.llm.DEFAULT_PROVIDER
 import com.zhiying.application.analyze.reading.ChapterReadRequest
 import com.zhiying.application.analyze.reading.ChapterReadResult
 import com.zhiying.application.analyze.reading.ChapterReader
@@ -55,6 +56,7 @@ class SpringAiChapterReader(
                 model = request.control.models?.reading?.model ?: config.model.ifBlank { null },
                 thinking = request.control.models?.reading?.thinking ?: config.thinking,
                 control = chapterControl(request.control),
+                provider = request.control.models?.reading?.providerId ?: DEFAULT_PROVIDER,
                 nudge = SUBMIT_NUDGE,
                 nudges = config.submitNudges,
                 isDone = { session.submitted },
@@ -77,7 +79,7 @@ class SpringAiChapterReader(
 
     /** 当前所用模型（章阅读专用模型，空则取默认）与提示词版本。 */
     override fun provenanceFor(textRevision: TextRevision, models: ModelSnapshot?): ExtractionProvenance {
-        val model = models?.reading?.model ?: config.model.ifBlank { invoker.defaultModel() }
+        val model = models?.reading?.label ?: config.model.ifBlank { invoker.defaultModel() }
         val thinking = models?.reading?.thinking ?: config.thinking
         return ExtractionProvenance(textRevision, model, ChapterReadingPrompts.VERSION + if (thinking) "/thinking" else "")
     }

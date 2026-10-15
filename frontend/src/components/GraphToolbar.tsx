@@ -154,6 +154,11 @@ export function GraphToolbar({
         ? '布局：势力分区（本书没有可分的势力，实际按亲疏扇区显示；点击切到亲疏扇区）'
         : '布局：势力分区（点击切到亲疏扇区）'
       : '布局：亲疏扇区（点击切回势力分区）'
+  // 悬停提示（data-tip，第一行名称、第二行用途），比原生 title 出现得快、写得下说明
+  const layoutTip =
+    layoutMode === 'faction'
+      ? `势力分区布局\n同一势力的人物聚在一起${noFactions ? '；本书没有可分的势力，暂按亲疏显示' : ''}\n点击切到亲疏扇区`
+      : '亲疏扇区布局\n以中心人物为圆心，关系越强离得越近\n点击切回势力分区'
 
   return (
     <>
@@ -171,7 +176,7 @@ export function GraphToolbar({
         <button
           type="button"
           className={layoutMode === 'affinity' ? 'on' : ''}
-          title={layoutTitle}
+          data-tip={layoutTip}
           aria-label={layoutTitle}
           disabled={isRunning}
           onClick={() => onLayoutModeChange(nextLayout)}
@@ -181,7 +186,7 @@ export function GraphToolbar({
         <button
           type="button"
           className={filterOpen ? 'on' : ''}
-          title={filtering ? '筛选（已调整）' : '筛选'}
+          data-tip={`筛选${filtering ? '（已调整）' : ''}\n按关系强弱、关系类型、出场章数、势力隐藏部分人物和连线`}
           aria-label="筛选"
           aria-expanded={filterOpen}
           disabled={isRunning}
@@ -193,21 +198,21 @@ export function GraphToolbar({
         <hr />
         {onZoom && (
           <>
-            <button type="button" title="放大" aria-label="放大" disabled={!hasGraph} onClick={() => onZoom('in')}>
+            <button type="button" data-tip={'放大\n也可滚动鼠标滚轮'} aria-label="放大" disabled={!hasGraph} onClick={() => onZoom('in')}>
               {Icon.plus}
             </button>
-            <button type="button" title="缩小" aria-label="缩小" disabled={!hasGraph} onClick={() => onZoom('out')}>
+            <button type="button" data-tip={'缩小\n也可滚动鼠标滚轮'} aria-label="缩小" disabled={!hasGraph} onClick={() => onZoom('out')}>
               {Icon.minus}
             </button>
           </>
         )}
-        <button type="button" title="适应窗口" aria-label="适应窗口" disabled={!hasGraph} onClick={onRefit}>
+        <button type="button" data-tip={'回到全图\n放大或拖远了？一键回到整张图居中、刚好放下的样子'} aria-label="回到全图" disabled={!hasGraph} onClick={onRefit}>
           {Icon.fit}
         </button>
         {onExportPng && (
           <button
             type="button"
-            title={exportingPng ? '正在导出图片…' : '导出图片（PNG，当前视图的完整图）'}
+            data-tip={exportingPng ? '正在导出图片…' : '导出图片\n把当前视图的完整图保存为 PNG'}
             aria-label="导出图片"
             aria-busy={exportingPng}
             disabled={!hasGraph || exportingPng}

@@ -447,16 +447,21 @@ Agent 只是基础设施里的一种执行方式（多轮工具循环），领�
 | 列 | 说明 |
 |---|---|
 | `call_point` | 主键，`READING` / `POST_PROCESS` / `AFFILIATION` |
+| `provider_id` | 服务商 ID，`default` 为部署配置的内置服务商 |
 | `model` | 模型名，空值使用 `zhiying.llm.model` |
 | `thinking` | 是否开思考 |
 | `updated_at`、`updated_by` | 最近修改时间与管理员 ID |
 
-读取顺序：表内覆盖值优先，否则用 `zhiying.reading` / `post-process` / `affiliations` 的现有 `model`、`thinking`；模型名为空时回退默认模型。只覆盖这两项，地址与密钥仍只来自 `zhiying.llm.*`，不会传入后台响应。这是自有参数由 `ZhiYingProperties` 绑定的唯一持久化覆盖例外，部署值继续作为缺省。
+读取顺序：表内覆盖值优先，否则用 `zhiying.reading` / `post-process` / `affiliations` 的现有 `model`、`thinking`，服务商为内置；模型名为空时回退默认模型（仅内置服务商允许留空）。这是自有参数由 `ZhiYingProperties` 绑定的唯一持久化覆盖例外，部署值继续作为缺省。
 
-任务登记时一次读取生效配置，放入 `ModelCallControl.models` 的 `ModelSnapshot`；读章、各后处理调用与团体归纳按请求设置 options，任务中途不重新读取。抽取沿用判定使用同一快照的阅读来源版本，来源包含思考开关；结果发布按任务快照计算方法版本，上传秒传按当时生效快照计算方法版本（§5.4）。
+**服务商：** 内置服务商 `default` 来自 `zhiying.llm.*`，只读。后台新增的服务商存 `model_providers`（名称、地址、思考参数写法、密钥密文与末 4 位）；密钥用 `zhiying.llm.secret-key` 经 SHA-256 派生的 AES-GCM 密钥加密，未配置主密钥时不能保存或使用后台服务商，主密钥更换后需重填密钥。被分析环节引用的服务商不能删除。`ProviderChatModels` 按服务商建 `OpenAiChatModel` 并按修改时间缓存；思考参数写法有 `DEEPSEEK`（`thinking.type`）、`ENABLE_THINKING`（`enable_thinking`）、`NONE`（不发送）。模型列表实时请求 `GET {baseUrl}/models`，失败时前端仍可手填。
 
-- `GET /api/admin/models` 返回三环节生效模型、思考开关及来源（后台 / 配置文件）；`PUT /api/admin/models/{callPoint}` 保存；`DELETE` 删除覆盖值，恢复配置文件。
-- 测试连接复用 `GET /api/diagnostics/model`，增加可选 `model` 参数并沿用 `thinking`。报告仅返回模型名与各项协议检查；失败保持 502 完整报告，不返回地址与密钥，底层连接异常只返回分类。
+- `GET /api/admin/model-providers` 列出服务商（不含密钥）；`POST` 新增，`PUT /{id}` 修改（密钥留空保留原值），`DELETE /{id}` 删除；`GET /{id}/models` 拉取模型列表。
+
+任务登记时一次读取生效配置（含服务商 ID），放入 `ModelCallControl.models` 的 `ModelSnapshot`；读章、各后处理调用与团体归纳按请求设置 options，任务中途不重新读取。抽取沿用判定使用同一快照的阅读来源版本，来源包含思考开关，非内置服务商的模型记为「服务商ID/模型名」作标识；结果发布按任务快照计算方法版本，上传秒传按当时生效快照计算方法版本（§5.4）。
+
+- `GET /api/admin/models` 返回三环节生效服务商、模型、思考开关及来源（后台 / 配置文件）；`PUT /api/admin/models/{callPoint}` 保存；`DELETE` 删除覆盖值，恢复配置文件。
+- 测试连接复用 `GET /api/diagnostics/model`，增加可选 `provider`、`model` 参数并沿用 `thinking`。报告仅返回模型名与各项协议检查；失败保持 502 完整报告，不返回地址与密钥，底层连接异常只返回分类。
 
 shortcut: 不校验模型名是否存在于服务商，没有统一列模型接口；保存后由管理员手动测试连接确认。
 

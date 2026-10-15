@@ -1,4 +1,4 @@
-// 模型协议探针：使用部署连接和指定模型，不把连接地址与密钥返回后台。
+// 模型协议探针：使用指定服务商的连接和模型，不把连接地址与密钥返回后台。
 package com.zhiying.infrastructure.llm
 
 import com.zhiying.application.diagnostics.CheckOutcome
@@ -18,27 +18,26 @@ import java.util.UUID
 import java.util.concurrent.atomic.AtomicInteger
 
 /**
- * 基于 Spring AI OpenAI 兼容协议的模型探针，当前接入 DeepSeek。
+ * 基于 Spring AI OpenAI 兼容协议的模型探针。
  *
  * 每项检查只验证一种协议能力，结果只看回复是否符合预期，不做任何业务判断。
  */
 @Component
 class SpringAiModelProbe(
-    chatClientBuilder: ChatClient.Builder,
+    private val providers: ProviderChatModels,
     private val properties: ZhiYingProperties,
 ) : ModelProbe {
 
-    private val chatClient = chatClientBuilder.build()
-
     /** 当前探测目标。 */
-    override fun target(model: String?) = ModelTarget(model ?: properties.llm.model)
+    override fun target(provider: String, model: String?) = ModelTarget(provider, model ?: properties.llm.model)
 
     /** 执行一项检查；任何调用异常都归类为执行失败，不向上抛出。 */
-    override fun run(check: ProbeCheck, thinking: ThinkingMode, model: String?): CheckOutcome = try {
+    override fun run(check: ProbeCheck, thinking: ThinkingMode, provider: String, model: String?): CheckOutcome = try {
+        val target = Target(providers.of(provider), thinking, model)
         when (check) {
-            ProbeCheck.CHAT -> chat(thinking, model)
-            ProbeCheck.TOOL_CALL -> toolCall(thinking, model)
-            ProbeCheck.STRUCTURED_OUTPUT -> structuredOutput(thinking, model)
+            ProbeCheck.CHAT -> chat(target)
+            ProbeCheck.TOOL_CALL -> toolCall(target)
+            ProbeCheck.STRUCTURED_OUTPUT -> structuredOutput(target)
         }
     } catch (e: Exception) {
         val failure = classifyFailure(e)
@@ -46,17 +45,17 @@ class SpringAiModelProbe(
     }
 
     /** 普通对话：要求模型原样复述一段随机校验码（与回复语言无关，避免被意译）。 */
-    private fun chat(thinking: ThinkingMode, model: String?): CheckOutcome {
+    private fun chat(target: Target): CheckOutcome {
         val code = newProbeCode()
-        val response = request(thinking, model).user("原样回复这段校验码，不要添加其他内容：$code").call().chatResponse()
+        val response = request(target).user("原样回复这段校验码，不要添加其他内容：$code").call().chatResponse()
         val reply = replyOf(response)
         return expect(code in reply, "回复：$reply", response)
     }
 
     /** 工具调用：模型必须调用校验码工具，并在最终回复中带回工具返回的校验码。 */
-    private fun toolCall(thinking: ThinkingMode, model: String?): CheckOutcome {
+    private fun toolCall(target: Target): CheckOutcome {
         val tool = ProbeCodeTool(newProbeCode())
-        val response = request(thinking, model)
+        val response = request(target)
             .user("先调用 probe_code 工具取得校验码，然后只回复这个校验码。")
             .tools(tool)
             .call()
@@ -66,21 +65,24 @@ class SpringAiModelProbe(
     }
 
     /** 结构化输出：回复必须能解析为指定结构，且计算结果正确。 */
-    private fun structuredOutput(thinking: ThinkingMode, model: String?): CheckOutcome {
-        val result = request(thinking, model)
+    private fun structuredOutput(target: Target): CheckOutcome {
+        val result = request(target)
             .user("计算 17 加 25，给出结果数字与它的中文读法。")
             .call()
             .responseEntity(ArithmeticAnswer::class.java)
         return expect(result.entity?.sum == 42, "解析结果：${result.entity}", result.response)
     }
 
-    /** 按思考模式构造请求；DeepSeek 通过请求体的 thinking 字段开关思考模式。 */
-    private fun request(thinking: ThinkingMode, model: String?): ChatClient.ChatClientRequestSpec {
-        val options = OpenAiChatOptions.builder().model(model ?: properties.llm.model)
-        if (thinking != ThinkingMode.DEFAULT) {
-            options.extraBody(mapOf("thinking" to mapOf("type" to if (thinking == ThinkingMode.ENABLED) "enabled" else "disabled")))
+    /** 一次探测的服务商、思考模式与模型。 */
+    private class Target(val provider: ProviderModel, val thinking: ThinkingMode, val model: String?)
+
+    /** 按思考模式构造请求；思考参数按服务商写法放进请求体。 */
+    private fun request(target: Target): ChatClient.ChatClientRequestSpec {
+        val options = OpenAiChatOptions.builder().model(target.model ?: properties.llm.model)
+        if (target.thinking != ThinkingMode.DEFAULT) {
+            options.extraBody(providers.thinkingBody(target.provider.thinkingStyle, target.thinking == ThinkingMode.ENABLED))
         }
-        return chatClient.prompt().options(options)
+        return ChatClient.create(target.provider.chatModel).prompt().options(options)
     }
 
     /** 生成一次探测用的随机校验码。 */

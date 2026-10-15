@@ -1,10 +1,9 @@
 /**
- * 评测页（/eval，DESIGN §7、PRD §8）：顶栏选评测集与运行记录、发起评测；下方左栏选总览或某一章，右栏看详情。
+ * 评测页（后台评测页签，DESIGN §7、PRD §8）：顶栏选评测集与运行记录、发起评测；下方左栏选总览或某一章，右栏看详情。
  * 页面只负责编排：发起准备 → 订阅分析进度 → 完成后评分 → 刷新运行列表；报告展示在 ReportView。
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
-import { apiUrl, getAnalysisTask, getRelationTypes, subscribeAnalysisProgress, type ProgressEvent } from '../api'
-import { AccountButton } from '../components/AccountDialog'
+import { getAnalysisTask, getRelationTypes, subscribeAnalysisProgress, type ProgressEvent } from '../api'
 import { getRun, listRuns, listSuites, prepareSuite, scoreSuite, type EvalRun, type EvalRunSummary, type EvalSuite } from './evalApi'
 import { ReportView, type Pane } from './ReportView'
 import { formatDuration, formatTime, formatTokens } from './format'
@@ -206,10 +205,6 @@ export default function EvalPage() {
               </button>
             </>
           )}
-          <AccountButton />
-          <a className="btn ghost" href={apiUrl('/')}>
-            ← 返回图谱
-          </a>
         </div>
       </header>
 
