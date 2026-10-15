@@ -10,7 +10,6 @@ import com.zhiying.application.analyze.relations.RecheckStats
 import com.zhiying.application.analyze.relations.RelationRecheckStep
 import com.zhiying.application.analyze.relations.SoftFallbackStep
 import com.zhiying.application.analyze.relations.TypeNormalizationStep
-import com.zhiying.domain.affiliations.Affiliations
 import com.zhiying.domain.extraction.ChapterExtraction
 import com.zhiying.domain.identity.AlignedIdentities
 import com.zhiying.domain.identity.Person
@@ -33,7 +32,7 @@ import com.zhiying.domain.revision.RevisionId
  *
  * [extractions] 各章抽取，须按阅读顺序排列；[roster] 已有人名册（重跑时为上一版人物，保持 ID 稳定）；
  * [retained] 上一版保留的历史软关系，调用方先按"来源章节仍然有效"筛选；
- * [types] 起始类型库（默认仅含内置类型）；[affiliations] 团体结果，后续批次补上前为空；
+ * [types] 起始类型库（默认仅含内置类型）；团体由后续归纳阶段补入；
  * [chapterOrder] 章节阅读序号（从 1 起），身份判断据此看出章节先后，并写入结果版本供出图排序，缺省时出图按章节 ID 排序；
  * [rerunChapter] 单章重跑时被重跑的章，全书简介只重写在该章出场的重要人物；整书分析为 null。
  */
@@ -44,7 +43,6 @@ data class PostProcessInput(
     val roster: List<Person> = emptyList(),
     val retained: List<RelationOccurrence> = emptyList(),
     val types: RelationTypeLibrary = BuiltInRelationTypes.library(),
-    val affiliations: Affiliations = Affiliations(emptyList(), emptyList()),
     val chapterOrder: Map<ChapterId, Int> = emptyMap(),
     val rerunChapter: ChapterId? = null,
 )
@@ -77,7 +75,7 @@ data class PostProcessResult(val revision: AnalysisRevision, val report: PostPro
  * 5. 软兜底：按 §3.5 的表规划并分流，路人对规则贴「相识」，重要对交给 SoftFallbackFinder 查漏
  *    （疑似强关系再补查一轮），软标签由领域校验；
  * 6. 全书简介：为重要人物改写成概括多章经历的简介（失败时保留原简介）；
- * 7. 组装 AnalysisRevision（团体部分用传入值）。
+ * 7. 组装 AnalysisRevision（团体由后续阶段归纳）。
  */
 class AnalysisPostProcessor(
     private val identityStep: IdentityAlignmentStep,
@@ -96,8 +94,9 @@ class AnalysisPostProcessor(
         val persons = identities.persons.associateBy { it.id }
         val rechecked = recheckStep.run(built, library, persons)
         val interactions = resolveInteractions(input.extractions, identities)
-        // 历史软关系参与兜底判定：已有成立记录的人物对不再新增软关系
-        val retained = input.retained
+        val analyzedChapters = input.extractions.mapTo(linkedSetOf()) { it.chapterId }
+        // 历史软关系先按本轮身份重定位再参与兜底判定：已有成立记录的人物对不再新增软关系
+        val retained = RevisionAssembly.carry(input.retained, identities, library, analyzedChapters)
         val fallback = fallbackStep.run(library, rechecked.occurrences + retained, interactions, persons, identities.appearances)
 
         val occurrences = rechecked.occurrences + fallback.added
@@ -106,12 +105,11 @@ class AnalysisPostProcessor(
         val revision = RevisionAssembly.assemble(
             id = input.revisionId,
             bookId = input.bookId,
-            analyzedChapters = input.extractions.mapTo(linkedSetOf()) { it.chapterId },
+            analyzedChapters = analyzedChapters,
             identities = identities.copy(persons = profiles.persons),
             types = library,
             occurrences = occurrences,
             retained = retained,
-            affiliations = input.affiliations,
             chapterOrder = input.chapterOrder,
         )
         val report = PostProcessReport(identities.unbound.size, identities.rejections, unbuilt, rechecked.stats, fallback.stats, profiles.stats)

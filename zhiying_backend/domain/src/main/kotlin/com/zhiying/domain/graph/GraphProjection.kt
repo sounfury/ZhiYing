@@ -27,7 +27,8 @@ object GraphProjection {
      */
     fun project(revision: AnalysisRevision, query: GraphQuery, scoring: DisplayScoring = DisplayScoring()): GraphView {
         query.focus?.let { require(it in revision.personsById) { "聚焦人物不在本结果版本内: ${it.value}" } }
-        val scope = scopeOf(revision)
+        val numbers = revision.chapterNumbers()
+        val scope = AnalysisScope(numbers.keys.toList(), numbers)
         val cutoff = query.chapterFocus?.number ?: Int.MAX_VALUE
         // 0. 章节聚焦：先按截止章裁剪出现记录与人物出场章（章节序号 <= N）
         val occurrences = revision.occurrences.filter { scope.numberOf(it.chapterId) <= cutoff }
@@ -61,14 +62,6 @@ object GraphProjection {
             withheld = withheldOf(revision),
             chapterFocus = query.chapterFocus,
         )
-    }
-
-    /** 分析范围：按阅读序号排列章节；版本未提供序号时按章节 ID 排序后编号。 */
-    private fun scopeOf(revision: AnalysisRevision): AnalysisScope {
-        val sorted = revision.analyzedChapters
-            .sortedWith(compareBy({ revision.chapterOrder[it] ?: Int.MAX_VALUE }, { it.value }))
-        val numbers = sorted.withIndex().associate { (index, id) -> id to (revision.chapterOrder[id] ?: (index + 1)) }
-        return AnalysisScope(sorted, numbers)
     }
 
     /** 把一条关系事实转成带展示分的标签；章节按阅读顺序排列。 */

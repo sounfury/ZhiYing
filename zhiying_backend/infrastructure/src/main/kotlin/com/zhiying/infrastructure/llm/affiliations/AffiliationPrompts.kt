@@ -1,4 +1,4 @@
-// 团体归纳的提示词与输入渲染：规则照搬旧后端 faction 提示词，并按新设计区分团体事实与布局推断。
+// 团体归纳的提示词与输入渲染：区分团体事实与布局推断。
 package com.zhiying.infrastructure.llm.affiliations
 
 import com.zhiying.application.analyze.affiliations.AffiliationRequest

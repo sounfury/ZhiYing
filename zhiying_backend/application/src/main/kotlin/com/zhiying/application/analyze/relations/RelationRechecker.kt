@@ -108,6 +108,9 @@ class RelationRecheckStep(
     private val budget: RecheckBudget = RecheckBudget(),
     private val control: ModelCallControl = ModelCallControl(),
 ) {
+    /** 同一任务的普通补查与兜底升级共用，调用按后处理顺序串行执行。 */
+    private var remainingRequests = budget.maxRequests
+
     /** 对 [occurrences] 做有限补查；[persons] 用于为请求附带人物资料。 */
     fun run(
         occurrences: List<RelationOccurrence>,
@@ -119,12 +122,13 @@ class RelationRecheckStep(
             boundedBatches(records, budget.limits) { it.evidence.sumOf { e -> e.note.length } + it.assessment.basis.length }
                 .map { reason to it }
         }
-        val sent = requests.take(budget.maxRequests)
+        val sent = requests.take(remainingRequests)
         val current = occurrences.associateByTo(linkedMapOf()) { it.id }
         val counts = IntArray(4) // 成立、否定、仍未决、未完成
         for ((reason, records) in sent) {
             val action = RecheckRules.actionFor(reason)
             val items = records.map { toItem(it, action, library, persons) }
+            remainingRequests--
             val results = rechecker.recheck(RecheckRequest(reason, action, items, control)).associateBy { it.occurrence }
             for (record in records) {
                 val result = results[record.id]
@@ -134,7 +138,7 @@ class RelationRecheckStep(
                 counts[outcomeIndex(updated)]++
             }
         }
-        val skipped = requests.drop(budget.maxRequests).sumOf { it.second.size }
+        val skipped = requests.drop(sent.size).sumOf { it.second.size }
         val stats = RecheckStats(groups.values.sumOf { it.size }, counts[0], counts[1], counts[2], counts[3], skipped)
         return RecheckOutcome(current.values.toList(), stats)
     }

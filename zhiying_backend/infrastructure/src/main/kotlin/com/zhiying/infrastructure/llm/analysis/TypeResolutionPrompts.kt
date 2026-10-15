@@ -1,6 +1,5 @@
 // 关系类型归一提示词：系统提示（语义等价与方向对应规则）与用户提示（候选类型、各类型问题及原文描述样例）。
-// 移植自旧 relation_normalizer 的纪律（仅在定义、角色、方向、程度等价时归入已有类型；不泛化；无等价项且定义清楚时新建），
-// 并按新设计补上"方向对应相对于建议类型的角色顺序"。
+// 纪律：仅在定义、角色、方向、程度等价时归入已有类型；不泛化；无等价项且定义清楚时新建；方向对应相对于建议类型的角色顺序。
 package com.zhiying.infrastructure.llm.analysis
 
 import com.zhiying.domain.relations.RelationType

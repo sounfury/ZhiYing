@@ -83,6 +83,12 @@ class AnalysisRevision(
         )
     }
 
+    /** 覆盖章节按阅读顺序编号；缺少序号时按章节 ID 排序补号。 */
+    fun chapterNumbers(): Map<ChapterId, Int> {
+        val sorted = analyzedChapters.sortedWith(compareBy({ chapterOrder[it] ?: Int.MAX_VALUE }, { it.value }))
+        return sorted.withIndex().associate { (index, id) -> id to (chapterOrder[id] ?: (index + 1)) }
+    }
+
     /** 全部已准入记录汇总成的关系事实，同一对人物的多种类型各自独立。 */
     fun facts(): List<RelationFact> = RelationFact.aggregate(occurrences)
 

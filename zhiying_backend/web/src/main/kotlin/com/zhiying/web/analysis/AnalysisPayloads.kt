@@ -1,5 +1,4 @@
-// 分析任务的响应载荷：任务快照、SSE 进度 / 完成事件、章抽取结果。字段名沿用旧后端（snake_case，chapter_id 为阅读序号），
-// 与新设计冲突处以新设计为准（新增 revision_id、units_*、reused，没有旧的 reconcile_*）。
+// 分析任务的响应载荷：任务快照、SSE 进度 / 完成事件、章抽取结果。字段名用 snake_case，chapter_id 为阅读序号。
 package com.zhiying.web.analysis
 
 import com.zhiying.application.analyze.run.AnalysisEvent
@@ -17,7 +16,7 @@ import com.zhiying.domain.relations.TypeReference
 
 /** 载荷构造；返回有序 Map，由 Jackson 序列化成 JSON。 */
 internal object AnalysisPayloads {
-    /** 章状态字符串：有警告的完成章为 partial（与旧后端一致），沿用的抽取视为 done。 */
+    /** 章状态字符串：有警告的完成章为 partial，沿用的抽取视为 done。 */
     fun chapterStatus(c: ChapterRun): String =
         when (c.status) {
             ChapterRunStatus.PENDING -> "pending"

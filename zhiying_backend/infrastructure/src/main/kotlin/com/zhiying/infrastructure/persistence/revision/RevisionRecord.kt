@@ -19,6 +19,7 @@ import com.zhiying.domain.library.EvidenceRef
 import com.zhiying.domain.library.TextRevision
 import com.zhiying.domain.library.TextSpan
 import com.zhiying.domain.relations.AssessmentSource
+import com.zhiying.domain.relations.BuiltInRelationTypes
 import com.zhiying.domain.relations.CandidateId
 import com.zhiying.domain.relations.Direction
 import com.zhiying.domain.relations.Hardness
@@ -60,6 +61,7 @@ internal data class TypeRecord(
     val targetRole: String?,
     val synonyms: List<String>,
     val origin: String,
+    val reverseNames: List<String>? = null,
 )
 
 internal data class OccurrenceRecord(
@@ -117,7 +119,8 @@ internal fun AnalysisRevision.toRecord(): RevisionRecord = RevisionRecord(
 /** 存储记录 → 领域对象；格式版本不认识时报错，不猜测解释。 */
 internal fun RevisionRecord.toDomain(): AnalysisRevision {
     check(formatVersion == FORMAT_VERSION) { "不支持的结果版本存储格式: $formatVersion" }
-    val library = RelationTypeLibrary.of(types.map { it.toDomain() })
+    val storedNames = types.flatMap { listOf(it.name) + it.synonyms + it.reverseNames.orEmpty() }.toSet()
+    val library = RelationTypeLibrary.of(types.map { it.toDomain(storedNames) })
     return AnalysisRevision(
         id = RevisionId(id),
         methodVersion = methodVersion,
@@ -168,15 +171,21 @@ private fun RelationType.toRecord(): TypeRecord {
     val directed = direction as? Direction.Directed
     return TypeRecord(
         id.value, name, definition, hardness.name, directed?.sourceRole, directed?.targetRole,
-        synonyms.toList(), origin.name,
+        synonyms.toList(), origin.name, reverseNames.toList(),
     )
 }
 
-private fun TypeRecord.toDomain(): RelationType {
+private fun TypeRecord.toDomain(storedNames: Set<String>): RelationType {
     val direction = if (sourceRole != null && targetRole != null) Direction.Directed(sourceRole, targetRole) else Direction.Undirected
+    val typeOrigin = TypeOrigin.valueOf(origin)
+    // 旧记录漏存反向称呼；仅补内置定义，已被本书其他类型占用的名称不抢回。
+    val reverse = reverseNames?.toSet() ?: if (typeOrigin == TypeOrigin.BUILT_IN) {
+        BuiltInRelationTypes.all.firstOrNull { it.id.value == id && it.direction == direction }
+            ?.reverseNames.orEmpty().filterNot { it in storedNames }.toSet()
+    } else emptySet()
     return RelationType(
         RelationTypeId(id), name, definition, Hardness.valueOf(hardness), direction,
-        synonyms.toSet(), TypeOrigin.valueOf(origin),
+        synonyms.toSet(), typeOrigin, reverse,
     )
 }
 

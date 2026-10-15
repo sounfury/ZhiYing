@@ -18,20 +18,16 @@ import com.zhiying.domain.relations.Hardness
 /** 章节 ID 到阅读序号的转换函数。 */
 private typealias ChapterNumber = (ChapterId) -> Int
 
-/**
- * 一条证据。[quote] 为兼容前端而填入证据说明（后端不持有正文，无法还原原文片段）；
- * [spans] 为带原文区间的片段位置，需要原文时由调用方按区间读取。
- */
+/** 一条证据：[note] 为依据说明；[spans] 为原文区间，需要原文时由调用方按区间读取。 */
 data class EvidenceResponse(
     @JsonProperty("chapter_id") val chapterId: Int,
-    val quote: String,
     val note: String,
     val spans: List<SpanResponse>,
 ) {
     companion object {
         /** 由证据转换；[number] 把章节 ID 转为阅读序号。 */
         internal fun from(e: EvidenceRef, number: ChapterNumber) =
-            EvidenceResponse(number(e.chapterId), e.note, e.note, e.quotes.map { SpanResponse(it.start, it.end) })
+            EvidenceResponse(number(e.chapterId), e.note, e.quotes.map { SpanResponse(it.start, it.end) })
     }
 }
 
@@ -49,9 +45,7 @@ data class TagResponse(
     val directed: Boolean,
     @JsonProperty("subject_role") val subjectRole: String,
     @JsonProperty("object_role") val objectRole: String,
-    @JsonProperty("normalization_status") val normalizationStatus: String,
     @JsonProperty("relation_ids") val relationIds: List<String>,
-    @JsonProperty("raw_relations") val rawRelations: List<String>,
     @JsonProperty("chapter_ids") val chapterIds: List<Int>,
     val evidences: List<EvidenceResponse>,
     @JsonProperty("display_score") val displayScore: Double,
@@ -74,9 +68,7 @@ data class TagResponse(
                 directed = directed != null,
                 subjectRole = directed?.sourceRole ?: l.type.name,
                 objectRole = directed?.targetRole ?: l.type.name,
-                normalizationStatus = "resolved",
                 relationIds = l.occurrences.map { it.value },
-                rawRelations = l.evidence.map { it.note }.distinct(),
                 chapterIds = chapterIds,
                 evidences = l.evidence.map { EvidenceResponse.from(it, number) },
                 displayScore = l.score,

@@ -154,7 +154,7 @@ Feature: 可解释的图谱浏览与导出
     And 甲在两个势力里的关系都被高亮
     And 人物详情只显示一份
 
-  @EXPORT_01 @prd_beta_5
+  @EXPORT_01 @prd_5_7_5
   Scenario: 导出当前画布 PNG
     Given 用户正在查看一个已应用过滤和渲染样式的图谱
     When 用户导出 PNG

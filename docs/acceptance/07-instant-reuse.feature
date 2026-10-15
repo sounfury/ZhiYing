@@ -1,5 +1,5 @@
 # language: en
-@confirmed @prd_beta_4_4
+@confirmed @prd_5_14
 Feature: 秒传：同一文件已完整分析过就直接用已有结果
   大家上传的多半是同几本名著；同一文件命中一次就省下整本书的分析成本，各人的操作互不影响。
 

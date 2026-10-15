@@ -13,7 +13,7 @@ import java.util.zip.ZipInputStream
 /**
  * spine 中的一份文档。
  *
- * 入参：[href] 相对 OPF 所在目录的路径（与旧后端的 source_href 同义）；[content] 文件字节；[tocTitle] 目录里给它的标题，可为空。
+ * 入参：[href] 相对 OPF 所在目录的路径；[content] 文件字节；[tocTitle] 目录里给它的标题，可为空。
  */
 internal class SpineDocument(val href: String, val content: ByteArray, val tocTitle: String?)
 
@@ -26,7 +26,7 @@ internal object EpubArchive {
     /** 只读取解析需要的文本类条目，跳过图片、字体等大文件。 */
     private val TEXT_EXTENSIONS = setOf("xhtml", "html", "htm", "xml", "opf", "ncx")
 
-    /** 可作为章节来源的文档类型（对应旧实现的 ITEM_DOCUMENT）。 */
+    /** 可作为章节来源的文档类型。 */
     private val DOCUMENT_TYPES = setOf("application/xhtml+xml", "text/html")
 
     /** manifest 条目：[props] 为空格分隔的 properties 属性。 */

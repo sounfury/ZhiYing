@@ -1,4 +1,4 @@
-// 团体接口：GET /factions 返回当前已发布结果中的团体事实与成员（旧后端称势力）；布局推断的分区在图接口里，不在这里。
+// 团体接口：GET /factions 返回当前已发布结果中的团体事实与成员；布局推断的分区在图接口里，不在这里。
 package com.zhiying.web.factions
 
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -37,7 +37,6 @@ data class FactionMemberResponse(
 data class FactionDetailResponse(
     @JsonProperty("faction_id") val factionId: String,
     val name: String,
-    @JsonProperty("canonical_name") val canonicalName: String,
     val note: String,
     val inferred: Boolean,
     val members: List<FactionMemberResponse>,
@@ -45,7 +44,7 @@ data class FactionDetailResponse(
     companion object {
         /** 由团体条目转换；章节 ID 转成阅读序号。 */
         internal fun from(g: GroupEntry, number: (ChapterId) -> Int) = FactionDetailResponse(
-            g.group.id.value, g.group.name, g.group.name, g.group.nameSource.note, false,
+            g.group.id.value, g.group.name, g.group.nameSource.note, false,
             g.members.map {
                 FactionMemberResponse(
                     it.person.id.value, it.person.displayName, it.role.orEmpty(),

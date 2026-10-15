@@ -1,6 +1,6 @@
 // 软关系兜底提示词：先查漏再贴标。系统提示（重要对先判断是否漏了硬 / 中关系，否则才在交流依据里找粗粒度软标签）与用户提示（每个人物对的触发情形、被否定记录、交流观察、可选类型）。
 // 规则来自 DESIGN §3.5 与 PRD 软关系兜底：标签须与依据相符，不能从一次交流推成朋友，不能把告别之类的情节命名为关系，
-// 强候选被否定时不得把被否定标签机械降级成软标签。旧后端没有对应调用点，提示措辞为新写。
+// 强候选被否定时不得把被否定标签机械降级成软标签。
 package com.zhiying.infrastructure.llm.analysis
 
 import com.zhiying.application.analyze.relations.FallbackItem

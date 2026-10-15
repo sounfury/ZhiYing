@@ -13,7 +13,6 @@ export type BookMeta = {
   author: string
   total_chapters: number
   status: string
-  factions_stale?: boolean
   analysis_progress?: {
     chapters_done: number[]
     chapters_failed?: number[]
@@ -40,9 +39,8 @@ export type TokenUsage = {
 
 export type GraphEvidence = {
   chapter_id: number
-  quote: string
-  /** 一句话说明（PRD §5.6）；旧数据缺省 */
-  note?: string
+  /** 一句话说明（PRD §5.6） */
+  note: string
 }
 
 /** 关系硬度：硬 / 中 / 软（PRD §5.5） */
@@ -60,9 +58,7 @@ export type RelationDescriptor = {
 export type GraphTag = RelationDescriptor & {
   key: string
   predicate: string | null
-  normalization_status: 'pending' | 'resolved'
   relation_ids: string[]
-  raw_relations: string[]
   chapter_ids: number[]
   evidences: GraphEvidence[]
   display_score: number
@@ -469,15 +465,10 @@ export function subscribeAnalysisProgress(
 
 // ── Cast / 人名册 ──
 
-export type CastAlias = {
-  name: string
-  frequency: string
-}
-
 export type CastPerson = {
   person_id: string
-  canonical_name: string
-  aliases: CastAlias[]
+  name: string
+  aliases: string[]
   bio: string
   gender: string
   importance: string
@@ -491,7 +482,7 @@ export type Cast = {
 type CastResponse = {
   persons: {
     person_id: string
-    canonical_name: string
+    name: string
     aliases: string[]
     bio: string | null
     gender: string
@@ -504,8 +495,8 @@ export async function getCast(bookId: string): Promise<Cast> {
   return {
     persons: (data.persons ?? []).map((p) => ({
       person_id: p.person_id,
-      canonical_name: p.canonical_name,
-      aliases: p.aliases.map((name) => ({ name, frequency: '' })),
+      name: p.name,
+      aliases: p.aliases,
       bio: p.bio ?? '',
       gender: p.gender,
       importance: p.importance ?? '',
@@ -519,15 +510,12 @@ export type LedgerEvidence = {
   chapter_id: number
   quote: string
   note: string
-  quote_verified: boolean | null
 }
 
 export type LedgerRelation = RelationDescriptor & {
   relation_id: string
   raw_relation: string
   predicate: string | null
-  normalization_status: 'pending' | 'resolved'
-  normalization_reason: string
   status: 'pending' | 'confirmed' | 'rejected'
   verification_reason: string
   person_a: string
@@ -616,8 +604,6 @@ export async function getChapterLedger(bookId: string, chapterId: number): Promi
         relation_id: r.id,
         raw_relation: r.description,
         predicate: r.type.type_id ?? null,
-        normalization_status: known ? 'resolved' : 'pending',
-        normalization_reason: proposed ? `新类型建议：${proposed.name}` : '',
         status: r.verdict === 'supported' ? 'confirmed' : r.verdict === 'refuted' ? 'rejected' : 'pending',
         verification_reason: r.assessment_basis,
         person_a: pid(r.source),
@@ -632,7 +618,6 @@ export async function getChapterLedger(bookId: string, chapterId: number): Promi
           chapter_id: x.chapter_id,
           quote: ev?.quotes.map((q) => q.text).join('……') ?? '',
           note: ev?.note ?? '',
-          quote_verified: ev && ev.quotes.length ? true : null,
         },
       }
     }),

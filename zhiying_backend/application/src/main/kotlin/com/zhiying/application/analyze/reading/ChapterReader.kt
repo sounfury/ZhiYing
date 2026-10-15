@@ -18,14 +18,13 @@ import com.zhiying.domain.relations.RelationTypeLibrary
  *
  * 入参：[chapter] 待读章节；[unit] 本次只负责抽取的单元（长章的一段），null 表示整章；
  * 搜索、取证与引文校验始终覆盖整章 [chapter]；[roster] 当前人名册快照（只读，可为空）；[library] 可引用的关系类型库；
- * [priorSummary] 可选的前文摘要（长篇记忆，一期不注入）；[control] 任务级预算与取消信号。
+ * [control] 任务级预算与取消信号。
  */
 data class ChapterReadRequest(
     val chapter: Chapter,
     val unit: ReadingUnit? = null,
     val roster: List<Person> = emptyList(),
     val library: RelationTypeLibrary,
-    val priorSummary: String? = null,
     val control: ModelCallControl = ModelCallControl(),
 )
 

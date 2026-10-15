@@ -1,7 +1,7 @@
 /**
  * 人物关系图（图谱区主体）：把后端图数据裁成当前视图（中心视图 / 势力筛选），编排成场景交给 G6 渲染，
  * 并叠加图例、中心视图路径条、悬停浮卡。选人、悬停、切主题都不重建图；只有数据 / 视图范围 / 中心人物 / 布局变了才重建。
- * 通过 ref 对外提供 PNG 导出（PRD-beta §5）：按当前场景与人物的当前位置重画整张图。
+ * 通过 ref 对外提供 PNG 导出（PRD §5.7.5）：按当前场景与人物的当前位置重画整张图。
  */
 import { useCallback, useImperativeHandle, useMemo, useRef, useState } from 'react'
 import { FeedbackButton } from '../../feedback/FeedbackButton'
@@ -84,7 +84,8 @@ export function GraphView({
   const selectedEdgeId = useMemo(() => {
     if (!selectedEdge || !scene) return null
     const hit = scene.edges.find(
-      (e) => e.source === selectedEdge.person_a && e.target === selectedEdge.person_b,
+      // 场景端点可能是势力分身 ID，按原始关系的人物匹配
+      (e) => e.edge.person_a === selectedEdge.person_a && e.edge.person_b === selectedEdge.person_b,
     )
     return hit?.id ?? null
   }, [selectedEdge, scene])

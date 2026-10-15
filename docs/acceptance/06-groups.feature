@@ -1,7 +1,6 @@
 # language: en
 @confirmed @first_delivery @prd_3_1 @prd_4_4 @prd_5_7_5
 Feature: 团体归属与关系正交
-  团体分区已纳入 Kotlin 重构首批交付。
   团体判断结果由可控测试输入提供，布局可读性的量化目标仍待专项制定。
 
   @GROUP_01

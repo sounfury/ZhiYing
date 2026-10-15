@@ -1,4 +1,4 @@
-// 人物接口：GET /cast 人名册（可按出场数排序）、GET /cast/{personId} 人物详情；字段名沿用旧后端的 snake_case 约定。
+// 人物接口：GET /cast 人名册（可按出场数排序）、GET /cast/{personId} 人物详情；字段名用 snake_case。
 package com.zhiying.web.cast
 
 import com.fasterxml.jackson.annotation.JsonProperty
@@ -51,10 +51,9 @@ class CastController(private val getCast: GetCast, private val getPersonDetail: 
 /** 人物所属团体的简要引用。 */
 data class FactionRefResponse(@JsonProperty("faction_id") val factionId: String, val name: String)
 
-/** 人名册中的一个人物。[canonicalName] 与 [name] 同值，前者兼容旧前端。 */
+/** 人名册中的一个人物。 */
 data class CastPersonResponse(
     @JsonProperty("person_id") val personId: String,
-    @JsonProperty("canonical_name") val canonicalName: String,
     val name: String,
     val aliases: List<String>,
     val bio: String,
@@ -67,7 +66,7 @@ data class CastPersonResponse(
         /** 由名册条目转换。 */
         internal fun from(e: CastEntry): CastPersonResponse = e.person.let { p ->
             CastPersonResponse(
-                p.id.value, p.displayName, p.displayName, p.aliases, p.profile.orEmpty(), p.gender.name.lowercase(),
+                p.id.value, p.displayName, p.aliases, p.profile.orEmpty(), p.gender.name.lowercase(),
                 importanceOf(p.importance), e.appearanceCount, e.groups.map { FactionRefResponse(it.id.value, it.name) },
             )
         }

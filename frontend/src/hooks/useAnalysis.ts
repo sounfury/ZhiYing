@@ -224,8 +224,11 @@ export function useAnalysis({ chapterLabel, onAnalysisDone, onBanner }: UseAnaly
       else if (d.stopped || d.status === 'cancelled') pushLog('info', `已停止，上一版结果保持不变${usage}`)
       else pushLog('fail', `${d.message || '分析未完成'}${usage}`)
 
-      settleWaiter(d.status === 'analyzed')
-      await onDoneRef.current()
+      try {
+        await onDoneRef.current()
+      } finally {
+        settleWaiter(d.status === 'analyzed')
+      }
     },
     [pushLog, settleWaiter],
   )

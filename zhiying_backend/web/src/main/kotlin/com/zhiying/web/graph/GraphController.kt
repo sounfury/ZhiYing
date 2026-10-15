@@ -56,7 +56,7 @@ class GraphController(private val getGraph: GetGraph, private val exportGraph: E
         val disposition = ContentDisposition.attachment().filename("zhiying-$safeId.json").build()
         return ResponseEntity.ok()
             .header(HttpHeaders.CONTENT_DISPOSITION, disposition.toString())
-            .body(ExportResponse("zhiying-graph", 1, export.exportedAt.toString(), GraphResponse.from(export.graph)))
+            .body(ExportResponse("zhiying-graph", 2, export.exportedAt.toString(), GraphResponse.from(export.graph)))
     }
 
     /** 把查询参数解析为应用层请求；硬度取值不认识时返回 INVALID_ARGUMENT。 */

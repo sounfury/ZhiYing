@@ -3,7 +3,7 @@ package com.zhiying.domain.library
 /**
  * 书中的一章：阅读顺序、标题与某一修订版本的正文。
  *
- * 正文坐标统一使用 UTF-16 代码单元（即 Kotlin `String` 下标），与旧 Python 按码点计的位置不通用。
+ * 正文坐标统一使用 UTF-16 代码单元（即 Kotlin `String` 下标），不是 Unicode 码点。
  */
 class Chapter(
     val id: ChapterId,

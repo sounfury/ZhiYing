@@ -78,22 +78,18 @@ function roleOfOther(tag: GraphTag, otherId: string): string {
 
 function Evidences({ tag, chapterLabel }: { tag: GraphTag; chapterLabel: (id: number) => string }) {
   if (!tag.evidences.length) {
-    return <div className="ev-note">{tag.raw_relations[0] || '暂无可展示的依据'}</div>
+    return <div className="ev-note">暂无可展示的依据</div>
   }
   return (
     <>
-      {tag.evidences.map((ev, i) => {
-        const note = ev.note && ev.note !== ev.quote ? ev.note : ''
-        return (
-          <div key={i} className="ev-item">
-            {ev.quote && <p className="ev-quote">「{ev.quote}」</p>}
-            <div className="ev-note">
-              {chapterLabel(ev.chapter_id)}
-              {note && ` · ${note}`}
-            </div>
+      {tag.evidences.map((ev, i) => (
+        <div key={i} className="ev-item">
+          <div className="ev-note">
+            {chapterLabel(ev.chapter_id)}
+            {ev.note && ` · ${ev.note}`}
           </div>
-        )
-      })}
+        </div>
+      ))}
     </>
   )
 }

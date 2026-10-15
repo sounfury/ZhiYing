@@ -33,7 +33,7 @@ class SpringAiChapterReader(
     /**
      * 读取一章。
      *
-     * 入参：[request] 章节、人名册、类型库、可选前文摘要与任务级控制。
+     * 入参：[request] 章节、人名册、类型库与任务级控制。
      * 出参：[ChapterReadResult.Completed]（含警告）或 [ChapterReadResult.Failed]；不抛出模型调用异常。
      */
     override fun read(request: ChapterReadRequest): ChapterReadResult {
@@ -47,7 +47,7 @@ class SpringAiChapterReader(
             ToolLoopRequest(
                 system = ChapterReadingPrompts.system(config.readWindowChars),
                 user = ChapterReadingPrompts.user(
-                    chapter, unit, request.roster, request.library, request.priorSummary,
+                    chapter, unit, request.roster, request.library,
                     config.injectMaxChars, config.readWindowChars, config.segmentHintChars,
                 ),
                 tools = ChapterTools.of(session),
@@ -98,10 +98,10 @@ class SpringAiChapterReader(
         val needsFinalize = when (val end = outcome.end) {
             is LoopEnd.Failed -> return ChapterReadResult.Failed(end.failure, end.message, outcome.stats)
             LoopEnd.Finished -> false
-            LoopEnd.ModelStopped -> true
-            LoopEnd.StepsExhausted -> {
+            LoopEnd.ModelStopped, LoopEnd.StepsExhausted -> {
                 if (!session.hasWork()) {
-                    return ChapterReadResult.Failed(ModelFailure.STEPS_EXHAUSTED, "用尽 ${outcome.steps} 步仍未登记任何内容", outcome.stats)
+                    val failure = if (end == LoopEnd.StepsExhausted) ModelFailure.STEPS_EXHAUSTED else ModelFailure.UNEXPECTED_REPLY
+                    return ChapterReadResult.Failed(failure, "读章结束但未提交结果，也未登记任何内容（${outcome.steps} 步）", outcome.stats)
                 }
                 true
             }

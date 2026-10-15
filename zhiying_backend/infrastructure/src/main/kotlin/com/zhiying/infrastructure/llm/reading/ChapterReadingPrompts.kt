@@ -1,5 +1,5 @@
 // 章阅读提示词：系统提示（规则与工具纪律）和用户提示（章节信息、人名册、类型库、正文或分窗指令）。
-// 从旧 prompts/chapter.py 移植并按新设计改写：名称不等于身份、关系优先引用类型库、单独输出交流观察、基础证据引文可选。
+// 要点：名称不等于身份、关系优先引用类型库、单独输出交流观察、基础证据引文可选。
 package com.zhiying.infrastructure.llm.reading
 
 import com.zhiying.domain.identity.Person
@@ -14,7 +14,7 @@ import com.zhiying.domain.relations.RelationTypeLibrary
 internal object ChapterReadingPrompts {
 
     /** 提示词版本，写入抽取记录。 */
-    const val VERSION = "chapter-reading/2026-10-v4"
+    const val VERSION = "chapter-reading/2026-10-v5"
 
     /** 提示内最多列出的人名册人物数；更大的名册让模型用 query_roster 检索。 */
     private const val ROSTER_PROMPT_LIMIT = 100
@@ -55,7 +55,7 @@ internal object ChapterReadingPrompts {
 - 不要把舅甥、叔侄归成堂表亲；不要把单恋归成互相恋爱；不要把养父子归成生父子。尊称不必然证明血缘，先确定说话者、指代和实际身份。
 - 师徒仅限明确拜师、收徒或明确师承；拒绝拜师、偶尔请教不成立。
 - 否定、传闻、假设、玩笑不能直接当成确定事实。
-- 朋友、相识等软关系只在正文明确说出或确有稳定依据时才提交；两人已有硬或中关系的，不要再为同一对人物提交软关系。
+- 朋友、相识等软关系只在正文明确说出或确有稳定依据时才提交；两人已有明确成立的硬或中关系的，不要再为同一对人物提交软关系。
 - 同场出现、同框、一次告别、敬仰表达本身不是关系，不要命名为朋友或任何关系类型。
 - 文本显示长期稳定的关系（如深厚的友谊、长期教导、稳定相伴、长期的保护或追随）时，必须提交关系候选（用类型库里合适的硬 / 中类型，如挚友、师生、同行），不能只记成交流观察；
   交流观察只是兜底线索，强关系被降成交流观察会丢失。
@@ -68,18 +68,18 @@ internal object ChapterReadingPrompts {
 
 ## 交流观察（submit_interactions）
 - 记录两个人物之间的实际交流（对话、书信、共同行动等），只保留足够支撑后续判断的片段，不做全量事件抽取。同在一章出现不算交流。
-- 只描述发生了什么，不要把交流命名为朋友、相识等关系。已经提交了硬或中关系的人物对，不必再提交交流观察。
+- 只描述发生了什么，不要把交流命名为朋友、相识等关系。关系候选尚未确定或已被否定时，仍须保留实际交流依据供后续判断。
 - 同样带 note，quote 可选。
 
 ## 语言
 名称、描述和摘要保留书中原文语言；assessment_basis、note 用中文。
 
 ## 结束
-submit_result(summary)：用 1~3 句话概括本章情节作为后续章节的工作记忆。长章尚有未读正文时会被退回，请先读完。
+submit_result(summary)：用 1~3 句话概括本章情节，供全书后处理使用。长章尚有未读正文时会被退回，请先读完。
 """.trimIndent()
 
     /**
-     * 用户提示：章节信息、前文摘要、人名册、类型库，以及本单元的全文或分窗指令。
+     * 用户提示：章节信息、人名册、类型库，以及本单元的全文或分窗指令。
      *
      * [unit] 为长章的一段时（非整章），只抽取本段，提示里写明区间与段首提示；[hintChars] 为段首附上一段末尾的字数。
      */
@@ -88,7 +88,6 @@ submit_result(summary)：用 1~3 句话概括本章情节作为后续章节的�
         unit: ReadingUnit?,
         roster: List<Person>,
         library: RelationTypeLibrary,
-        priorSummary: String?,
         injectMaxChars: Int,
         readWindowChars: Int,
         hintChars: Int,
@@ -100,7 +99,6 @@ submit_result(summary)：用 1~3 句话概括本章情节作为后续章节的�
             chars <= injectMaxChars -> shortTask(chapter)
             else -> longTask(chars, readWindowChars)
         }
-        val prior = priorSummary?.takeIf { it.isNotBlank() }?.let { "## 前文摘要\n$it\n\n" }.orEmpty()
         return """
 ## 章节信息
 - chapter_id: ${chapter.id.value}
@@ -108,7 +106,7 @@ submit_result(summary)：用 1~3 句话概括本章情节作为后续章节的�
 - order: ${chapter.order}
 - char_count: $chars
 
-$prior## 人名册快照（只读）
+## 人名册快照（只读）
 ${rosterText(roster)}
 
 ## 关系类型库（type_id 只能取自这里；新类型走 new_type）

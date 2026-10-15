@@ -1,7 +1,6 @@
 // 团体归纳步骤：全书级独立步骤，在人物与关系定稿之后运行；组装有界输入、调用归纳端口、把结果校验为领域团体并产出新版本。
 package com.zhiying.application.analyze.affiliations
 
-import com.zhiying.application.bookquery.chapterNumbers
 import com.zhiying.application.llm.ModelCallControl
 import com.zhiying.domain.affiliations.AffiliationGroup
 import com.zhiying.domain.affiliations.Affiliations

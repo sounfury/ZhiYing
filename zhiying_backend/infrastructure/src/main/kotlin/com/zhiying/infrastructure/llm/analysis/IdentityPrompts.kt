@@ -1,5 +1,5 @@
 // 身份歧义判断提示词：系统提示（判断纪律）与用户提示（候选人物资料、名称来源、各自提及的上下文指代）。
-// 移植自旧 reconcile 提示词的纪律（不无证据合并、称谓需消歧、没把握不硬改），按新设计改成"有界小批结构化判断"。
+// 判断纪律：不无证据合并、称谓需消歧、没把握不硬改；有界小批结构化判断。
 package com.zhiying.infrastructure.llm.analysis
 
 import com.zhiying.domain.identity.IdentityAmbiguity

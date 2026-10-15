@@ -85,7 +85,7 @@ export type AppStateValue = {
   onPickPerson: (hit: PersonHit) => void
   onExport: () => Promise<void>
   exporting: boolean
-  /** 导出当前视图的 PNG（PRD-beta §5）：render 由图谱组件提供（重画并下载），这里补书名与筛选说明、报告结果 */
+  /** 导出当前视图的 PNG（PRD §5.7.5）：render 由图谱组件提供（重画并下载），这里补书名与筛选说明、报告结果 */
   onExportPng: (render: (opts: { bookTitle: string; notes: string[] }) => Promise<PngExportInfo>) => Promise<void>
   exportingPng: boolean
 

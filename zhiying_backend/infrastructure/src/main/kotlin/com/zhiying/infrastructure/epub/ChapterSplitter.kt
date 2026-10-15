@@ -20,7 +20,7 @@ internal class ChapterSplitter(private val maxTitleLineLength: Int) {
     private companion object {
         const val UNTITLED = "未命名"
 
-        /** 结尾补段落换行的块级标签（旧实现只处理 p/div/br，这里补上标题、列表等，避免文字粘连）。 */
+        /** 结尾补段落换行的块级标签（含标题、列表等，避免文字粘连）。 */
         val BLOCK_TAGS = setOf("p", "div", "h1", "h2", "h3", "h4", "h5", "h6", "li", "blockquote", "tr")
 
         /** 章节标记：行首的「第X章/回/节/卷」与「Chapter N」，按此顺序尝试，命中 2 处以上才切分。 */

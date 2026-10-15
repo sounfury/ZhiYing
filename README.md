@@ -7,23 +7,23 @@
 
 | 文档 | 说明 |
 |------|------|
-| [docs/PRD.md](./docs/PRD.md) | 产品：做什么、给谁、用户可见行为与范围（已实现能力） |
-| [docs/PRD-beta.md](./docs/PRD-beta.md) | 内测需求跟进：示例书、用量上限、秒传、PNG 导出、反馈、TXT 上传；已完成账号与隔离见 PRD §5.11–5.12 |
+| [docs/PRD.md](./docs/PRD.md) | 产品：做什么、给谁、用户可见行为与范围 |
 | [docs/PRD-commons.md](./docs/PRD-commons.md) | 备选：公益版需求思路（公共关系库、用户自带 API Key），未排期 |
 | [docs/DESIGN.md](./docs/DESIGN.md) | 设计：领域模型、分析流程、模型调用点、存储与重跑 |
 | [docs/ARCHITECTURE.md](./docs/ARCHITECTURE.md) | 架构：模块分层、依赖规则、技术选型、目录 |
-| [docs/acceptance/](./docs/acceptance/) | 验收场景（Gherkin） |
-| [docs/todo.md](./docs/todo.md) | 待办与 Kotlin 重构实施顺序 |
+| [docs/acceptance/](./docs/acceptance/) | 验收场景（Gherkin）与测试约定 |
+| [docs/ci-quality.md](./docs/ci-quality.md) | Woodpecker 代码质量门禁 |
+| [docs/todo.md](./docs/todo.md) | 待办 |
 
 ## 状态
 
 | 目录 | 内容 |
 |------|------|
-| `zhiying_backend/` | Kotlin 后端（Spring Boot，SQLite）：导入 EPUB → 整书分析 / 单章重跑 → 发布 → 出图与查询 |
+| `zhiying_backend/` | Kotlin 后端（Spring Boot，SQLite）：导入 EPUB / TXT → 整书分析 / 单章重跑 → 发布 → 出图与查询 |
 | `frontend/` | React + AntV G6 前端：书架、关系图、章节聚焦、人物 / 章节侧栏、分析进度 |
-| `eval/` | 评测集（《悉达多》标准标注）；管理员在前端 `/eval` 页发起评测，只使用自己的书，运行记录写到 `eval/runs/`（不入库） |
+| `eval/` | 评测集（《悉达多》标准标注）；管理员在后台评测页签发起评测，只使用自己的书，运行记录写到 `eval/runs/`（不入库） |
 
-全链路已用真实模型跑通；账号、邀请码、会话与按用户隔离已完成。访客只能浏览已发布示例，登录用户可上传自己的私有书；管理员提供邀请码与密码重置入口，评测和模型诊断仅管理员可用。用量上限、反馈、秒传和 TXT 上传尚待实现；验收场景尚未落为自动化测试。待办见 [docs/todo.md](./docs/todo.md)。
+全链路已用真实模型跑通。访客可浏览已发布示例书，登录用户上传自己的私有书（EPUB / TXT）；用量上限、秒传、反馈与管理员后台已完成；验收场景尚未落为自动化测试。待办见 [docs/todo.md](./docs/todo.md)。
 
 ## 本地跑起来
 

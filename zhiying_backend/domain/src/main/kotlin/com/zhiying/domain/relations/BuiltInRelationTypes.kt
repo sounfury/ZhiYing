@@ -1,5 +1,4 @@
 // 内置关系类型库：59 个高频类型，是半开放类型库的起点（罕见关系由各书登记为新类型）。
-// 来源：旧 relation_seeds.json 的 13 类 + 旧重构方案 §7 的亲属精确类型、宽泛兜底类型与硬中软分档。
 package com.zhiying.domain.relations
 
 /**

@@ -59,17 +59,14 @@ class AnalysisPostProcessorFactory(
      * 入参：[control] 该任务的预算与取消信号，传给所有模型调用。
      * 出参：可直接 [AnalysisPostProcessor.process] 的处理器；不跨任务复用。
      */
-    fun create(control: ModelCallControl): AnalysisPostProcessor = AnalysisPostProcessor(
-        identityStep = IdentityAlignmentStep(disambiguator, limits.identity, control, limits.appellationBridgeLimit),
-        typeStep = TypeNormalizationStep(typeResolver, typeCache, limits.typeResolution, control),
-        recheckStep = RelationRecheckStep(rechecker, contexts, limits.recheck, control),
-        fallbackStep = SoftFallbackStep(
-            fallbackFinder,
-            RelationRecheckStep(rechecker, contexts, limits.recheck, control),
-            limits.fallback,
-            control,
-            limits.coreMinAppearance,
-        ),
-        profileStep = ProfileStep(profileWriter, limits.profile, control, limits.coreMinAppearance),
-    )
+    fun create(control: ModelCallControl): AnalysisPostProcessor {
+        val recheckStep = RelationRecheckStep(rechecker, contexts, limits.recheck, control)
+        return AnalysisPostProcessor(
+            identityStep = IdentityAlignmentStep(disambiguator, limits.identity, control, limits.appellationBridgeLimit),
+            typeStep = TypeNormalizationStep(typeResolver, typeCache, limits.typeResolution, control),
+            recheckStep = recheckStep,
+            fallbackStep = SoftFallbackStep(fallbackFinder, recheckStep, limits.fallback, control, limits.coreMinAppearance),
+            profileStep = ProfileStep(profileWriter, limits.profile, control, limits.coreMinAppearance),
+        )
+    }
 }

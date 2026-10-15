@@ -151,7 +151,7 @@ class ReadingPhase(
     /** 池线程内读一个单元；读章端口本不抛异常，这里兜住意外以免丢失在途计数。 */
     private fun readUnit(step: Step.Read, snapshot: List<Person>, library: RelationTypeLibrary): ChapterReadResult =
         try {
-            reader.read(ChapterReadRequest(step.slot.item.chapter, step.unit, snapshot, library, null, run.control))
+            reader.read(ChapterReadRequest(step.slot.item.chapter, step.unit, snapshot, library, run.control))
         } catch (e: Exception) {
             ChapterReadResult.Failed(ModelFailure.PROVIDER_ERROR, "读章异常：${e.message ?: e.javaClass.simpleName}", ModelCallStats())
         }

@@ -18,7 +18,7 @@ class ZhiYingEpubParser(properties: ZhiYingProperties) : EpubParser {
 
     /**
      * 解析 EPUB：按 spine 顺序逐份切章，统计字数并判定是否参与分析。
-     * 短章保留在书中并标记「过短」（旧实现直接丢弃）；没有任何参与分析的章节时抛 UNREADABLE_BOOK。
+     * 短章保留在书中并标记「过短」；没有任何参与分析的章节时抛 UNREADABLE_BOOK。
      */
     override fun parse(content: ByteArray): ParsedBook {
         val contents = EpubArchive.read(content)

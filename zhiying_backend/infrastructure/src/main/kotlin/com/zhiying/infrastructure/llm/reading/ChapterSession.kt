@@ -62,8 +62,8 @@ private class LocalPerson(val ref: LocalPersonRef, var existing: PersonId?, var 
 /** 校验通过后的名称输入。 */
 private class ParsedName(val name: String, val stableKind: NameKind?, val basis: String?)
 
-/** 校验通过后的关系类型：引用与硬度。 */
-private class ResolvedType(val ref: TypeReference, val hardness: Hardness, val direction: Direction)
+/** 校验通过后的关系类型：引用与方向。 */
+private class ResolvedType(val ref: TypeReference, val direction: Direction)
 
 /** 单条关系候选的处理结果。 */
 private sealed interface RelationOutcome {
@@ -98,7 +98,6 @@ internal class ChapterSession(
     private val candidates = mutableListOf<RelationCandidate>()
     private val assessments = mutableListOf<RelationAssessment>()
     private val interactions = mutableListOf<InteractionObservation>()
-    private val strongPairs = mutableSetOf<Set<String>>()
     private val readRanges = mutableListOf<IntRange>()
     private var mentionSeq = 0
     private var evidenceSeq = 0
@@ -336,7 +335,7 @@ internal class ChapterSession(
     /**
      * 批量提交关系候选；每条独立校验，通过的立即生效。
      *
-     * 出参：每条的状态（accepted / rejected / skipped）与错误；已有硬 / 中关系的人物对再提交软关系会被跳过。
+     * 出参：每条的状态（accepted / rejected / skipped）与错误；重复候选会被跳过。
      */
     fun submitRelations(items: List<RelationInput>): Map<String, Any?> {
         val results = items.mapIndexed { index, item ->
@@ -353,7 +352,7 @@ internal class ChapterSession(
         return mapOf("status" to overallStatus(results), "results" to results)
     }
 
-    /** 校验并构造单条候选；流程：端点 → 类型 → 描述 → 依据 → 首次判断 → 软关系冗余检查 → 重复检查。 */
+    /** 校验并构造单条候选；流程：端点 → 类型 → 描述 → 依据 → 首次判断 → 重复检查。 */
     private fun relationOne(item: RelationInput): RelationOutcome {
         val errors = mutableListOf<ToolError>()
         val source = localRef(item.source, "source", errors)
@@ -366,16 +365,11 @@ internal class ChapterSession(
         if (errors.isNotEmpty() || source == null || target == null || type == null || verdict == null) {
             return RelationOutcome.Rejected(errors)
         }
-        val pair = setOf(source.key, target.key)
-        if (!type.hardness.strong && pair in strongPairs) {
-            return RelationOutcome.Skipped(ToolError("SOFT_NOT_NEEDED", "该人物对已提交硬 / 中关系，无需再提交软关系"))
-        }
         val candidate = RelationCandidate(newCandidateId(), source, target, type.ref, description, evidence)
         if (candidates.any { sameRelation(it, candidate) }) {
             return RelationOutcome.Skipped(ToolError("DUPLICATE", "已提交过相同的关系候选"))
         }
         withdrawReversed(candidate)
-        if (type.hardness.strong) strongPairs += pair
         return RelationOutcome.Accepted(
             candidate,
             RelationAssessment(candidate.id, verdict, item.assessmentBasis.orEmpty().trim(), AssessmentSource.CHAPTER_READING),
@@ -440,7 +434,7 @@ internal class ChapterSession(
                 errors += ToolError("UNKNOWN_TYPE", "类型库中没有 $typeId；请使用类型库列出的 type_id，确实没有合适类型再用 new_type", "type_id")
                 return null
             }
-            return ResolvedType(TypeReference.Known(known.id), known.hardness, known.direction)
+            return ResolvedType(TypeReference.Known(known.id), known.direction)
         }
         return resolveProposal(proposal!!, errors)
     }
@@ -474,7 +468,7 @@ internal class ChapterSession(
             Direction.Undirected
         }
         if (errors.size > before || hardness == null) return null
-        return ResolvedType(TypeReference.Proposed(TypeProposal(name, definition, hardness, direction)), hardness, direction)
+        return ResolvedType(TypeReference.Proposed(TypeProposal(name, definition, hardness, direction)), direction)
     }
 
     /** 解析首次判断：verdict 合法；undetermined 必须给原因；依据必填。 */
@@ -549,7 +543,7 @@ internal class ChapterSession(
     // ───────────────────────── 交流观察 ─────────────────────────
 
     /**
-     * 批量提交交流观察；每条独立校验。已提交硬 / 中关系的人物对会被跳过，不再记交流。
+     * 批量提交交流观察；每条独立校验，是否用于兜底由全书后处理决定。
      */
     fun submitInteractions(items: List<InteractionInput>): Map<String, Any?> {
         val results = items.mapIndexed { index, item -> interactionOne(index, item) }
@@ -566,9 +560,6 @@ internal class ChapterSession(
         if (description.isEmpty()) errors += ToolError("MISSING_DESCRIPTION", "description 必须描述发生了什么交流", "description")
         val evidence = evidenceOne(item.note?.takeIf { it.isNotBlank() } ?: description.ifEmpty { null }, item.quote, item.at, "evidence", errors)
         if (errors.isNotEmpty() || a == null || b == null || evidence == null) return rejected(index, errors)
-        if (setOf(a.key, b.key) in strongPairs) {
-            return mapOf("index" to index, "status" to "skipped", "reason" to ToolError("STRONG_RELATION_EXISTS", "该人物对已提交硬 / 中关系，无需记交流").toMap())
-        }
         val duplicate = interactions.any { it.participants == setOf(a, b) && it.description == description }
         if (duplicate) return mapOf("index" to index, "status" to "skipped", "reason" to ToolError("DUPLICATE", "已提交过相同的交流观察").toMap())
         interactions += InteractionObservation(InteractionId("${chapter.id.value}-i${interactions.size + 1}"), setOf(a, b), description, evidence)

@@ -173,7 +173,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   }, [])
   const [exporting, setExporting] = useState(false)
   const [exportingPng, setExportingPng] = useState(false)
-  const [rerunningChapterId, setRerunningChapterId] = useState<number | null>(null)
+  const [rerunRequestId, setRerunRequestId] = useState<number | null>(null)
 
   const handleLoadGraph = useCallback(async () => {
     setError('')
@@ -224,8 +224,8 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   } = useAnalysis({
       chapterLabel,
       onAnalysisDone: async () => {
+        // 图由书详情刷新后的 effect 重载，这里不再重复加载
         await refreshBooks()
-        await handleLoadGraph()
         await refreshCast()
         invalidateChapterLedgers()
         await refreshFocusLedger()
@@ -235,6 +235,10 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
         setMsg(m)
       },
     })
+
+  // 重读中的章以任务快照为准（刷新页面、失败重试也能显示）；快照尚未返回时用本地请求的章
+  const rerunningChapterId =
+    rerunRequestId ?? (analysis.running && analysis.task?.kind === 'rerun' ? (analysis.task.chapters[0]?.chapter_id ?? null) : null)
 
   // 选中的书：详情优先（含 analysis_progress），否则用列表项
   useEffect(() => {
@@ -483,7 +487,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
       const node = graph?.nodes.find((n) => n.person_id === personId)
       const name =
         node?.name ??
-        cast?.persons.find((p) => p.person_id === personId)?.canonical_name ??
+        cast?.persons.find((p) => p.person_id === personId)?.name ??
         personId
       if (!node) {
         setMsg(`「${name}」当前不在图上（可能被过滤，或尚未入图）`)
@@ -505,11 +509,11 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const onRerunChapter = useCallback(
     async (chapterId: number) => {
       if (!bookId || publicOnly || (selectedBook?.example_slug && !isAdmin) || rerunningChapterId != null) return
-      setRerunningChapterId(chapterId)
+      setRerunRequestId(chapterId)
       try {
         await rerunAnalysis(bookId, chapterId)
       } finally {
-        setRerunningChapterId(null)
+        setRerunRequestId(null)
       }
     },
     [bookId, publicOnly, selectedBook, isAdmin, rerunningChapterId, rerunAnalysis],
@@ -518,7 +522,7 @@ export function AppStateProvider({ children }: { children: ReactNode }) {
   const personName = useCallback(
     (personId: string) =>
       graph?.nodes.find((n) => n.person_id === personId)?.name ??
-      cast?.persons.find((p) => p.person_id === personId)?.canonical_name ??
+      cast?.persons.find((p) => p.person_id === personId)?.name ??
       personId,
     [graph, cast],
   )

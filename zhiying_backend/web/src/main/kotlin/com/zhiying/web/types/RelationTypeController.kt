@@ -1,4 +1,4 @@
-// 关系类型接口：GET /relation-types 返回本书类型库（内置 + 书内新增）及使用次数；字段名沿用旧后端的 snake_case 约定。
+// 关系类型接口：GET /relation-types 返回本书类型库（内置 + 书内新增）及使用次数；字段名用 snake_case。
 package com.zhiying.web.types
 
 import com.fasterxml.jackson.annotation.JsonProperty

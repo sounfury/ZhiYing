@@ -11,9 +11,13 @@ export function useLedger(bookId: string, chapterId: number | '') {
   const [loading, setLoading] = useState(false)
   const [missing, setMissing] = useState(false)
   const [error, setError] = useState('')
+  // 切章 / 切书后旧请求不再回写
+  const generation = useRef(0)
 
   const refresh = useCallback(async () => {
+    const gen = ++generation.current
     if (!bookId || chapterId === '') {
+      setLoading(false)
       setLedger(null)
       setMissing(false)
       setError('')
@@ -23,8 +27,10 @@ export function useLedger(bookId: string, chapterId: number | '') {
     setError('')
     setMissing(false)
     try {
-      setLedger(await getChapterLedger(bookId, chapterId))
+      const next = await getChapterLedger(bookId, chapterId)
+      if (gen === generation.current) setLedger(next)
     } catch (e) {
+      if (gen !== generation.current) return
       const message = e instanceof Error ? e.message : String(e)
       setLedger(null)
       if (message.startsWith('404')) {
@@ -34,12 +40,15 @@ export function useLedger(bookId: string, chapterId: number | '') {
         setError(message)
       }
     } finally {
-      setLoading(false)
+      if (gen === generation.current) setLoading(false)
     }
   }, [bookId, chapterId])
 
   useEffect(() => {
     void refresh()
+    return () => {
+      generation.current += 1
+    }
   }, [refresh])
 
   return { ledger, loading, missing, error, refresh }
