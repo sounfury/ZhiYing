@@ -22,15 +22,15 @@ processors:
   # - 'ProjectLOCProcessor'
   # - 'ProjectSLOCProcessor'
 
+# 只开 LiteIssuesReport：每条问题一行「文件:行:列 说明 [规则]」，CI 日志直接可定位
 console-reports:
-  active: false
+  active: true
   exclude:
      - 'ProjectStatisticsReport'
      - 'ComplexityReport'
      - 'NotificationReport'
      - 'IssuesReport'
      - 'FileBasedIssuesReport'
-  #  - 'LiteIssuesReport'
 
 comments:
   active: false

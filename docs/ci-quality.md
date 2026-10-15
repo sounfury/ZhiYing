@@ -19,7 +19,7 @@ Kotlin 检查用 **detekt `2.0.0-alpha.6`**。最新稳定 1.x 是 `1.23.8`，�
 
 Kotlin 门禁只在 `zhiying_backend/**/*.kt`（以及本目录配置）变更时跑。重复代码和密钥扫描对每次 push / PR / 手动触发都跑。
 
-GitHub PR 上的检查名是中文（文件行数、认知复杂度、圈复杂度、嵌套深度、参数个数、死代码、重复代码、密钥扫描）。Woodpecker 网页本身在 **Settings → General → Language** 选简体中文。detekt / jscpd / gitleaks 的日志仍是工具原英文。
+GitHub PR 上的检查名是中文（文件行数、认知复杂度、圈复杂度、嵌套深度、参数个数、死代码、重复代码、密钥扫描）。Woodpecker 网页本身在 **Settings → General → Language** 选简体中文。detekt / jscpd / gitleaks 的日志仍是工具原英文。失败时日志直接列出每条问题：detekt 只开 `LiteIssuesReport`（`文件:行:列 说明 [规则]`），jscpd 用 console 报告列出重复片段，gitleaks 加 `--verbose` 列出文件、行与规则（密钥由 `--redact=100` 全部打码），不必再本机复跑。
 
 本机 detekt 镜像：`local/detekt-cli:2.0.0-alpha.6`（agent 与宿主机共用 Docker，`pull: false`）。重建：
 

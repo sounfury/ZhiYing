@@ -19,8 +19,8 @@ steps:
       - >-
         gitleaks git .
         --config quality/gitleaks.toml
-        --redact=100 --no-banner --exit-code 1
+        --redact=100 --verbose --no-banner --exit-code 1
       - >-
         gitleaks dir .
         --config quality/gitleaks.toml
-        --redact=100 --no-banner --exit-code 1
+        --redact=100 --verbose --no-banner --exit-code 1
