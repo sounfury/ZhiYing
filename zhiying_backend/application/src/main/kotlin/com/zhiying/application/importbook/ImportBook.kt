@@ -164,21 +164,7 @@ class ImportBook(
             // TXT 秒传要按自动选出的分章方案匹配，所以先解析；EPUB 仍在未命中时才解析。
             val parsedTxt = if (isTxt(fileName)) importer.parse(fileName, content) else null
             val splitRule = parsedTxt?.splitRule
-            val currentMethod =
-                try {
-                    method.version(models.snapshot(), appSettings.promptSnapshot())
-                } catch (e: AppException) {
-                    if (e.code != ErrorCode.MODEL_NOT_CONFIGURED) throw e
-                    null
-                }
-            val candidate =
-                if (currentMethod == null) {
-                    null
-                } else {
-                    shelves.candidates(source, IMPORT_VERSION, splitRule).firstOrNull {
-                        !runner.hasUnsettledTask(it) && revisions.findPublished(it)?.reusableFor(currentMethod) == true
-                    }
-                }
+            val candidate = reusableCandidate(source, splitRule)
             if (candidate != null) {
                 val item = ShelfItem(BookId(UUID.randomUUID().toString()), user.id, candidate, null, fileName, Instant.now())
                 shelves.add(item)
@@ -189,4 +175,21 @@ class ImportBook(
             books.save(overview, chapters, user.id)
             ImportResult(overview)
         }
+
+    /** 秒传候选：同源文件、同导入版本与分章方案、无未结算任务且已发布结果仍适用当前方法；未配置模型时不秒传。 */
+    private fun reusableCandidate(
+        source: SourceFileRef,
+        splitRule: String?,
+    ): BookId? {
+        val currentMethod =
+            try {
+                method.version(models.snapshot(), appSettings.promptSnapshot())
+            } catch (e: AppException) {
+                if (e.code != ErrorCode.MODEL_NOT_CONFIGURED) throw e
+                return null
+            }
+        return shelves.candidates(source, IMPORT_VERSION, splitRule).firstOrNull {
+            !runner.hasUnsettledTask(it) && revisions.findPublished(it)?.reusableFor(currentMethod) == true
+        }
+    }
 }

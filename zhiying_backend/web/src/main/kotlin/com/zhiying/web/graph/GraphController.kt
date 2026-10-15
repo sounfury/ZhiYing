@@ -82,35 +82,30 @@ class GraphController(
     /** 无章节参数时查看全书；其余严格匹配单章或区间参数，非法组合返回 INVALID_ARGUMENT。 */
     private fun chapterFocusOf(q: GraphQuery): ChapterFocus? {
         if (q.chapterMode == null && q.chapter == null && q.chapterFrom == null && q.chapterTo == null) return null
-        val mode: ChapterMode
-        val from: Int
-        val to: Int
-        when (q.chapterMode) {
-            "single" -> {
-                if (q.chapter == null || q.chapterFrom != null || q.chapterTo != null) {
-                    throw AppException(ErrorCode.INVALID_ARGUMENT, "single 模式须仅提供 chapter")
-                }
-                mode = ChapterMode.SINGLE
-                from = q.chapter
-                to = q.chapter
+        val (mode, range) =
+            when (q.chapterMode) {
+                "single" -> ChapterMode.SINGLE to singleChapter(q)
+                "range" -> ChapterMode.RANGE to chapterRange(q)
+                else -> invalidFocus("chapter_mode 只能是 single 或 range")
             }
-
-            "range" -> {
-                if (q.chapterFrom == null || q.chapterTo == null || q.chapter != null) {
-                    throw AppException(ErrorCode.INVALID_ARGUMENT, "range 模式须仅提供 chapter_from 与 chapter_to")
-                }
-                mode = ChapterMode.RANGE
-                from = q.chapterFrom
-                to = q.chapterTo
-            }
-
-            else -> {
-                throw AppException(ErrorCode.INVALID_ARGUMENT, "chapter_mode 只能是 single 或 range")
-            }
-        }
-        if (from < 1 || to < from) throw AppException(ErrorCode.INVALID_ARGUMENT, "章节区间须满足 1 ≤ from ≤ to")
-        return ChapterFocus(from, to, mode)
+        if (range.first < 1 || range.second < range.first) invalidFocus("章节区间须满足 1 ≤ from ≤ to")
+        return ChapterFocus(range.first, range.second, mode)
     }
+
+    private fun singleChapter(q: GraphQuery): Pair<Int, Int> {
+        val chapter = q.chapter
+        if (chapter == null || q.chapterFrom != null || q.chapterTo != null) invalidFocus("single 模式须仅提供 chapter")
+        return chapter to chapter
+    }
+
+    private fun chapterRange(q: GraphQuery): Pair<Int, Int> {
+        val from = q.chapterFrom
+        val to = q.chapterTo
+        if (from == null || to == null || q.chapter != null) invalidFocus("range 模式须仅提供 chapter_from 与 chapter_to")
+        return from to to
+    }
+
+    private fun invalidFocus(message: String): Nothing = throw AppException(ErrorCode.INVALID_ARGUMENT, message)
 
     /** 逗号分隔参数拆成非空项。 */
     private fun splitList(raw: String?): List<String> =

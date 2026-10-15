@@ -95,25 +95,29 @@ class AdminSettings(
     fun save(user: Account, group: String, key: String, value: Any?) {
         accounts.requireAdministrator(user)
         val definition = definition(group, key)
-        val normalized = if (definition.type == "prompt") {
-            val text = value as? String ?: invalid("提示词必须是文本")
-            if (text.isBlank()) invalid("提示词不能为空")
-            if (placeholders.findAll(text).any { it.groupValues[1] !in definition.placeholders }) {
-                invalid("提示词包含未知占位符")
-            }
-            text
-        } else {
-            val number = when (value) {
-                is Byte, is Short, is Int, is Long -> (value as Number).toLong()
-                else -> invalid(if (group == "params") "提示词参数必须是正整数" else "上限必须是非负整数")
-            }
-            if (group == "params") validateParameter(key, number) else if (number < 0) invalid("上限必须是非负整数")
-            if (definition.type == "bytes" && limits.maxFileBytes > 0 && (number == 0L || number > limits.maxFileBytes)) {
-                invalid("文件大小必须为 1～${limits.maxFileBytes} 字节")
-            }
-            number
-        }
+        val normalized = if (definition.type == "prompt") promptText(definition, value) else settingNumber(definition, group, key, value)
         store.put(group, key, json.encode(normalized), user.id)
+    }
+
+    private fun promptText(definition: SettingDefinition, value: Any?): String {
+        val text = value as? String ?: invalid("提示词必须是文本")
+        if (text.isBlank()) invalid("提示词不能为空")
+        if (placeholders.findAll(text).any { it.groupValues[1] !in definition.placeholders }) {
+            invalid("提示词包含未知占位符")
+        }
+        return text
+    }
+
+    private fun settingNumber(definition: SettingDefinition, group: String, key: String, value: Any?): Long {
+        val number = when (value) {
+            is Byte, is Short, is Int, is Long -> (value as Number).toLong()
+            else -> invalid(if (group == "params") "提示词参数必须是正整数" else "上限必须是非负整数")
+        }
+        if (group == "params") validateParameter(key, number) else if (number < 0) invalid("上限必须是非负整数")
+        if (definition.type == "bytes" && limits.maxFileBytes > 0 && (number == 0L || number > limits.maxFileBytes)) {
+            invalid("文件大小必须为 1～${limits.maxFileBytes} 字节")
+        }
+        return number
     }
 
     @Synchronized
