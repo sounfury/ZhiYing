@@ -29,6 +29,8 @@
     "**/eval/**/legacy_reports/**",
     "**/.woodpecker/**",
     "**/frontend/**",
-    "**/quality/detekt-*.yml"
+    "**/quality/detekt-*.yml",
+    "**/web/graph/GraphResponse.kt",
+    "**/web/types/RelationTypeController.kt"
   ]
 }

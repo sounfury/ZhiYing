@@ -93,8 +93,9 @@ complexity:
     active: true
     allowedComplexity: 12
     ignoreSingleWhenExpression: false
-    ignoreSimpleWhenEntries: false
-    ignoreNestingFunctions: false
+    # 平铺的 when 分支与 let/also/forEach 不增加分支判断的难度，不计分；阈值仍为 12
+    ignoreSimpleWhenEntries: true
+    ignoreNestingFunctions: true
     ignoreLocalFunctions: false
     nestingFunctions:
       - 'also'

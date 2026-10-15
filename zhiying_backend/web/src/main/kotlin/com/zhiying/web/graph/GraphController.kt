@@ -15,11 +15,21 @@ import com.zhiying.domain.relations.RelationTypeId
 import org.springframework.http.ContentDisposition
 import org.springframework.http.HttpHeaders
 import org.springframework.http.ResponseEntity
+import org.springframework.web.bind.annotation.BindParam
 import org.springframework.web.bind.annotation.GetMapping
 import org.springframework.web.bind.annotation.PathVariable
 import org.springframework.web.bind.annotation.RequestMapping
-import org.springframework.web.bind.annotation.RequestParam
 import org.springframework.web.bind.annotation.RestController
+
+/** /graph 与 /export 共用的查询参数（snake_case），含义见 [GraphController.graph]；类型不符由框架返回 400。 */
+data class GraphQuery(
+    @param:BindParam("min_appearance") val minAppearance: Int?,
+    val focus: String?,
+    @param:BindParam("predicate_filter") val predicateFilter: String?,
+    @param:BindParam("category_filter") val categoryFilter: String?,
+    val chapter: Int?,
+    @param:BindParam("chapter_mode") val chapterMode: String?,
+)
 
 /** 图谱与导出 HTTP 接口。 */
 @RestController
@@ -35,33 +45,13 @@ class GraphController(private val getGraph: GetGraph, private val exportGraph: E
      * 该书尚无已发布结果时返回空图（200），revision_id 为 null。
      */
     @GetMapping("/graph")
-    fun graph(
-        @PathVariable bookId: String,
-        @RequestParam("min_appearance", required = false) minAppearance: Int?,
-        @RequestParam("focus", required = false) focus: String?,
-        @RequestParam("predicate_filter", required = false) predicateFilter: String?,
-        @RequestParam("category_filter", required = false) categoryFilter: String?,
-        @RequestParam("chapter", required = false) chapter: Int?,
-        @RequestParam("chapter_mode", required = false) chapterMode: String?,
-    ): GraphResponse = GraphResponse.from(
-        getGraph.execute(BookId(bookId), request(minAppearance, focus, predicateFilter, categoryFilter, chapter, chapterMode)),
-    )
+    fun graph(@PathVariable bookId: String, query: GraphQuery): GraphResponse =
+        GraphResponse.from(getGraph.execute(BookId(bookId), request(query)))
 
     /** 导出 JSON（附件下载）；参数与 /graph 相同，内容与页面共用同一份图数据。 */
     @GetMapping("/export")
-    fun export(
-        @PathVariable bookId: String,
-        @RequestParam("min_appearance", required = false) minAppearance: Int?,
-        @RequestParam("focus", required = false) focus: String?,
-        @RequestParam("predicate_filter", required = false) predicateFilter: String?,
-        @RequestParam("category_filter", required = false) categoryFilter: String?,
-        @RequestParam("chapter", required = false) chapter: Int?,
-        @RequestParam("chapter_mode", required = false) chapterMode: String?,
-    ): ResponseEntity<ExportResponse> {
-        val export = exportGraph.execute(
-            BookId(bookId),
-            request(minAppearance, focus, predicateFilter, categoryFilter, chapter, chapterMode),
-        )
+    fun export(@PathVariable bookId: String, query: GraphQuery): ResponseEntity<ExportResponse> {
+        val export = exportGraph.execute(BookId(bookId), request(query))
         val safeId = bookId.replace(Regex("[^A-Za-z0-9._-]+"), "_").take(64).ifEmpty { "book" }
         val disposition = ContentDisposition.attachment().filename("zhiying-$safeId.json").build()
         return ResponseEntity.ok()
@@ -70,20 +60,13 @@ class GraphController(private val getGraph: GetGraph, private val exportGraph: E
     }
 
     /** 把查询参数解析为应用层请求；硬度取值不认识时返回 INVALID_ARGUMENT。 */
-    private fun request(
-        minAppearance: Int?,
-        focus: String?,
-        predicateFilter: String?,
-        categoryFilter: String?,
-        chapter: Int?,
-        chapterMode: String?,
-    ) =
+    private fun request(q: GraphQuery) =
         GraphRequest(
-            minAppearance = minAppearance,
-            focus = focus?.takeIf { it.isNotBlank() }?.let { PersonId(it.trim()) },
-            types = splitList(predicateFilter).mapTo(linkedSetOf()) { RelationTypeId(it) },
-            hardness = splitList(categoryFilter).mapTo(linkedSetOf()) { hardnessOf(it) },
-            chapterFocus = chapterFocusOf(chapter, chapterMode),
+            minAppearance = q.minAppearance,
+            focus = q.focus?.takeIf { it.isNotBlank() }?.let { PersonId(it.trim()) },
+            types = splitList(q.predicateFilter).mapTo(linkedSetOf()) { RelationTypeId(it) },
+            hardness = splitList(q.categoryFilter).mapTo(linkedSetOf()) { hardnessOf(it) },
+            chapterFocus = chapterFocusOf(q.chapter, q.chapterMode),
         )
 
     /** 章节聚焦参数：未给 chapter 时为空（给了 chapter_mode 也忽略）；章号小于 1 或模式非法返回 INVALID_ARGUMENT。 */

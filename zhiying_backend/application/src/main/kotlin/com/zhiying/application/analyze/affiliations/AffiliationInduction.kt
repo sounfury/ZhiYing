@@ -22,13 +22,13 @@ import org.springframework.stereotype.Service
  * 章摘要超过 [maxChapters] 章时均匀抽样；各文本按字数截断；关系骨架取出现章数最多的前 [maxRelations] 条。
  */
 data class AffiliationSettings(
-    val maxPersons: Int = 300,
-    val maxProfileChars: Int = 60,
-    val maxChapters: Int = 200,
-    val maxSummaryChars: Int = 200,
-    val maxObservationsPerChapter: Int = 3,
-    val maxObservationChars: Int = 80,
-    val maxRelations: Int = 220,
+    val maxPersons: Int,
+    val maxProfileChars: Int,
+    val maxChapters: Int,
+    val maxSummaryChars: Int,
+    val maxObservationsPerChapter: Int,
+    val maxObservationChars: Int,
+    val maxRelations: Int,
 )
 
 /**
@@ -139,10 +139,7 @@ class AffiliationInduction(private val inducer: AffiliationInducer, private val 
         val seen = mutableSetOf<String>()
         val groups = mutableListOf<AffiliationGroup>()
         val memberships = mutableListOf<Membership>()
-        fun chapterOf(m: InducedMember): ChapterId =
-            m.chapters.firstOrNull { it in numbers }
-                ?: revision.appearances[m.person].orEmpty().filter { it in numbers }.minByOrNull { numbers.getValue(it) }
-                ?: numbers.keys.first()
+        val chapterOf = { m: InducedMember -> evidenceChapter(revision, numbers, m) }
         for (g in induced) {
             val name = g.name.trim()
             val members = g.members.filter { it.person in revision.personsById }.distinctBy { it.person }
@@ -159,6 +156,12 @@ class AffiliationInduction(private val inducer: AffiliationInducer, private val 
         }
         return if (groups.isEmpty()) null else Affiliations(groups, memberships)
     }
+
+    /** 成员的依据章：活跃章中第一个有效章，否则首次出场章，再否则全书第一章。 */
+    private fun evidenceChapter(revision: AnalysisRevision, numbers: Map<ChapterId, Int>, m: InducedMember): ChapterId =
+        m.chapters.firstOrNull { it in numbers }
+            ?: revision.appearances[m.person].orEmpty().filter { it in numbers }.minByOrNull { numbers.getValue(it) }
+            ?: numbers.keys.first()
 
     /** 去首尾空白；空则为 null。 */
     private fun text(raw: String?): String? = raw?.trim()?.takeIf { it.isNotEmpty() }

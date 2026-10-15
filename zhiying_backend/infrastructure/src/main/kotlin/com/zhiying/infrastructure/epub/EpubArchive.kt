@@ -76,27 +76,31 @@ internal object EpubArchive {
         entries: Map<String, ByteArray>,
     ): Map<String, String> {
         val titles = LinkedHashMap<String, String>()
-        fun add(baseDir: String, href: String, title: String) {
-            val path = resolve(baseDir, href)
-            if (title.isNotBlank() && href.isNotBlank()) titles.putIfAbsent(path, title.trim())
-        }
-        for (item in items.filter { "nav" in it.props }) {
-            val doc = entries[item.href]?.let(::xml) ?: continue
-            val navs = doc.select("nav")
-            val toc = navs.firstOrNull { it.attr("epub:type") == "toc" } ?: navs.firstOrNull() ?: continue
-            val dir = item.href.substringBeforeLast('/', "")
-            toc.select("a[href]").forEach { add(dir, it.attr("href"), it.text()) }
-        }
-        for (item in items.filter { it.mediaType == "application/x-dtbncx+xml" }) {
-            val doc = entries[item.href]?.let(::xml) ?: continue
-            val dir = item.href.substringBeforeLast('/', "")
-            doc.select("navPoint").forEach { point ->
-                val label = point.getElementsByTag("navLabel").firstOrNull()?.text().orEmpty()
-                add(dir, point.getElementsByTag("content").firstOrNull()?.attr("src").orEmpty(), label)
-            }
+        for ((dir, href, title) in navLinks(items, entries) + ncxLinks(items, entries)) {
+            if (title.isNotBlank() && href.isNotBlank()) titles.putIfAbsent(resolve(dir, href), title.trim())
         }
         return titles
     }
+
+    /** EPUB3 nav 文档中目录（优先 epub:type=toc）的链接：(文档所在目录, href, 标题)。 */
+    private fun navLinks(items: Collection<ManifestItem>, entries: Map<String, ByteArray>): List<Triple<String, String, String>> =
+        items.filter { "nav" in it.props }.flatMap { item ->
+            val navs = entries[item.href]?.let(::xml)?.select("nav") ?: return@flatMap emptyList()
+            val toc = navs.firstOrNull { it.attr("epub:type") == "toc" } ?: navs.firstOrNull() ?: return@flatMap emptyList()
+            val dir = item.href.substringBeforeLast('/', "")
+            toc.select("a[href]").map { Triple(dir, it.attr("href"), it.text()) }
+        }
+
+    /** EPUB2 NCX 中各 navPoint 的链接：(文档所在目录, src, 标题)。 */
+    private fun ncxLinks(items: Collection<ManifestItem>, entries: Map<String, ByteArray>): List<Triple<String, String, String>> =
+        items.filter { it.mediaType == "application/x-dtbncx+xml" }.flatMap { item ->
+            val doc = entries[item.href]?.let(::xml) ?: return@flatMap emptyList()
+            val dir = item.href.substringBeforeLast('/', "")
+            doc.select("navPoint").map { point ->
+                val label = point.getElementsByTag("navLabel").firstOrNull()?.text().orEmpty()
+                Triple(dir, point.getElementsByTag("content").firstOrNull()?.attr("src").orEmpty(), label)
+            }
+        }
 
     /** 解压 zip，只保留文本类条目；不是 zip 时抛 UNREADABLE_BOOK。 */
     private fun unzip(bytes: ByteArray): Map<String, ByteArray> {

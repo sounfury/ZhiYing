@@ -12,7 +12,6 @@ import com.zhiying.domain.relations.UndeterminedReason
 import com.zhiying.infrastructure.config.ZhiYingProperties
 import com.zhiying.infrastructure.llm.StructuredCallExecutor
 import com.zhiying.infrastructure.llm.StructuredOutcome
-import com.zhiying.infrastructure.llm.ask
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
@@ -47,12 +46,11 @@ class SpringAiRelationRechecker(
      * 入参：[request] 原因、动作、记录材料与任务级控制。出参：与 [RecheckRequest.items] 一一对应的结果。
      */
     override fun recheck(request: RecheckRequest): List<RecheckResult> {
-        val outcome = executor.ask<RecheckReply>(
+        val outcome = executor.askPostProcess<RecheckReply>(
             system = RecheckPrompts.SYSTEM,
             user = RecheckPrompts.user(request),
-            model = request.control.models?.postProcess?.model ?: AnalysisPromptText.modelOf(config.model),
-            thinking = request.control.models?.postProcess?.thinking ?: config.thinking,
             control = request.control,
+            config = config,
         )
         if (outcome is StructuredOutcome.Failed) {
             log.warn("定向补查未完成（{}），{} 条记录保持未决：{}", outcome.failure, request.items.size, outcome.message)

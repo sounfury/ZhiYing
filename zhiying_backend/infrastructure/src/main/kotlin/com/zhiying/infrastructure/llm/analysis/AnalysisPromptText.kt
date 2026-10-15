@@ -1,6 +1,7 @@
-// 后处理提示词共用的文字渲染：人物、关系类型、硬度等在四个调用点里统一的呈现方式，以及 DTO 解析小工具。
+// 后处理提示词共用的文字渲染：人物、关系类型、硬度等在四个调用点里统一的呈现方式，DTO 解析小工具，以及后处理调用的模型选择。
 package com.zhiying.infrastructure.llm.analysis
 
+import com.zhiying.application.llm.ModelCallControl
 import com.zhiying.domain.identity.Gender
 import com.zhiying.domain.identity.Person
 import com.zhiying.domain.identity.PersonId
@@ -8,6 +9,24 @@ import com.zhiying.domain.relations.Direction
 import com.zhiying.domain.relations.Hardness
 import com.zhiying.domain.relations.RelationType
 import com.zhiying.domain.relations.UndeterminedReason
+import com.zhiying.infrastructure.config.PostProcessProperties
+import com.zhiying.infrastructure.llm.StructuredCallExecutor
+import com.zhiying.infrastructure.llm.StructuredOutcome
+import com.zhiying.infrastructure.llm.ask
+
+/** 后处理结构化调用：模型与思考开关优先取任务级覆盖，否则用 zhiying.post-process 配置（模型名空串表示默认模型）。 */
+internal inline fun <reified T : Any> StructuredCallExecutor.askPostProcess(
+    system: String,
+    user: String,
+    control: ModelCallControl,
+    config: PostProcessProperties,
+): StructuredOutcome<T> = ask(
+    system = system,
+    user = user,
+    model = control.models?.postProcess?.model ?: config.model.ifBlank { null },
+    thinking = control.models?.postProcess?.thinking ?: config.thinking,
+    control = control,
+)
 
 /** 后处理四个调用点共用的渲染与解析函数。 */
 internal object AnalysisPromptText {
@@ -75,7 +94,4 @@ internal object AnalysisPromptText {
     /** 解析模型给出的未决原因词（如 unclear_reference），无法识别返回 null。 */
     fun parseReason(raw: String?): UndeterminedReason? =
         raw?.trim()?.uppercase()?.replace('-', '_')?.let { key -> UndeterminedReason.entries.firstOrNull { it.name == key } }
-
-    /** 取模型名配置：空串表示用默认模型。 */
-    fun modelOf(configured: String): String? = configured.ifBlank { null }
 }

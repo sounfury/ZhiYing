@@ -12,7 +12,6 @@ import com.zhiying.domain.library.ChapterId
 import com.zhiying.infrastructure.config.ZhiYingProperties
 import com.zhiying.infrastructure.llm.StructuredCallExecutor
 import com.zhiying.infrastructure.llm.StructuredOutcome
-import com.zhiying.infrastructure.llm.ask
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
@@ -49,12 +48,11 @@ class SpringAiIdentityDisambiguator(
      * 入参：[request] 问题与任务级控制。出参：通过程序校验的回答；失败时为空。
      */
     override fun disambiguate(request: IdentityDisambiguationRequest): List<DisambiguationAnswer> {
-        val outcome = executor.ask<IdentityReply>(
+        val outcome = executor.askPostProcess<IdentityReply>(
             system = IdentityPrompts.SYSTEM,
             user = IdentityPrompts.user(request.ambiguities, config.mentionsPerPerson, request.chapterOrder),
-            model = request.control.models?.postProcess?.model ?: AnalysisPromptText.modelOf(config.model),
-            thinking = request.control.models?.postProcess?.thinking ?: config.thinking,
             control = request.control,
+            config = config,
         )
         return when (outcome) {
             is StructuredOutcome.Failed -> {

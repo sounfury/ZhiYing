@@ -8,7 +8,6 @@ import com.zhiying.domain.identity.PersonId
 import com.zhiying.infrastructure.config.ZhiYingProperties
 import com.zhiying.infrastructure.llm.StructuredCallExecutor
 import com.zhiying.infrastructure.llm.StructuredOutcome
-import com.zhiying.infrastructure.llm.ask
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
@@ -37,12 +36,11 @@ class SpringAiProfileWriter(
      * 入参：[request] 人物及其各章材料与任务级控制。出参：通过校验的简介；失败时为空。
      */
     override fun write(request: ProfileRequest): List<PersonProfile> {
-        val outcome = executor.ask<ProfileReply>(
+        val outcome = executor.askPostProcess<ProfileReply>(
             system = ProfilePrompts.SYSTEM,
             user = ProfilePrompts.user(request.subjects),
-            model = request.control.models?.postProcess?.model ?: AnalysisPromptText.modelOf(config.model),
-            thinking = request.control.models?.postProcess?.thinking ?: config.thinking,
             control = request.control,
+            config = config,
         )
         return when (outcome) {
             is StructuredOutcome.Failed -> {

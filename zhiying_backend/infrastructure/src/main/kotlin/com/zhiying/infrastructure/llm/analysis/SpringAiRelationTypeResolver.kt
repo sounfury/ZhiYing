@@ -14,7 +14,6 @@ import com.zhiying.domain.relations.TypeQuestion
 import com.zhiying.infrastructure.config.ZhiYingProperties
 import com.zhiying.infrastructure.llm.StructuredCallExecutor
 import com.zhiying.infrastructure.llm.StructuredOutcome
-import com.zhiying.infrastructure.llm.ask
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
@@ -63,12 +62,11 @@ class SpringAiRelationTypeResolver(
      */
     override fun resolve(request: TypeResolutionRequest): List<TypeAnswer> {
         val candidates = TypeResolutionPrompts.candidatesFor(request.library, request.questions, config.typeCandidateLimit)
-        val outcome = executor.ask<TypeReply>(
+        val outcome = executor.askPostProcess<TypeReply>(
             system = TypeResolutionPrompts.SYSTEM,
             user = TypeResolutionPrompts.user(candidates, request.questions),
-            model = request.control.models?.postProcess?.model ?: AnalysisPromptText.modelOf(config.model),
-            thinking = request.control.models?.postProcess?.thinking ?: config.thinking,
             control = request.control,
+            config = config,
         )
         return when (outcome) {
             is StructuredOutcome.Failed -> {

@@ -15,7 +15,6 @@ import com.zhiying.domain.relations.StrongUpgradeProposal
 import com.zhiying.infrastructure.config.ZhiYingProperties
 import com.zhiying.infrastructure.llm.StructuredCallExecutor
 import com.zhiying.infrastructure.llm.StructuredOutcome
-import com.zhiying.infrastructure.llm.ask
 import org.slf4j.LoggerFactory
 import org.springframework.stereotype.Component
 
@@ -63,12 +62,11 @@ class SpringAiSoftFallbackFinder(
     override fun find(request: SoftFallbackRequest): List<FallbackResult> {
         // 兜底只能用无向软类型（领域规则同样要求），提示里也只列这些
         val softTypes = request.softTypes.filter { it.direction == Direction.Undirected }
-        val outcome = executor.ask<FallbackReply>(
+        val outcome = executor.askPostProcess<FallbackReply>(
             system = FallbackPrompts.SYSTEM,
             user = FallbackPrompts.user(softTypes, request.strongTypes, request.items, config.fallbackInteractionsPerPair),
-            model = request.control.models?.postProcess?.model ?: AnalysisPromptText.modelOf(config.model),
-            thinking = request.control.models?.postProcess?.thinking ?: config.thinking,
             control = request.control,
+            config = config,
         )
         if (outcome is StructuredOutcome.Failed) {
             log.warn("软兜底未完成（{}），{} 个人物对不连边：{}", outcome.failure, request.items.size, outcome.message)

@@ -360,8 +360,7 @@ internal class ChapterSession(
         val target = localRef(item.target, "target", errors)
         if (source != null && source == target) errors += ToolError("SELF_RELATION", "source 与 target 不能是同一人物", "target")
         val type = resolveType(item, errors)
-        val description = item.description?.trim().orEmpty()
-        if (description.isEmpty()) errors += ToolError("MISSING_DESCRIPTION", "description 必须保留原文所述的关系描述", "description")
+        val description = resolveDescription(item, errors)
         val evidence = resolveEvidence(item.evidence, errors)
         val verdict = resolveVerdict(item, errors)
         if (errors.isNotEmpty() || source == null || target == null || type == null || verdict == null) {
@@ -383,6 +382,12 @@ internal class ChapterSession(
             roleEcho(item, type.direction),
         )
     }
+
+    /** 关系描述（去首尾空白）；为空时记 MISSING_DESCRIPTION。 */
+    private fun resolveDescription(item: RelationInput, errors: MutableList<ToolError>): String =
+        item.description?.trim().orEmpty().also {
+            if (it.isEmpty()) errors += ToolError("MISSING_DESCRIPTION", "description 必须保留原文所述的关系描述", "description")
+        }
 
     /** 有向类型时回显两端被记录的角色（带人名），让模型当场核对方向有没有写反；无向类型无需回显。 */
     private fun roleEcho(item: RelationInput, direction: Direction): String? =
