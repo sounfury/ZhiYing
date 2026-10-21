@@ -1,5 +1,5 @@
 // 章阅读提示词：系统提示（规则与工具纪律）和用户提示（章节信息、人名册、类型库、正文或分窗指令）。
-// 要点：名称不等于身份、关系优先引用类型库、单独输出交流观察、基础证据引文可选。
+// 要点：名称不等于身份、关系按原文写成「A 是 B 的称谓」（方向与合并由程序处理）、单独输出交流观察、基础证据引文可选。
 package com.zhiying.infrastructure.llm.reading
 
 import com.zhiying.domain.extraction.ReadingUnit
@@ -13,7 +13,7 @@ import com.zhiying.domain.relations.RelationTypeLibrary
 /** 章阅读提示词构造；提示词变更时同步修改 [VERSION]，抽取记录据此区分是否需要重跑。 */
 internal object ChapterReadingPrompts {
     /** 提示词版本，写入抽取记录。 */
-    const val VERSION = "chapter-reading/2026-10-v5"
+    const val VERSION = "chapter-reading/2026-10-v9"
 
     /** 提示内最多列出的人名册人物数；更大的名册让模型用 query_roster 检索。 */
     private const val ROSTER_PROMPT_LIMIT = 100
@@ -35,7 +35,8 @@ internal object ChapterReadingPrompts {
 ## 人物（register_persons）
 - 名称不等于身份。名册里出现同名或相似名字的人，不代表是同一个人：只有正文足以确定是同一人时，才用 existing_person_id 指向名册 ID，并在 basis 写明理由；
   不确定时当作新人物登记（不填 existing_person_id），后续会有专门的身份判断，不要硬猜。
-- 每个人物给出本章的局部编号（工具返回 local_id），关系和交流都用 local_id 指人。已有人物新增名称时，用 local_id 补充。
+- 每个人物会得到本章局部编号（工具返回 local_id）。关系和交流里直接写人名（登记过的任一名称即可）；本章有两个人用了同一个名字时，改填 local_id。
+  已有人物新增名称时，用 local_id 补充。
 - 每个名称标明 kind：formal 正式姓名；alias 有原文依据的外号、字号、稳定称谓；stable_appellation 无姓名但可稳定识别的称呼（如「摆渡老人的妻子」）；
   context_only 只在当前上下文成立的指代（如某人口中的「父亲」「师父」「那个老人」）。
   「父亲」「师父」这类称呼要先根据说话者和上下文确定指的是谁，不能直接当作全书别名，应登记为 context_only。
@@ -45,13 +46,12 @@ internal object ChapterReadingPrompts {
 - 性别 gender（male/female/unknown）、重要度 importance（protagonist/supporting/minor）有依据再填，原文不明确就留空或 unknown。
 
 ## 关系候选（submit_relations）
-- 只提交正文明确表达的关系。优先使用类型库里的类型：type_id 填类型库给出的 ID。
-  类型库里确实没有合适的类型，才用 new_type 提交新类型建议：给出名称、一般性定义（不写具体人名）、硬度和方向；类型名必须是关系本身（如「舅甥」），不能是情节句子。
-- 有向类型按角色顺序填：source 必须是承担该类型「源端角色」的人，target 是承担「目标端角色」的人。
-  做法：先看类型行的 source 角色（如「主人」「父亲」「师父」，通常是上位 / 长辈一端），判断本条关系里谁担任这个角色，把他填入 source，另一人填 target。
-  例：类型行是「有向：source=主人 -> target=仆从」，正文是「管家陈伯称林远为少爷」：林远是主人、陈伯是仆从，所以 source 填林远、target 填陈伯。
-  工具返回的 recorded_as 会回显两端被记录的角色，请核对；写反了就重新提交相反方向。无向类型两端顺序随意。
-- 高频亲属关系尽量精确（父亲/母亲、哥哥/姐姐、祖父母等）；粗粒度类型（如亲子、兄弟姐妹）只在原文信息不足时使用。
+- 只提交正文明确表达的关系。每条写成一句「person 是 of 的 term」：person、of 填人名，term 填称谓表里的词。
+  原文怎么说就怎么填，不用换方向：「凯蒂是斯蒂芬的妹妹」填 person=凯蒂、term=妹妹、of=斯蒂芬；「管家陈伯称林远为少爷」填 person=林远、term=主人、of=陈伯。
+  同一关系从哪一端说都行（哥哥 / 妹妹、父亲 / 儿子），程序会自动合并成一条。对称关系（夫妻、同学、朋友等）两人顺序随意。
+- term 尽量精确：原文能看出长幼、父系 / 母系、性别时用对应称谓（哥哥、妹妹、外婆、舅舅、堂兄）；确实看不出才用兄弟姐妹、祖孙、叔侄、堂表亲这类笼统的词。
+- 称谓表里确实没有合适的词，才用 new_type 提交新类型建议：给出名称、一般性定义（不写具体人名）、硬度和方向，有向时 person 承担 source_role、of 承担 target_role；
+  类型名必须是关系本身（如「叔嫂」），不能是情节句子。
 - 不要把舅甥、叔侄归成堂表亲；不要把单恋归成互相恋爱；不要把养父子归成生父子。尊称不必然证明血缘，先确定说话者、指代和实际身份。
 - 师徒仅限明确拜师、收徒或明确师承；拒绝拜师、偶尔请教不成立。
 - 否定、传闻、假设、玩笑不能直接当成确定事实。
@@ -110,7 +110,7 @@ submit_result(summary)：用 1~3 句话概括本章情节，供全书后处理�
 ## 人名册快照（只读）
 ${rosterText(roster)}
 
-## 关系类型库（type_id 只能取自这里；新类型走 new_type）
+## 称谓表（term 只能取自这里；「A ↔ B」左边是一端的称谓、右边是另一端的；没有合适的词再用 new_type）
 ${libraryText(library)}
 
 $task
@@ -200,21 +200,23 @@ ${chapter.text.substring(unit.start, unit.end)}
         return lines.joinToString("\n") + more
     }
 
-    /** 类型库文字：按硬度分组，每类型一行，有向类型附角色顺序。 */
+    /** 称谓表文字：按硬度分组，每种关系一行，列出可填的称谓。 */
     private fun libraryText(library: RelationTypeLibrary): String =
         listOf(Hardness.HARD to "硬", Hardness.MEDIUM to "中", Hardness.SOFT to "软（仅兜底）").joinToString("\n") { (h, label) ->
             val rows = library.types.filter { it.hardness == h }.joinToString("\n") { typeLine(it) }
             "### $label\n$rows"
         }
 
-    /** 单个类型的一行描述。 */
+    /** 一种关系的一行：关系名、可填称谓（有向关系分两端）、定义。 */
     private fun typeLine(type: RelationType): String {
-        val direction =
-            when (val d = type.direction) {
-                Direction.Undirected -> "无向"
-                is Direction.Directed -> "有向：source=${d.sourceRole} -> target=${d.targetRole}"
+        val words =
+            when (type.direction) {
+                Direction.Undirected -> (setOf(type.name) + type.synonyms).joinToString("、")
+                is Direction.Directed -> {
+                    val source = type.synonyms.ifEmpty { setOf(type.name) }.joinToString("、")
+                    if (type.reverseNames.isEmpty()) source else "$source ↔ ${type.reverseNames.joinToString("、")}"
+                }
             }
-        val synonyms = type.synonyms.takeIf { it.isNotEmpty() }?.joinToString("、", "，同义：") ?: ""
-        return "- ${type.id.value} | ${type.name}$synonyms | $direction | ${type.definition}"
+        return "- ${type.name}：$words | ${type.definition}"
     }
 }

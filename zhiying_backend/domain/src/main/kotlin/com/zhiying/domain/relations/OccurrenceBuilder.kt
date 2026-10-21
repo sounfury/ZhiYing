@@ -1,8 +1,10 @@
 // 关系记录构建：候选经身份映射和类型归一后生成带稳定 ID 的 RelationOccurrence；
-// 无法构建的候选（端点未绑定、类型未归一、合并后自环）明确标出原因，不出图。
+// 无法构建的候选（端点未绑定、类型未归一、合并后自环、称谓与人物性别矛盾）明确标出原因，不出图。
 package com.zhiying.domain.relations
 
+import com.zhiying.domain.identity.Gender
 import com.zhiying.domain.identity.IdentityMap
+import com.zhiying.domain.identity.PersonId
 import com.zhiying.domain.library.ChapterId
 
 /** 候选未能构建成记录的原因。 */
@@ -15,6 +17,9 @@ enum class UnbuiltReason {
 
     /** 两个端点经身份合并后落到同一人物，需要重新处理（常见于错误合并或候选本身有误），不能出图。 */
     SELF_LOOP,
+
+    /** 原文称谓与所指人物的性别矛盾（男性被称作「母亲」），多半是读章时方向填反或指错人。 */
+    GENDER_CONFLICT,
 }
 
 /** 构建结果。 */
@@ -27,11 +32,12 @@ sealed interface BuildOutcome {
 }
 
 /**
- * 关系记录构建器：持有一份类型库与身份映射，所有端点都经同一份映射解析。
+ * 关系记录构建器：持有一份类型库与身份映射，所有端点都经同一份映射解析；[genderOf] 给出书内人物性别，用于校验称谓。
  */
 class OccurrenceBuilder(
     private val library: RelationTypeLibrary,
     private val identities: IdentityMap,
+    private val genderOf: (PersonId) -> Gender = { Gender.UNKNOWN },
 ) {
     /**
      * 构建一条关系记录。
@@ -63,8 +69,9 @@ class OccurrenceBuilder(
         val (first, second) = resolved.orientation.apply(source, target)
         val key = type.keyFor(first, second)
             ?: return BuildOutcome.Unbuilt(ref, UnbuiltReason.SELF_LOOP, "两端合并后是同一人物: ${source.value}")
+        type.termGenderConflict(key, candidate.term, genderOf)?.let { return BuildOutcome.Unbuilt(ref, UnbuiltReason.GENDER_CONFLICT, it) }
         val occurrence = RelationOccurrence(
-            occurrenceIdOf(chapter, candidate.id), key, chapter, candidate.id, candidate.evidence, assessment,
+            occurrenceIdOf(chapter, candidate.id), key, chapter, candidate.id, candidate.evidence, assessment, candidate.term,
         )
         return BuildOutcome.Built(occurrence)
     }

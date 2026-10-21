@@ -33,6 +33,8 @@ data class RelationOccurrence(
     val candidate: CandidateId,
     val evidence: List<EvidenceRef>,
     val assessment: RelationAssessment,
+    /** 原文称谓（如「妹妹」），决定出图措辞；兜底生成或旧数据为 null。 */
+    val term: String? = null,
 ) {
     init {
         require(assessment.candidate == candidate) { "语义判断必须针对本记录的候选" }

@@ -3,11 +3,13 @@
 // 只有已准入的事实参与；未决与否定记录只统计数量，绝不借"更多"混进图里。
 package com.zhiying.domain.graph
 
+import com.zhiying.domain.identity.Gender
 import com.zhiying.domain.identity.Person
 import com.zhiying.domain.identity.PersonId
 import com.zhiying.domain.relations.Hardness
 import com.zhiying.domain.relations.RelationFact
 import com.zhiying.domain.relations.SemanticVerdict
+import com.zhiying.domain.relations.Wording
 import com.zhiying.domain.revision.AnalysisRevision
 
 /** 人物对（边的两端）。 */
@@ -94,7 +96,9 @@ object GraphProjection {
         val score =
             scoring.base(type.hardness) + chapters.size * scoring.perChapter +
                 (if (quoted) scoring.quotedEvidenceBonus else 0.0)
-        return RelationLabel(fact.key, type, chapters, fact.evidence, fact.occurrences.map { it.id }, score)
+        val wording = Wording.of(type, fact.key, fact.terms) { revision.personsById[it]?.gender ?: Gender.UNKNOWN }
+        val ids = (fact.occurrences + fact.absorbed).map { it.id }
+        return RelationLabel(fact.key, type, chapters, fact.evidence, ids, score, wording)
     }
 
     /** 标签是否满足类型与硬度筛选（筛选集合为空表示不限）。 */

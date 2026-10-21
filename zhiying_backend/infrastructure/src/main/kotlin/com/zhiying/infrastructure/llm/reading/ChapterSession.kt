@@ -1,5 +1,5 @@
 // 本章会话：持有一章阅读过程中的全部状态（已读范围、局部人物、已接受的关系候选与交流观察），
-// 并在会话内校验人物编号、正文区间与引文；工具回调只做 JSON 与 DTO 转换，规则都在这里。
+// 并在会话内校验人物指代、称谓、正文区间与引文；工具回调只做 JSON 与 DTO 转换，规则都在这里。
 // 校验失败返回结构化错误（code + message），让模型在本轮修正；会话最终产出领域对象 ChapterExtraction。
 package com.zhiying.infrastructure.llm.reading
 
@@ -28,11 +28,13 @@ import com.zhiying.domain.relations.Direction
 import com.zhiying.domain.relations.Hardness
 import com.zhiying.domain.relations.InteractionId
 import com.zhiying.domain.relations.InteractionObservation
+import com.zhiying.domain.relations.Orientation
 import com.zhiying.domain.relations.RelationAssessment
 import com.zhiying.domain.relations.RelationCandidate
 import com.zhiying.domain.relations.RelationTypeId
 import com.zhiying.domain.relations.RelationTypeLibrary
 import com.zhiying.domain.relations.SemanticVerdict
+import com.zhiying.domain.relations.TypeMatch
 import com.zhiying.domain.relations.TypeProposal
 import com.zhiying.domain.relations.TypeReference
 import com.zhiying.domain.relations.UndeterminedReason
@@ -62,16 +64,12 @@ private class LocalPerson(val ref: LocalPersonRef, var existing: PersonId?, var 
 /** 校验通过后的名称输入。 */
 private class ParsedName(val name: String, val stableKind: NameKind?, val basis: String?)
 
-/** 校验通过后的关系类型：引用与方向。 */
-private class ResolvedType(val ref: TypeReference, val direction: Direction)
+/** 校验通过后的关系类型：引用、原文称谓，以及称谓是否在目标端（需对调 person 与 of 才是规范方向）。 */
+private class ResolvedType(val ref: TypeReference, val term: String, val reversed: Boolean)
 
 /** 单条关系候选的处理结果。 */
 private sealed interface RelationOutcome {
-    data class Accepted(
-        val candidate: RelationCandidate,
-        val assessment: RelationAssessment,
-        val recordedAs: String?,
-    ) : RelationOutcome
+    data class Accepted(val candidate: RelationCandidate, val assessment: RelationAssessment) : RelationOutcome
     data class Rejected(val errors: List<ToolError>) : RelationOutcome
     data class Skipped(val error: ToolError) : RelationOutcome
 }
@@ -344,7 +342,7 @@ internal class ChapterSession(
                 is RelationOutcome.Accepted -> {
                     candidates += outcome.candidate
                     assessments += outcome.assessment
-                    listOfNotNull("index" to index, "status" to "accepted", outcome.recordedAs?.let { "recorded_as" to it }).toMap()
+                    mapOf("index" to index, "status" to "accepted")
                 }
                 is RelationOutcome.Rejected -> rejected(index, outcome.errors)
                 is RelationOutcome.Skipped -> mapOf("index" to index, "status" to "skipped", "reason" to outcome.error.toMap())
@@ -353,20 +351,24 @@ internal class ChapterSession(
         return mapOf("status" to overallStatus(results), "results" to results)
     }
 
-    /** 校验并构造单条候选；流程：端点 → 类型 → 描述 → 依据 → 首次判断 → 重复检查。 */
+    /**
+     * 校验并构造单条候选；流程：两端人物 → 称谓 / 新类型 → 描述 → 依据 → 首次判断 → 重复检查。
+     * 称谓在目标端（「凯蒂 是 斯蒂芬 的 妹妹」）时对调两端，候选按类型规范方向存放，原文称谓一并保留。
+     */
     private fun relationOne(item: RelationInput): RelationOutcome {
         val errors = mutableListOf<ToolError>()
-        val source = localRef(item.source, "source", errors)
-        val target = localRef(item.target, "target", errors)
-        if (source != null && source == target) errors += ToolError("SELF_RELATION", "source 与 target 不能是同一人物", "target")
+        val person = personRef(item.person, "person", errors)
+        val of = personRef(item.of, "of", errors)
+        if (person != null && person == of) errors += ToolError("SELF_RELATION", "person 与 of 不能是同一人物", "of")
         val type = resolveType(item, errors)
         val description = resolveDescription(item, errors)
         val evidence = resolveEvidence(item.evidence, errors)
         val verdict = resolveVerdict(item, errors)
-        if (errors.isNotEmpty() || source == null || target == null || type == null || verdict == null) {
+        if (errors.isNotEmpty() || person == null || of == null || type == null || verdict == null) {
             return RelationOutcome.Rejected(errors)
         }
-        val candidate = RelationCandidate(newCandidateId(), source, target, type.ref, description, evidence)
+        val (source, target) = if (type.reversed) of to person else person to of
+        val candidate = RelationCandidate(newCandidateId(), source, target, type.ref, description, evidence, type.term)
         if (candidates.any { sameRelation(it, candidate) }) {
             return RelationOutcome.Skipped(ToolError("DUPLICATE", "已提交过相同的关系候选"))
         }
@@ -374,7 +376,6 @@ internal class ChapterSession(
         return RelationOutcome.Accepted(
             candidate,
             RelationAssessment(candidate.id, verdict, item.assessmentBasis.orEmpty().trim(), AssessmentSource.CHAPTER_READING),
-            roleEcho(item, type.direction),
         )
     }
 
@@ -383,18 +384,6 @@ internal class ChapterSession(
         item.description?.trim().orEmpty().also {
             if (it.isEmpty()) errors += ToolError("MISSING_DESCRIPTION", "description 必须保留原文所述的关系描述", "description")
         }
-
-    /** 有向类型时回显两端被记录的角色（带人名），让模型当场核对方向有没有写反；无向类型无需回显。 */
-    private fun roleEcho(item: RelationInput, direction: Direction): String? =
-        (direction as? Direction.Directed)?.let {
-            val source = nameOf(item.source)
-            val target = nameOf(item.target)
-            "已记录：$source 是「${it.sourceRole}」，$target 是「${it.targetRole}」。请核对这是否符合正文；" +
-                "若写反了，用相反的 source/target 重新提交同一条，将替换原记录"
-        }
-
-    /** 局部人物的首个名称，用于回显。 */
-    private fun nameOf(key: String?): String = locals[key?.trim()]?.mentions?.firstOrNull()?.name ?: key.orEmpty()
 
     private fun newCandidateId() = CandidateId("${chapter.id.value}-c${++candidateSeq}")
 
@@ -411,33 +400,53 @@ internal class ChapterSession(
     private fun sameRelation(a: RelationCandidate, b: RelationCandidate): Boolean =
         a.source == b.source && a.target == b.target && a.type == b.type && a.description == b.description
 
-    /** 解析局部人物编号；未登记的编号报错。 */
-    private fun localRef(key: String?, field: String, errors: MutableList<ToolError>): LocalPersonRef? {
-        val local = key?.trim()?.let { locals[it] }
-        if (local == null) {
-            errors += ToolError("UNKNOWN_PERSON", "$field=${key ?: "(空)"} 不是本章已登记的 local_id；先用 register_persons 登记", field)
+    /**
+     * 按人名或 local_id 找本章人物：先认编号，再认登记名（完全相同优先，其次互相包含）；
+     * 谁也对不上，或对上本章多个人时报错，后者要求改填 local_id。
+     */
+    private fun personRef(raw: String?, field: String, errors: MutableList<ToolError>): LocalPersonRef? {
+        val said = raw?.trim().orEmpty()
+        locals[said]?.let { return it.ref }
+        val plain = plainName(said)
+        val exact = locals.values.filter { l -> plain.isNotEmpty() && l.mentions.any { plainName(it.name) == plain } }
+        val hits = exact.ifEmpty { if (plain.isEmpty()) emptyList() else locals.values.filter { namedAs(it, plain) } }
+        when (hits.size) {
+            1 -> return hits.single().ref
+            0 -> errors += ToolError("UNKNOWN_PERSON", "$field=「$said」不是本章登记过的人物；先用 register_persons 登记，或写登记过的名字", field)
+            else -> errors += ToolError(
+                "AMBIGUOUS_PERSON",
+                "$field=「$said」对应本章多个人物：${hits.joinToString("、") { l -> "${l.ref.key}（${l.mentions.joinToString("、") { it.name }}）" }}；请改填 local_id",
+                field,
+            )
         }
-        return local?.ref
+        return null
     }
 
-    /** 解析关系类型：type_id 与 new_type 二选一；类型库已有的同名类型不允许当新类型提交。 */
+    /** 名字是否属于此人：与任一登记名相同，或互相包含（至少两字，容许只写姓或名）。 */
+    private fun namedAs(local: LocalPerson, said: String): Boolean = local.mentions.any {
+        val n = plainName(it.name)
+        n == said || (said.length >= 2 && n.contains(said)) || (n.length >= 2 && said.contains(n))
+    }
+
+    /** 比对用的名字：去掉空白与间隔号。 */
+    private fun plainName(name: String): String = name.filterNot { it.isWhitespace() || it in "·・•." }
+
+    /**
+     * 解析称谓：给了 new_type 走新类型建议；否则 term 必须是称谓表里的词（也接受类型 ID），命中目标端称谓时标记需对调。
+     */
     private fun resolveType(item: RelationInput, errors: MutableList<ToolError>): ResolvedType? {
-        val typeId = item.typeId?.trim()?.takeIf { it.isNotEmpty() }
-        val proposal = item.newType
-        if ((typeId == null) == (proposal == null)) {
-            errors += ToolError("TYPE_REQUIRED", "type_id 与 new_type 必须二选一", "type_id")
+        item.newType?.let { return resolveProposal(it, errors) }
+        val term = item.term?.trim().orEmpty()
+        if (term.isEmpty()) {
+            errors += ToolError("TERM_REQUIRED", "term 必填：填称谓表里的词，使「person 是 of 的 term」成立；称谓表没有合适的词再用 new_type", "term")
             return null
         }
-        if (typeId != null) {
-            // 模型有时填类型名而不是 ID，名称能唯一命中就接受
-            val known = library[RelationTypeId(typeId)] ?: library.findByName(typeId)
-            if (known == null) {
-                errors += ToolError("UNKNOWN_TYPE", "类型库中没有 $typeId；请使用类型库列出的 type_id，确实没有合适类型再用 new_type", "type_id")
-                return null
-            }
-            return ResolvedType(TypeReference.Known(known.id), known.direction)
+        val hit = library.match(term) ?: library[RelationTypeId(term)]?.let { TypeMatch(it, Orientation.AS_OBSERVED) }
+        if (hit == null) {
+            errors += ToolError("UNKNOWN_TERM", "称谓表里没有「$term」；换用称谓表里的词（如 妹妹、舅舅、同学），确实没有合适的再用 new_type", "term")
+            return null
         }
-        return resolveProposal(proposal!!, errors)
+        return ResolvedType(TypeReference.Known(hit.type.id), term, hit.orientation == Orientation.REVERSED)
     }
 
     /** 校验新类型建议：名称与定义必填、硬度合法、有向时给出两端角色，且不与类型库已有名称冲突。 */
@@ -448,8 +457,8 @@ internal class ChapterSession(
         if (name.isEmpty() || definition.isEmpty()) {
             errors += ToolError("INVALID_NEW_TYPE", "new_type 必须有 name 和 definition", "new_type")
         }
-        library.findByName(name)?.let {
-            errors += ToolError("TYPE_ALREADY_EXISTS", "类型库已有「$name」，请直接使用 type_id=${it.id.value}", "new_type.name")
+        library.match(name)?.let {
+            errors += ToolError("TYPE_ALREADY_EXISTS", "称谓表已有「$name」（${it.type.name}），请直接填 term=$name，不要提交 new_type", "new_type.name")
         }
         val hardness = when (p.hardness?.trim()?.lowercase()) {
             "hard" -> Hardness.HARD
@@ -469,7 +478,7 @@ internal class ChapterSession(
             Direction.Undirected
         }
         if (errors.size > before || hardness == null) return null
-        return ResolvedType(TypeReference.Proposed(TypeProposal(name, definition, hardness, direction)), direction)
+        return ResolvedType(TypeReference.Proposed(TypeProposal(name, definition, hardness, direction)), name, reversed = false)
     }
 
     /** 解析首次判断：verdict 合法；undetermined 必须给原因；依据必填。 */
@@ -554,8 +563,8 @@ internal class ChapterSession(
     /** 校验并记录单条交流观察；说明缺省时沿用交流描述。 */
     private fun interactionOne(index: Int, item: InteractionInput): Map<String, Any?> {
         val errors = mutableListOf<ToolError>()
-        val a = localRef(item.personA, "person_a", errors)
-        val b = localRef(item.personB, "person_b", errors)
+        val a = personRef(item.personA, "person_a", errors)
+        val b = personRef(item.personB, "person_b", errors)
         if (a != null && a == b) errors += ToolError("SELF_INTERACTION", "person_a 与 person_b 不能是同一人物", "person_b")
         val description = item.description?.trim().orEmpty()
         if (description.isEmpty()) errors += ToolError("MISSING_DESCRIPTION", "description 必须描述发生了什么交流", "description")

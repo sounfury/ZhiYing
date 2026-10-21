@@ -70,6 +70,8 @@ internal data class ExCandidate(
     val proposal: ExProposal?,
     val description: String,
     val evidence: List<ExEvidence>,
+    /** 原文称谓；旧记录没有。 */
+    val term: String? = null,
 )
 
 internal data class ExAssessment(val candidate: String, val verdict: String, val undeterminedReason: String?, val basis: String)
@@ -152,6 +154,7 @@ private fun RelationCandidate.toRecord(): ExCandidate {
         },
         description = description,
         evidence = evidence.map { it.toRecord() },
+        term = term,
     )
 }
 
@@ -170,7 +173,7 @@ private fun ExCandidate.toDomain(chapter: ChapterId): RelationCandidate {
     }
     return RelationCandidate(
         CandidateId(id), LocalPersonRef(chapter, source), LocalPersonRef(chapter, target), reference,
-        description, evidence.map { it.toDomain(chapter) },
+        description, evidence.map { it.toDomain(chapter) }, term,
     )
 }
 

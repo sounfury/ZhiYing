@@ -29,8 +29,8 @@ sealed interface TypeReference {
 /**
  * 章内一条明确关系候选：原始观察，不带"已确认"标志。
  *
- * 是否成立看 [RelationAssessment]，能否出图看准入。[source] 与 [target] 是观察到的顺序，
- * 有向关系的规范方向由类型归一决定。
+ * 是否成立看 [RelationAssessment]，能否出图看准入。已知类型时 [source] 与 [target] 已按类型规范方向排好，
+ * 新类型建议时是建议的角色顺序，由类型归一再定。[term] 是原文用的称谓（如「妹妹」），出图措辞与性别校验用它；旧数据为 null。
  */
 data class RelationCandidate(
     val id: CandidateId,
@@ -39,6 +39,7 @@ data class RelationCandidate(
     val type: TypeReference,
     val description: String,
     val evidence: List<EvidenceRef>,
+    val term: String? = null,
 ) {
     init {
         require(source != target) { "关系两端不能是同一人物" }

@@ -12,6 +12,7 @@ import com.zhiying.application.analyze.relations.SoftFallbackStep
 import com.zhiying.application.analyze.relations.TypeNormalizationStep
 import com.zhiying.domain.extraction.ChapterExtraction
 import com.zhiying.domain.identity.AlignedIdentities
+import com.zhiying.domain.identity.Gender
 import com.zhiying.domain.identity.Person
 import com.zhiying.domain.library.BookId
 import com.zhiying.domain.library.ChapterId
@@ -70,7 +71,7 @@ data class PostProcessResult(val revision: AnalysisRevision, val report: PostPro
  * 调用顺序即 DESIGN §3 的流程，副作用（模型调用、读原文）都在各步骤里显式发生：
  * 1. 身份对齐：明确绑定直接采用，歧义交给 IdentityDisambiguator，登记合并；
  * 2. 类型归一：名称确定性匹配，剩余交给 RelationTypeResolver（先查类型语义缓存）；
- * 3. 构建关系记录：沿用章内首判，未决 / 否定记录同样保留，自环等标出；
+ * 3. 构建关系记录：沿用章内首判，未决 / 否定记录同样保留，自环、称谓与人物性别矛盾等标出；
  * 4. 有限补查：只补明确未决的硬 / 中关系（RelationRechecker）；
  * 5. 软兜底：按 §3.5 的表规划并分流，路人对规则贴「相识」，重要对交给 SoftFallbackFinder 查漏
  *    （疑似强关系再补查一轮），软标签由领域校验；
@@ -123,7 +124,8 @@ class AnalysisPostProcessor(
         resolutions: Map<CandidateRef, com.zhiying.domain.relations.TypeResolution>,
         library: RelationTypeLibrary,
     ): Pair<List<RelationOccurrence>, List<BuildOutcome.Unbuilt>> {
-        val builder = OccurrenceBuilder(library, identities.identityMap)
+        val genders = identities.persons.associate { it.id to it.gender }
+        val builder = OccurrenceBuilder(library, identities.identityMap) { genders[it] ?: Gender.UNKNOWN }
         val outcomes = extractions.flatMap { extraction ->
             extraction.candidates.map { candidate ->
                 val ref = CandidateRef(extraction.chapterId, candidate.id)

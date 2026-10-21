@@ -14,10 +14,10 @@ internal object ChapterTools {
         tool<ReadArgs>("read_chapter", "按字符偏移读取本章正文的一窗。长章必须逐窗读完。", READ_SCHEMA) { session.read(it.offset, it.limit) },
         tool<SearchArgs>("search_chapter", "在本章正文搜索关键词，返回命中处的 offset 与所在段落片段（最多 50 处）。", SEARCH_SCHEMA) { session.search(it.keyword) },
         tool<RosterArgs>("query_roster", "查询人名册；name 为空列出名册，否则按名称检索候选。同名不等于同一人。", ROSTER_SCHEMA) { session.queryRoster(it.name) },
-        tool<PersonsArgs>("register_persons", "批量登记本章出场人物及其名称，返回 local_id。可用已有 local_id 补充名称或指向名册 ID。", PERSONS_SCHEMA) {
+        tool<PersonsArgs>("register_persons", "批量登记本章出场人物及其名称，返回 local_id。可用已有 local_id 补充名称或指向名册 ID。关系和交流里直接写登记过的名字。", PERSONS_SCHEMA) {
             session.registerPersons(it.persons.orEmpty())
         },
-        tool<RelationsArgs>("submit_relations", "批量提交关系候选及首次判断。每条独立校验，被拒的按错误修正后重提。", RELATIONS_SCHEMA) {
+        tool<RelationsArgs>("submit_relations", "批量提交关系候选及首次判断，每条读作「person 是 of 的 term」。每条独立校验，被拒的按错误修正后重提。", RELATIONS_SCHEMA) {
             session.submitRelations(it.relations.orEmpty())
         },
         tool<InteractionsArgs>("submit_interactions", "批量提交两个人物之间的实际交流观察。不要把交流命名为关系。", INTERACTIONS_SCHEMA) {
@@ -91,10 +91,10 @@ internal object ChapterTools {
 
     private val RELATIONS_SCHEMA = """
 {"type":"object","properties":{"relations":{"type":"array","items":{"type":"object","properties":{
- "source":{"type":"string","description":"local_id；有向类型时为承担源端角色的人"},
- "target":{"type":"string","description":"local_id；有向类型时为承担目标端角色的人"},
- "type_id":{"type":"string","description":"类型库中的类型 ID（与 new_type 二选一）"},
- "new_type":{"type":"object","description":"类型库没有合适类型时的新类型建议","properties":{
+ "person":{"type":"string","description":"关系主语：登记过的人名（任一名称），本章重名时填 local_id"},
+ "term":{"type":"string","description":"称谓表里的词，使「person 是 of 的 term」成立，如 妹妹、舅舅、同学；原文怎么说就怎么填"},
+ "of":{"type":"string","description":"关系宾语：登记过的人名，本章重名时填 local_id"},
+ "new_type":{"type":"object","description":"称谓表没有合适的词时的新类型建议（此时可不填 term）；有向时 person 承担 source_role，of 承担 target_role","properties":{
   "name":{"type":"string"},"definition":{"type":"string","description":"一般性定义，不写具体人名"},
   "hardness":{"type":"string","enum":["hard","medium","soft"]},
   "directed":{"type":"boolean"},"source_role":{"type":"string"},"target_role":{"type":"string"}}},
@@ -103,13 +103,14 @@ internal object ChapterTools {
  "verdict":{"type":"string","enum":["supported","undetermined","refuted"]},
  "undetermined_reason":{"type":"string","enum":["unclear_reference","ambiguous_type_or_direction","insufficient_context","figurative_or_hearsay"]},
  "assessment_basis":{"type":"string","description":"首次判断的依据"}},
- "required":["source","target","description","evidence","verdict","assessment_basis"]}}},
+ "required":["person","of","description","evidence","verdict","assessment_basis"]}}},
  "required":["relations"]}
 """.trimIndent()
 
     private val INTERACTIONS_SCHEMA = """
 {"type":"object","properties":{"interactions":{"type":"array","items":{"type":"object","properties":{
- "person_a":{"type":"string"},"person_b":{"type":"string"},
+ "person_a":{"type":"string","description":"登记过的人名，本章重名时填 local_id"},
+ "person_b":{"type":"string","description":"登记过的人名，本章重名时填 local_id"},
  "description":{"type":"string","description":"发生了什么交流（对话、书信、共同行动等），不要命名为关系"},
  "note":{"type":"string","description":"依据说明，省略则沿用 description"},
  "quote":{"type":"string","description":"逐字一致的原句（可选）"},

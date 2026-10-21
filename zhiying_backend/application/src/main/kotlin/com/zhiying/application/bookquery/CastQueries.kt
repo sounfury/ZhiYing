@@ -6,6 +6,7 @@ import com.zhiying.application.error.ErrorCode
 import com.zhiying.application.graphquery.RevisionStore
 import com.zhiying.application.library.ShelfItems
 import com.zhiying.domain.affiliations.AffiliationGroup
+import com.zhiying.domain.identity.Gender
 import com.zhiying.domain.identity.Person
 import com.zhiying.domain.identity.PersonId
 import com.zhiying.domain.library.BookId
@@ -15,6 +16,7 @@ import com.zhiying.domain.relations.Direction
 import com.zhiying.domain.relations.RelationFact
 import com.zhiying.domain.relations.RelationType
 import com.zhiying.domain.relations.RelationTypeLibrary
+import com.zhiying.domain.relations.Wording
 import com.zhiying.domain.revision.AnalysisRevision
 import com.zhiying.domain.revision.RevisionId
 import org.springframework.stereotype.Service
@@ -101,15 +103,16 @@ class GetPersonDetail(private val store: RevisionStore, private val items: Shelf
         return PersonDetail(bookId, revision.id, castEntry(revision, person), memberships, relations, revision.chapterNumbers())
     }
 
-    /** 把事实换成以 [self] 为视角的关系：对方人物与两端角色（有向关系按端点方向取）。 */
+    /** 把事实换成以 [self] 为视角的关系：对方人物与两端称谓，与图上措辞一致（有向关系按称谓所指取）。 */
     private fun relationOf(revision: AnalysisRevision, self: PersonId, fact: RelationFact): PersonRelation {
         val type = revision.types.getValue(fact)
-        val isSource = fact.key.first == self
-        val other = revision.personsById.getValue(if (isSource) fact.key.second else fact.key.first)
-        val directed = type.direction as? Direction.Directed
-        val selfRole = directed?.let { if (isSource) it.sourceRole else it.targetRole }
-        val otherRole = directed?.let { if (isSource) it.targetRole else it.sourceRole }
-        return PersonRelation(other, type, selfRole, otherRole, directed?.let { isSource }, fact.chapters.toList(), fact.evidence)
+        val other = revision.personsById.getValue(if (fact.key.first == self) fact.key.second else fact.key.first)
+        if (type.direction !is Direction.Directed) return PersonRelation(other, type, null, null, null, fact.chapters.toList(), fact.evidence)
+        val wording = Wording.of(type, fact.key, fact.terms) { revision.personsById[it]?.gender ?: Gender.UNKNOWN }
+        val outgoing = wording.from == self
+        val selfRole = if (outgoing) wording.fromRole else wording.toRole
+        val otherRole = if (outgoing) wording.toRole else wording.fromRole
+        return PersonRelation(other, type, selfRole, otherRole, outgoing, fact.chapters.toList(), fact.evidence)
     }
 
     private fun notFound(personId: PersonId) = AppException(ErrorCode.NOT_FOUND, "人物不存在: ${personId.value}")

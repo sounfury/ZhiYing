@@ -12,13 +12,15 @@ import com.zhiying.domain.relations.Hardness
 import com.zhiying.domain.relations.OccurrenceId
 import com.zhiying.domain.relations.RelationKey
 import com.zhiying.domain.relations.RelationType
+import com.zhiying.domain.relations.Wording
 import com.zhiying.domain.revision.RevisionId
 
 /**
  * 一种关系在图上的标签：同一规范键下全部准入记录汇总后的展示单元。
  *
  * 入参：[key] 关系键；[type] 类型定义；[chapters] 出现章节（按阅读顺序）；[evidence] 全部依据；
- * [occurrences] 汇入的记录 ID；[score] 展示分，只用于排序与默认过滤，不决定关系是否成立。
+ * [occurrences] 汇入的记录 ID；[score] 展示分，只用于排序与默认过滤，不决定关系是否成立；
+ * [wording] 图上的说法，箭头方向与标签文字都取自它。
  */
 data class RelationLabel(
     val key: RelationKey,
@@ -27,12 +29,13 @@ data class RelationLabel(
     val evidence: List<EvidenceRef>,
     val occurrences: List<OccurrenceId>,
     val score: Double,
+    val wording: Wording,
 ) {
-    /** 关系起点；有向关系时承担类型的源角色。 */
-    val from: PersonId get() = key.first
+    /** 箭头起点：标签称谓所指的人（「from 是 to 的 label」）；无向关系为规范键的第一人。 */
+    val from: PersonId get() = wording.from
 
-    /** 关系终点。 */
-    val to: PersonId get() = key.second
+    /** 箭头终点。 */
+    val to: PersonId get() = wording.to
 
     /** 硬度。 */
     val hardness: Hardness get() = type.hardness

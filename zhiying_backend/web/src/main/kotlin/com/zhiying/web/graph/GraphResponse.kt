@@ -66,18 +66,18 @@ data class TagResponse(
             number: ChapterNumber,
             focus: ChapterFocus?,
         ): TagResponse {
-            val directed = l.type.direction as? Direction.Directed
+            val directed = l.type.direction is Direction.Directed
             val chapterIds = l.chapters.map(number)
             return TagResponse(
                 key = l.key.type.value,
                 predicate = l.key.type.value,
-                label = l.type.name,
+                label = l.wording.label,
                 category = categoryOf(l.hardness),
                 hardness = l.hardness.name.lowercase(),
                 definition = l.type.definition,
-                directed = directed != null,
-                subjectRole = directed?.sourceRole ?: l.type.name,
-                objectRole = directed?.targetRole ?: l.type.name,
+                directed = directed,
+                subjectRole = l.wording.fromRole,
+                objectRole = l.wording.toRole,
                 relationIds = l.occurrences.map { it.value },
                 chapterIds = chapterIds,
                 evidences = l.evidence.map { EvidenceResponse.from(it, number) },

@@ -28,11 +28,11 @@ internal data class NewTypeInput(
     val targetRole: String? = null,
 )
 
-/** 关系候选及章内首次判断。 */
+/** 关系候选及章内首次判断：读作「person 是 of 的 term」；person、of 为人名或 local_id。 */
 internal data class RelationInput(
-    val source: String? = null,
-    val target: String? = null,
-    val typeId: String? = null,
+    val person: String? = null,
+    val term: String? = null,
+    val of: String? = null,
     val newType: NewTypeInput? = null,
     val description: String? = null,
     val evidence: List<EvidenceInput>? = null,
@@ -41,7 +41,7 @@ internal data class RelationInput(
     val assessmentBasis: String? = null,
 )
 
-/** 交流观察。 */
+/** 交流观察；两端为人名或 local_id。 */
 internal data class InteractionInput(
     val personA: String? = null,
     val personB: String? = null,

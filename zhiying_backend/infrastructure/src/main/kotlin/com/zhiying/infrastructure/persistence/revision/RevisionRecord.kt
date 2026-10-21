@@ -76,6 +76,8 @@ internal data class OccurrenceRecord(
     val undeterminedReason: String?,
     val basis: String,
     val source: String,
+    /** 原文称谓；旧记录没有。 */
+    val term: String? = null,
 )
 
 internal data class GroupRecord(val id: String, val name: String, val nameSource: EvidenceRecord)
@@ -207,6 +209,7 @@ private fun RelationOccurrence.toRecord(): OccurrenceRecord {
         undeterminedReason = (verdict as? SemanticVerdict.Undetermined)?.reason?.name,
         basis = assessment.basis,
         source = assessment.source.name,
+        term = term,
     )
 }
 
@@ -224,5 +227,6 @@ private fun OccurrenceRecord.toDomain(library: RelationTypeLibrary): RelationOcc
     return RelationOccurrence(
         OccurrenceId(id), key, ChapterId(chapterId), candidateId, evidence.map { it.toDomain() },
         RelationAssessment(candidateId, semantic, basis, AssessmentSource.valueOf(source)),
+        term,
     )
 }
