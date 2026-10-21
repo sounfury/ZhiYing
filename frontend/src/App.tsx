@@ -117,6 +117,7 @@ function AppLayout() {
               egoPersonId={s.egoPersonId}
               refitToken={s.refitToken}
               scopeLabel={s.scopeLabel}
+              loading={s.graphLoading}
               onExitEgo={() => s.setEgoPersonId(null)}
               onEnterEgo={s.setEgoPersonId}
               onSelectEdge={(e) => {

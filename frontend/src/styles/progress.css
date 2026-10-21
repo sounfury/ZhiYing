@@ -426,102 +426,85 @@
   }
 }
 
-/* ── 等待动画：小蜘蛛织线 + 新登场人物滚动（AnalysisLoom） ── */
+/* ── 等待动画：吊丝小蜘蛛 + 新登场人物逐个盖章（AnalysisLoom），手绘逐帧风 ── */
 .loom {
   margin: 14px 0 4px;
 }
 
 .loom-stage {
-  display: grid;
-  grid-template-columns: 140px 1fr;
-  align-items: center;
-  gap: 16px;
-  height: 130px;
-  padding: 0 14px;
-  border-radius: var(--r-sm);
-  background: var(--panel-2);
-  overflow: hidden;
-}
-
-/* 蜘蛛：慢慢起伏，并随织线轻轻左右摆 */
-.loom-spider {
-  position: relative;
-  aspect-ratio: 1402 / 1122;
-  transform-origin: 50% 80%;
-  animation: loom-rock 2.4s ease-in-out infinite;
-}
-
-.loom-spider img,
-.loom-spider svg {
-  position: absolute;
-  inset: 0;
-  width: 100%;
-  height: 100%;
-}
-
-.loom-spider path {
-  fill: none;
-  stroke-linecap: round;
-}
-
-.loom-warp-lines {
-  stroke: var(--warn);
-  stroke-width: 6;
-  opacity: 0.35;
-}
-
-/* 纬线：依次从左织到右再淡出，各线错开循环 */
-.loom-weft {
-  stroke: var(--warn);
-  stroke-width: 12;
-  stroke-dasharray: 100;
-  stroke-dashoffset: 100;
-  animation: loom-weave 2s ease-in-out infinite;
-  filter: drop-shadow(0 0 6px var(--warn));
-}
-
-.loom-names {
   display: flex;
   flex-direction: column;
-  justify-content: flex-end;
-  gap: 4px;
-  height: 100%;
-  margin: 0;
-  padding: 8px 0;
-  list-style: none;
+  align-items: center;
+  justify-content: center;
+  height: 210px;
+  padding: 0 14px;
+  border-radius: var(--r-sm);
+  background: radial-gradient(ellipse at center, var(--panel) 0%, var(--panel-2) 75%);
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(transparent, #000 35%);
-  mask-image: linear-gradient(transparent, #000 35%);
+  text-align: center;
 }
 
-.loom-names li {
+.loom-stage p {
+  margin: 0;
+}
+
+.loom-spider {
+  width: 104px;
+  height: 104px;
+  flex: none;
+}
+
+.loom-defs {
+  position: absolute;
+}
+
+.loom-line {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 40px;
+  max-width: 100%;
   font-family: var(--serif);
-  font-size: 15px;
+  font-size: 24px;
+  font-weight: 700;
   color: var(--ink);
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  animation: loom-name-in 0.5s ease-out both;
+  filter: url(#loom-boil-text);
 }
 
-/* 越早的名字越淡，最新的一个最醒目 */
-.loom-names li:not(:last-child) {
-  font-size: 13px;
+.loom-line.quip {
+  font-size: 16px;
+  font-weight: 400;
   color: var(--ink-2);
 }
 
-.loom-names li:last-child:not(.empty)::before {
-  content: '新登场 ';
-  font-family: inherit;
-  font-size: 11px;
+.loom-line .pre {
+  margin-right: 8px;
+  font-size: 13px;
+  font-weight: 400;
   color: var(--warn);
 }
 
-.loom-names li.empty {
-  font-family: inherit;
+.loom-line .ch {
+  display: inline-block;
+  animation: loom-stamp 0.32s steps(4) both;
+}
+
+.loom-trail {
+  min-height: 18px;
+  max-width: 100%;
+  font-family: var(--serif);
   font-size: 12px;
   color: var(--muted);
-  white-space: normal;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.loom-count {
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--ink-2);
 }
 
 .loom-warp {
@@ -577,21 +560,11 @@
   color: var(--muted);
 }
 
-@keyframes loom-rock {
-  0%, 100% { transform: translateY(0) rotate(-2deg); }
-  50% { transform: translateY(-4px) rotate(2deg); }
-}
-
-@keyframes loom-weave {
-  0% { stroke-dashoffset: 100; opacity: 1; }
-  45% { stroke-dashoffset: 0; opacity: 1; }
-  85% { stroke-dashoffset: 0; opacity: 1; }
-  100% { stroke-dashoffset: 0; opacity: 0; }
-}
-
-@keyframes loom-name-in {
-  from { opacity: 0; transform: translateY(14px); }
-  to { opacity: 1; transform: none; }
+/* 字从上方放大砸下，过冲一下再歪着落定；--r 是每个字的歪斜角 */
+@keyframes loom-stamp {
+  0% { opacity: 0; transform: translateY(-10px) scale(1.6) rotate(var(--r)); }
+  60% { opacity: 1; transform: scale(0.9) rotate(calc(var(--r) * -0.5)); }
+  100% { opacity: 1; transform: rotate(calc(var(--r) * 0.2)); }
 }
 
 @keyframes loom-draw {
@@ -608,7 +581,7 @@
     animation: none !important;
   }
 
-  .loom-weft {
-    stroke-dashoffset: 0;
+  .loom-line {
+    filter: none;
   }
 }

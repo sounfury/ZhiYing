@@ -84,7 +84,7 @@ export function GraphLegend({
         </div>
       )}
       {factionFallback && <div className="lg-hint warn">{factionFallback}</div>}
-      {affinity && <div className="lg-hint">离中心越近，与中心人物的关系越硬</div>}
+      {affinity && <div className="lg-hint">离中心越近，与中心人物的关系越硬；与中心人物的连线悬停或选中时显示</div>}
     </details>
   )
 }

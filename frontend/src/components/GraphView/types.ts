@@ -6,7 +6,7 @@ import type { Point } from './geometry'
 /**
  * 两种布局模式（PRD §5.7.4 B）：
  * - faction（默认，大图主路径）：每个势力一块半透明圆角区块，块内核心人物居中、其余按亲疏分环
- * - affinity（辅模式）：以主角 / 中心人物为圆心，按与他关系的硬 / 中 / 软 / 间接分档成扇区
+ * - affinity（辅模式）：以主角 / 中心人物为圆心，按与他关系的硬 / 中 / 软 / 间接分档成环，角度按势力分扇区
  */
 export type LayoutMode = 'faction' | 'affinity'
 
@@ -49,6 +49,8 @@ export type GraphViewProps = {
   refitToken?: number
   /** 当前范围说明（全书 / 第 N 章 / 前 N 章），显示在中心视图路径条里 */
   scopeLabel?: string
+  /** 正在取新图数据（旧图仍在显示）；慢时图区压暗、小蜘蛛降下来 */
+  loading?: boolean
   onSelectEdge?: (edge: GraphEdge | null) => void
   onSelectNode?: (node: GraphNode | null) => void
   /** 双击人物：进入以他为中心的视图 */
@@ -97,6 +99,8 @@ export type SceneEdge = {
   /** 单章模式下有本章依据（加粗突出）；false 且单章 = 背景淡化 */
   inFocus: boolean
   labelText: string
+  /** 亲疏靶心里连向中心人物的线：环位已表达亲疏，平时隐藏，关注任一端或选中时才画 */
+  spoke?: boolean
 }
 
 /** 本体与分身之间的提示线：只在悬停 / 选中该人物时显示，不可点 */
@@ -113,12 +117,21 @@ export type SceneCombo = {
   slot: number
 }
 
+/** 亲疏靶心的档位引导环：以中心人物为圆心，档名写在环的正上方；不可点 */
+export type SceneRing = {
+  id: string
+  r: number
+  label: string
+}
+
 /** 一次建图所需的全部静态信息 */
 export type Scene = {
   nodes: SceneNode[]
   edges: SceneEdge[]
   twins: SceneTwin[]
   combos: SceneCombo[]
+  /** 仅亲疏靶心；圆心在画布原点 */
+  rings: SceneRing[]
   /** 单章模式：本章依据突出、其余淡化 */
   focusSingle: boolean
   /** 人多：默认不显示连线文字，放大或悬停 / 选中时再显示 */

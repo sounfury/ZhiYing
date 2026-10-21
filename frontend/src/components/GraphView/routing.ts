@@ -65,7 +65,8 @@ export function routeEdges(nodes: SceneNode[], edges: SceneEdge[]): void {
   const obstacles = nodeObstacles(nodes)
   const routed: { source: string; target: string; path: Point[] }[] = []
   // 先给重要关系留出直观路径；相同输入始终得到相同结果。
-  const ordered = [...edges].sort((a, b) => ({ hard: 0, medium: 1, soft: 2 }[a.hardness] - { hard: 0, medium: 1, soft: 2 }[b.hardness]) || a.id.localeCompare(b.id))
+  // 平时隐藏的辐条最后排，免得看不见的线把可见的线挤弯。
+  const ordered = [...edges].sort((a, b) => Number(!!a.spoke) - Number(!!b.spoke) || ({ hard: 0, medium: 1, soft: 2 }[a.hardness] - { hard: 0, medium: 1, soft: 2 }[b.hardness]) || a.id.localeCompare(b.id))
   for (const edge of ordered) {
     const source = nodeMap.get(edge.source)!, target = nodeMap.get(edge.target)!
     const a = { x: source.x, y: source.y }, b = { x: target.x, y: target.y }

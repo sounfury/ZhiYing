@@ -158,7 +158,7 @@ export function GraphToolbar({
   const layoutTip =
     layoutMode === 'faction'
       ? `势力分区布局\n同一势力的人物聚在一起${noFactions ? '；本书没有可分的势力，暂按亲疏显示' : ''}\n点击切到亲疏扇区`
-      : '亲疏扇区布局\n以中心人物为圆心，关系越强离得越近\n点击切回势力分区'
+      : '亲疏扇区布局\n以中心人物为圆心，关系越强离得越近；同一势力朝同一方向\n点击切回势力分区'
 
   return (
     <>

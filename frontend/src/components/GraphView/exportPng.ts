@@ -4,6 +4,7 @@
  * - 内容：当前视图的全部人物与连线（含被拖动后的位置），不受屏幕视口与缩放分级影响
  * - 连线：按场景里已绕行的路径画，与画布一致；有向关系画箭头
  * - 文字：人名全部显示；关系文字按 labels.ts 在 100% 缩放、无交互态下的避让结果标注（软关系不标）
+ * - 亲疏靶心：画档位引导环与档名
  * - 附带：顶部书名与范围说明，底部图例（线型、本章、势力色）与水印
  * - 清晰度：默认 2 倍像素，图太大时按画布尺寸 / 面积上限降低倍数（iOS Safari 画布上限更小）
  *
@@ -155,7 +156,8 @@ export async function renderGraphPng(
   const bounds = emptyRect()
   for (const b of nodeBox.values()) grow(bounds, b.x0, b.y0, b.x1, b.y1)
   for (const r of comboRects.values()) grow(bounds, r.x0, r.y0, r.x1, r.y1)
-  for (const e of scene.edges) for (const pt of e.path) grow(bounds, pt.x, pt.y, pt.x, pt.y)
+  for (const r of scene.rings) grow(bounds, -r.r, -r.r - 8, r.r, r.r)
+  for (const e of scene.edges) if (!e.spoke) for (const pt of e.path) grow(bounds, pt.x, pt.y, pt.x, pt.y)
   const labelAt = edgeLabelPositions(scene, p)
   measure.font = font(600, EDGE_LABEL_FONT, p.sans)
   for (const e of scene.edges) {
@@ -210,7 +212,7 @@ export async function renderGraphPng(
     placedItems.push({ it, x: cx, row })
     cx += w + gap
   })
-  const hint = meta.affinity ? '离中心越近，与中心人物的关系越硬' : ''
+  const hint = meta.affinity ? '离中心越近，与中心人物的关系越硬（与中心人物的连线略去）' : ''
   const legendH = 14 * u + (row + 1) * rowH + (hint ? rowH * 0.9 : 0)
   const footSize = 13 * u
   const footerH = 14 * u + footSize * 1.6 + pad * 0.8
@@ -325,6 +327,29 @@ function drawGraph(
   labelAt: Map<string, Pt>,
   p: Palette,
 ) {
+  // 亲疏档位环：淡虚线圆，档名压在正上方
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  for (const r of scene.rings) {
+    ctx.beginPath()
+    ctx.arc(0, 0, r.r, 0, Math.PI * 2)
+    ctx.globalAlpha = 0.32
+    ctx.strokeStyle = p.muted
+    ctx.lineWidth = 1
+    ctx.setLineDash([3, 6])
+    ctx.stroke()
+    ctx.setLineDash([])
+    ctx.globalAlpha = 1
+    ctx.font = font(400, 12, p.sans)
+    ctx.letterSpacing = '2px'
+    ctx.lineWidth = 4
+    ctx.strokeStyle = p.canvas
+    ctx.strokeText(r.label, 0, -r.r)
+    ctx.fillStyle = p.muted
+    ctx.fillText(r.label, 0, -r.r)
+    ctx.letterSpacing = '0px'
+  }
+
   // 势力区块：浅底 + 淡虚线框 + 左上块名
   for (const c of scene.combos) {
     const r = comboRects.get(c.id)
@@ -353,7 +378,8 @@ function drawGraph(
   }
 
   // 连线：单章模式下本章依据加粗、压在上层，其余淡化
-  const edges = [...scene.edges].sort((a, b) => Number(scene.focusSingle && a.inFocus) - Number(scene.focusSingle && b.inFocus))
+  // 亲疏辐条不画：环位已表达与中心人物的亲疏
+  const edges = scene.edges.filter((e) => !e.spoke).sort((a, b) => Number(scene.focusSingle && a.inFocus) - Number(scene.focusSingle && b.inFocus))
   ctx.lineCap = 'round'
   for (const e of edges) {
     if (e.path.length < 2) continue

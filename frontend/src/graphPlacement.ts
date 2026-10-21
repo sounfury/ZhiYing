@@ -1,4 +1,4 @@
-/** 关系图节点位置的纯计算细化：同组同环换座、拓扑松弛及节点 / 名字避碰；不负责区块装箱、路由或连线标签。 */
+/** 势力块内人物位置的纯计算细化：同组同环换座、拓扑松弛及节点 / 名字避碰；不负责区块装箱、路由或连线标签。 */
 import type { GraphEdge } from './api'
 import type { Point } from './graphLayout'
 
@@ -11,24 +11,14 @@ export type PlacementNode = {
   nameGap?: number
 }
 
-/** 连续角区间（允许跨越 ±π），用于保留亲疏扇区与各人的原始径向档位。 */
-export type PlacementBounds = {
-  origin: Point
-  minRadius: number
-  maxRadius?: number
-  minAngle: number
-  maxAngle: number
-}
-
 export type RefinePlacementInput = {
   positions: ReadonlyMap<string, Point>
   nodes: readonly PlacementNode[]
   edges: readonly Pick<GraphEdge, 'person_a' | 'person_b'>[]
   /** 只有同组人物换座、相互吸引；跨组边由路由层处理。 */
   groups: ReadonlyMap<string, string>
-  /** 固定在输入坐标；势力块逐块调用时传核心人物，亲疏视图传圆心。 */
+  /** 固定在输入坐标；势力块逐块调用时传核心人物。 */
   fixedCenter?: string | null
-  bounds?: ReadonlyMap<string, PlacementBounds>
 }
 
 type Box = { left: number; top: number; right: number; bottom: number }
@@ -58,18 +48,8 @@ function overlap(a: Box, b: Box): Point | null {
   return x > 0 && y > 0 ? { x, y } : null
 }
 
-function constrain(item: Item, p: Point, bounds: ReadonlyMap<string, PlacementBounds> | undefined): Point {
-  if (item.fixed) return { ...item.seed }
-  const b = bounds?.get(item.id)
-  if (!b) return p
-  const dx = p.x - b.origin.x
-  const dy = p.y - b.origin.y
-  const mid = (b.minAngle + b.maxAngle) / 2
-  const angle = Math.atan2(dy, dx)
-  const unwrapped = angle + Math.round((mid - angle) / (Math.PI * 2)) * Math.PI * 2
-  const a = Math.max(b.minAngle, Math.min(b.maxAngle, unwrapped))
-  const r = Math.max(b.minRadius, Math.min(b.maxRadius ?? Infinity, Math.hypot(dx, dy)))
-  return { x: b.origin.x + r * Math.cos(a), y: b.origin.y + r * Math.sin(a) }
+function constrain(item: Item, p: Point): Point {
+  return item.fixed ? { ...item.seed } : p
 }
 
 function cross(a: Point, b: Point, c: Point): number {
@@ -136,8 +116,8 @@ function cost(items: Item[], links: Link[]): number {
   return value
 }
 
-/** 只交换同组、近似同半径且符合各自边界的座位，不把远亲换进内环。 */
-function reorder(items: Item[], links: Link[], bounds: RefinePlacementInput['bounds']) {
+/** 只交换同组、近似同半径的座位，不把远亲换进内环。 */
+function reorder(items: Item[], links: Link[]) {
   const groups = new Map<string, Item[]>()
   for (const n of items) {
     if (!groups.has(n.group)) groups.set(n.group, [])
@@ -146,7 +126,7 @@ function reorder(items: Item[], links: Link[], bounds: RefinePlacementInput['bou
   for (const members of groups.values()) {
     if (members.length < 3) continue
     const fixed = members.find((n) => n.fixed)
-    const origin = fixed?.seed ?? bounds?.get(members[0].id)?.origin ?? {
+    const origin = fixed?.seed ?? {
       x: members.reduce((s, n) => s + n.seed.x, 0) / members.length,
       y: members.reduce((s, n) => s + n.seed.y, 0) / members.length,
     }
@@ -166,9 +146,6 @@ function reorder(items: Item[], links: Link[], bounds: RefinePlacementInput['bou
           if (a.fixed || b.fixed || Math.abs(radius(a) - radius(b)) > 24) continue
           const pa = a.point
           const pb = b.point
-          const ca = constrain(a, pb, bounds)
-          const cb = constrain(b, pa, bounds)
-          if (Math.hypot(ca.x - pb.x, ca.y - pb.y) > 1e-6 || Math.hypot(cb.x - pa.x, cb.y - pa.y) > 1e-6) continue
           tries++
           a.point = { ...pb }
           b.point = { ...pa }
@@ -187,7 +164,7 @@ function reorder(items: Item[], links: Link[], bounds: RefinePlacementInput['bou
   }
 }
 
-function separate(items: Item[], bounds: RefinePlacementInput['bounds']) {
+function separate(items: Item[]) {
   for (let i = 0; i < items.length; i++) for (let j = i + 1; j < items.length; j++) {
     const a = items[i]
     const b = items[j]
@@ -206,8 +183,8 @@ function separate(items: Item[], bounds: RefinePlacementInput['bounds']) {
         const dx = horizontal ? shift : 0
         const dy = horizontal ? 0 : shift
         const share = a.fixed ? 0 : b.fixed ? 1 : 0.5
-        a.point = constrain(a, { x: a.point.x + dx * share, y: a.point.y + dy * share }, bounds)
-        b.point = constrain(b, { x: b.point.x - dx * (1 - share), y: b.point.y - dy * (1 - share) }, bounds)
+        a.point = constrain(a, { x: a.point.x + dx * share, y: a.point.y + dy * share })
+        b.point = constrain(b, { x: b.point.x - dx * (1 - share), y: b.point.y - dy * (1 - share) })
         aBoxes = footprints(a, a.point)
         bBoxes = footprints(b, b.point)
       }
@@ -215,7 +192,7 @@ function separate(items: Item[], bounds: RefinePlacementInput['bounds']) {
   }
 }
 
-function relax(items: Item[], links: Link[], bounds: RefinePlacementInput['bounds']) {
+function relax(items: Item[], links: Link[]) {
   const index = new Map(items.map((n, i) => [n, i]))
   let best = cost(items, links)
   let saved = items.map((n) => ({ ...n.point }))
@@ -270,9 +247,9 @@ function relax(items: Item[], links: Link[], bounds: RefinePlacementInput['bound
     items.forEach((n, i) => {
       const f = forces[i]
       const scale = Math.min(1, 10 / (Math.hypot(f.x, f.y) || 1))
-      n.point = constrain(n, { x: n.point.x + f.x * scale, y: n.point.y + f.y * scale }, bounds)
+      n.point = constrain(n, { x: n.point.x + f.x * scale, y: n.point.y + f.y * scale })
     })
-    separate(items, bounds)
+    separate(items)
     if (step % 8 === 7 || step === steps - 1) {
       const next = cost(items, links)
       if (next < best) {
@@ -284,8 +261,8 @@ function relax(items: Item[], links: Link[], bounds: RefinePlacementInput['bound
   items.forEach((n, i) => { n.point = saved[i] })
 }
 
-/** 投影后剩余的接触逐个修复；无边界时至少存在一个外侧候选，长名字无需无限迭代。 */
-function clearRemaining(items: Item[], bounds: RefinePlacementInput['bounds']) {
+/** 剩余的接触逐个修复；至少存在一个外侧候选，长名字无需无限迭代。 */
+function clearRemaining(items: Item[]) {
   const placed: Item[] = []
   const order = [...items].sort((a, b) => Number(b.fixed) - Number(a.fixed) || compareId(a.id, b.id))
   for (const n of order) {
@@ -303,26 +280,15 @@ function clearRemaining(items: Item[], bounds: RefinePlacementInput['bounds']) {
           { x: original.x, y: original.y + b.bottom - a.top + GAP + 1 },
         )
       }
-      const region = bounds?.get(n.id)
-      if (region) {
-        // 轴向候选在定半径圆环上会被投影回原处；直接尝试有限的圆弧座位。
-        const radius = Math.hypot(original.x - region.origin.x, original.y - region.origin.y)
-        const radii = new Set([radius, region.minRadius, region.maxRadius ?? radius])
-        for (const r of radii) for (let i = 0; i <= 16; i++) {
-          const angle = region.minAngle + (region.maxAngle - region.minAngle) * i / 16
-          candidates.push({ x: region.origin.x + r * Math.cos(angle), y: region.origin.y + r * Math.sin(angle) })
-        }
-      }
       let best = Infinity
       for (const candidate of candidates) {
-        const p = constrain(n, candidate, bounds)
+        const p = constrain(n, candidate)
         const distance = (p.x - original.x) ** 2 + (p.y - original.y) ** 2
         if (distance < best && clear(p)) {
           best = distance
           n.point = p
         }
       }
-      // 过窄的调用方边界可能没有可行解；保持边界，而不是破坏亲疏语义。
     }
     placed.push(n)
   }
@@ -331,9 +297,8 @@ function clearRemaining(items: Item[], bounds: RefinePlacementInput['bounds']) {
 /**
  * 有限、确定性的细化，输入不变，返回新 Map / Point；节点必须有有限输入坐标和非负尺寸。
  * 势力布局：每块在局部坐标中单独调用（固定 hub），随后按实际节点 + 名字边界装箱。
- * 亲疏布局：在全图坐标中调用，groups 用「档位 + 势力」，bounds 保留楔形及径向档位。
  * 多块不能以重叠的局部坐标同时调用；装箱后的块也不能沿用细化前的包围盒。
- * 有边界时避碰尽力而为（空间不足或有限候选未命中时可能残留）；无边界时清除全部足迹碰撞。
+ * 清除全部足迹碰撞。
  */
 export function refinePlacement(input: RefinePlacementInput): Map<string, Point> {
   const out = new Map([...input.positions].map(([id, p]) => [id, { ...p }]))
@@ -351,9 +316,9 @@ export function refinePlacement(input: RefinePlacementInput): Map<string, Point>
   }
   const links = [...pairs.entries()].sort(([a], [b]) => compareId(a, b)).map(([, e]) => e)
   if (items.length > 1) {
-    reorder(items, links, input.bounds)
-    relax(items, links, input.bounds)
-    clearRemaining(items, input.bounds)
+    reorder(items, links)
+    relax(items, links)
+    clearRemaining(items)
   }
   for (const n of items) out.set(n.id, { ...n.point })
   return out

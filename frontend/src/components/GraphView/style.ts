@@ -10,11 +10,11 @@
  *
  * 这里只算样式对象，不碰 G6 实例；主题切换时重新 readPalette 再整体重算即可，无需重建图。
  */
-import { EDGE_LABEL_FONT, nameFontSize } from './geometry'
+import { EDGE_LABEL_FONT, nameFontSize, ringLabelFont } from './geometry'
 import type { LabelLayout } from './labels'
 import { edgeDirection } from '../../relationDirection'
 import { FACTION_SLOTS } from '../../factions'
-import type { Hardness, Scene, SceneCombo, SceneEdge, SceneNode, SceneTwin } from './types'
+import type { Hardness, Scene, SceneCombo, SceneEdge, SceneNode, SceneRing, SceneTwin } from './types'
 
 export type Palette = {
   canvas: string
@@ -122,6 +122,11 @@ export function computeFocus(scene: Scene, ctx: StyleCtx): Focus {
 
 const DIM = 0.13
 
+/** 辐条只在关注它一端（悬停 / 选中）或选中它时画；其余线始终画 */
+export function edgeShown(e: SceneEdge, ctx: StyleCtx, focus: Focus): boolean {
+  return !e.spoke || focus.edges.has(e.id) || focus.selectedLabelEdges.has(e.id) || ctx.selectedEdge === e.id
+}
+
 /** 首字：跳过开头的标点 / 空白 */
 function initialOf(name: string): string {
   for (const ch of name) if (!/[\s·・.\-—()（）「」『』"'“”]/.test(ch)) return ch
@@ -193,6 +198,8 @@ export function edgeStyle(
 
   let opacity = past ? 0.3 : 1
   if (focus.dimming) opacity = lit ? 1 : DIM * 0.8
+  const shown = edgeShown(e, ctx, focus)
+  if (!shown) opacity = 0
 
   const related = focus.labelEdges.has(e.id)
   const label = labels.edges.get(e.id)!
@@ -210,6 +217,7 @@ export function edgeStyle(
     controlPoints: e.controlPoints.map((p) => [p.x, p.y]),
     opacity,
     cursor: 'pointer',
+    pointerEvents: shown ? 'auto' : 'none',
     increasedLineWidthForHitTesting: 8,
     zIndex: lit || selected ? 3 : now ? 1 : 0,
     label: label.visible,
@@ -238,6 +246,39 @@ export function twinStyle(t: SceneTwin, ctx: StyleCtx, focus: Focus): Record<str
     opacity: focus.person === t.personId ? 0.45 : 0,
     pointerEvents: 'none',
     zIndex: 0,
+  }
+}
+
+/** 亲疏靶心的档位环：淡色细虚线圆，档名压在环的正上方（布局已在那里留空）；缩小时档名反向放大 */
+export function ringStyle(r: SceneRing, ctx: StyleCtx, focus: Focus): Record<string, unknown> {
+  const p = ctx.palette
+  const size = ringLabelFont(ctx.zoom)
+  return {
+    x: 0,
+    y: 0,
+    size: r.r * 2,
+    fill: 'transparent',
+    stroke: p.muted,
+    strokeOpacity: focus.dimming ? 0.12 : 0.32,
+    lineWidth: 1,
+    lineDash: [3, 6],
+    pointerEvents: 'none',
+    zIndex: -20,
+    icon: false,
+    label: true,
+    labelText: r.label,
+    labelPlacement: 'center',
+    labelOffsetY: -r.r,
+    labelTextBaseline: 'middle',
+    labelFill: p.muted,
+    labelFillOpacity: focus.dimming ? 0.4 : 1,
+    labelFontFamily: p.sans,
+    labelFontSize: size,
+    labelLetterSpacing: 2,
+    labelStroke: p.canvas,
+    labelLineWidth: size / 3,
+    labelLineJoin: 'round',
+    labelPointerEvents: 'none',
   }
 }
 

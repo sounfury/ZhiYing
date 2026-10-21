@@ -118,38 +118,6 @@ const coincidentPos = new Map(longNodes.map((n) => [n.id, { x: 0, y: 0 }]))
 const coincident = run({ positions: coincidentPos, nodes: longNodes, edges: [], groups: groups(longNodes), fixedCenter: longNodes[0].id })
 assert.equal(collisions(longNodes, coincident), 0, 'coincident long names separate without random jitter')
 
-const sectorNodes = Array.from({ length: 8 }, (_, i) => node(`sector-${i}`, 65))
-const sectorPos = new Map(sectorNodes.map((n, i) => {
-  const angle = (i < 4 ? 2.8 : -0.35) + (i % 4) * 0.2
-  return [n.id, { x: 240 * Math.cos(angle), y: 240 * Math.sin(angle) }]
-}))
-const sectorGroups = new Map(sectorNodes.map((n, i) => [n.id, i < 4 ? 'hard/faction-a' : 'soft/faction-b']))
-const sectorBounds = new Map(sectorNodes.map((n, i) => [n.id, {
-  origin: { x: 0, y: 0 }, minRadius: 220, maxRadius: 320,
-  minAngle: i < 4 ? 2.7 : -0.45, maxAngle: i < 4 ? 3.5 : 0.45,
-}]))
-const sectorEdges = [edge('sector-0', 'sector-3'), edge('sector-4', 'sector-7'), edge('sector-0', 'sector-4')]
-const sectors = run({ positions: sectorPos, nodes: sectorNodes, edges: sectorEdges, groups: sectorGroups, bounds: sectorBounds })
-for (const n of sectorNodes) {
-  const p = sectors.get(n.id)
-  const b = sectorBounds.get(n.id)
-  const mid = (b.minAngle + b.maxAngle) / 2
-  const raw = Math.atan2(p.y, p.x)
-  const angle = raw + Math.round((mid - raw) / (Math.PI * 2)) * Math.PI * 2
-  assert(angle >= b.minAngle - 1e-6 && angle <= b.maxAngle + 1e-6, 'group stays inside its assigned wedge')
-  assert(Math.hypot(p.x, p.y) >= b.minRadius - 1e-6 && Math.hypot(p.x, p.y) <= b.maxRadius + 1e-6, 'radial tier is preserved')
-}
-assert.equal(collisions(sectorNodes, sectors), 0)
-
-const arcNodes = [node('arc-a'), node('arc-b')]
-const arcPos = new Map(arcNodes.map((n) => [n.id, { x: 0, y: 240 }]))
-const arcBounds = new Map(arcNodes.map((n) => [n.id, {
-  origin: { x: 0, y: 0 }, minRadius: 240, maxRadius: 240, minAngle: 1, maxAngle: 2,
-}]))
-const arc = run({ positions: arcPos, nodes: arcNodes, edges: [], groups: groups(arcNodes), bounds: arcBounds })
-assert.equal(collisions(arcNodes, arc), 0, 'coincident nodes can move tangentially on a fixed-radius arc')
-for (const p of arc.values()) assert(Math.abs(Math.hypot(p.x, p.y) - 240) < 1e-6)
-
 // 代表性大图也执行全部有限性 / 确定性检查；不使用依赖机器速度的计时断言。
 const largeNodes = Array.from({ length: 100 }, (_, i) => node(`large-${i.toString().padStart(3, '0')}`, 65))
 const largePos = new Map(largeNodes.map((n, i) => [n.id, {
@@ -166,6 +134,5 @@ console.log(JSON.stringify({
   star: { crossings: [crossings(starEdges, starPos), crossings(starEdges, star)], blockers: [blockers(starNodes, starEdges, starPos), blockers(starNodes, starEdges, star)], peerLength: [peerEdges.reduce((s, e) => s + distance(starPos, e), 0), peerEdges.reduce((s, e) => s + distance(star, e), 0)], coordinates: serial(star) },
   triangle: { blockers: [blockers(triangleNodes, triangleEdges, trianglePos), blockers(triangleNodes, triangleEdges, triangle)], coordinates: serial(triangle) },
   longNames: { collisions: [collisions(longNodes, longPos), collisions(longNodes, longNames)] },
-  sectors: { collisions: collisions(sectorNodes, sectors) },
-  checks: 'topology, footprints, fixed center, sectors, fixed-radius arc, coincident points, 100 nodes / 200 edges, empty/singleton, immutable input, deterministic input permutations',
+  checks: 'topology, footprints, fixed center, coincident points, 100 nodes / 200 edges, empty/singleton, immutable input, deterministic input permutations',
 }, null, 2))

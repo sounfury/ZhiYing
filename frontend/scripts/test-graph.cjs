@@ -16,7 +16,7 @@ const node = (id, x, y, name = id, importance = 'supporting') => ({ id, personId
 const edge = (a, b, hardness = 'hard') => ({ id: `e:${a}|${b}`, source: a, target: b, hardness, inFocus: false, controlPoints: [], path: [], labelText: '兄弟姐妹', edge: { person_a: a, person_b: b, tags: [{ directed: true, source_person_id: a, label: '保护', category: '硬关系', hardness, display_score: 1 }] } })
 const scene = (nodes, edges) => {
   routeEdges(nodes, edges)
-  return { nodes, edges, twins: [], combos: [], focusSingle: false, dense: nodes.length > 40 || edges.length > 70 }
+  return { nodes, edges, twins: [], combos: [], rings: [], focusSingle: false, dense: nodes.length > 40 || edges.length > 70 }
 }
 const palette = { canvas: '#fff', ink: '#222', ink2: '#555', warn: '#c54', hard: '#222', medium: '#555', soft: '#999', serif: 'serif', sans: 'sans-serif', faction: ['#444'], factionSoft: ['#eee'] }
 const context = (extra = {}) => ({ palette, zoom: 1, hoverNode: null, hoverEdge: null, selectedNode: null, selectedEdge: null, ...extra })

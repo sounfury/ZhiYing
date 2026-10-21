@@ -5,7 +5,7 @@
  * - 多势力分身：主角 / 配角在有关系的非主势力块里再出现一次，相关连线改连分身（PRD §5.7.4）
  * - 势力分区（默认）：同心环为初始座位，再根据成员关系换座、松弛并预留姓名足迹；
  *   各块按实际矩形边界装箱，连边多的块挨着放（PRD §5.7.4）
- * - 亲疏扇区：以中心人物为圆心，按与他关系的硬 / 中 / 软 / 间接 / 无连线分档成扇区
+ * - 亲疏靶心：以中心人物为圆心，按与他关系的硬 / 中 / 软 / 间接 / 无连线由内向外分档成环，角度按势力分扇区
  * - 平滑连线：避开沿途人物及姓名、拆开重叠通道；文字由 labels.ts 按当前缩放与交互态统一避让
  *
  * 只做纯计算，不碰 G6；颜色与交互态见 style.ts。
@@ -15,15 +15,14 @@ import { factionSlot, UNASSIGNED_FACTION_ID } from '../../factions'
 import {
   assignSlots,
   packRects,
-  packWedges,
   ringSlots,
   type Point,
   type RectBox,
 } from '../../graphLayout'
-import { refinePlacement, type PlacementBounds, type PlacementNode } from '../../graphPlacement'
+import { refinePlacement, type PlacementNode } from '../../graphPlacement'
 import { routeEdges } from './routing'
 import { nameFontSize, textWidth } from './geometry'
-import type { GraphSlice, Hardness, Scene, SceneCombo, SceneEdge, SceneNode } from './types'
+import type { GraphSlice, Hardness, Scene, SceneCombo, SceneEdge, SceneNode, SceneRing } from './types'
 
 // ── 关系强度 ──────────────────────────────────────────────
 
@@ -343,16 +342,51 @@ export function placeByFaction(
 
 type Tier = 'hard' | 'medium' | 'soft' | 'indirect' | 'isolate'
 const TIERS: Tier[] = ['hard', 'medium', 'soft', 'indirect', 'isolate']
-const TIER_RADIUS: Record<Tier, number> = { hard: 190, medium: 340, soft: 490, indirect: 640, isolate: 790 }
+const TIER_LABEL: Record<Tier, string> = { hard: '强关系', medium: '中关系', soft: '弱关系', indirect: '间接相关', isolate: '无连线' }
+/**
+ * 靶心参数：firstGap 让开中心人物；bandGap 是档与档之间（留给关系文字）；subGap 是同档多层子环之间（容下节点 + 名字）；
+ * labelArc 是每环正上方给档名留的弧长，人物不坐那里。
+ */
+const TARGET = { firstGap: 120, bandGap: 100, subGap: 76, pad: 16, labelArc: 84 }
+const TOP = -Math.PI / 2
 
-/** 亲疏扇区：圆心是中心人物，一档一楔形，档内按势力再按名字排，同势力的人挨着 */
+/**
+ * 有序排开：targets 已升序，相邻至少隔 gaps[i]，都落在 [lo, hi]，且整体离目标最近（保序回归，PAVA）。
+ * 放不下时按比例压缩间距，剩余碰撞交给 refinePlacement。
+ */
+function spreadInOrder(targets: number[], gaps: number[], lo: number, hi: number): number[] {
+  const need = gaps.reduce((s, g) => s + g, 0)
+  const k = need > hi - lo ? (hi - lo) / need : 1
+  const off = [0]
+  gaps.forEach((g, i) => off.push(off[i] + g * k))
+  const top = hi - off[off.length - 1]
+  const blocks: { sum: number; n: number }[] = []
+  targets.forEach((t, i) => {
+    blocks.push({ sum: Math.max(lo, Math.min(top, t - off[i])), n: 1 })
+    while (blocks.length > 1 && blocks[blocks.length - 2].sum / blocks[blocks.length - 2].n > blocks[blocks.length - 1].sum / blocks[blocks.length - 1].n) {
+      const last = blocks.pop()!
+      blocks[blocks.length - 1].sum += last.sum
+      blocks[blocks.length - 1].n += last.n
+    }
+  })
+  const out: number[] = []
+  for (const b of blocks) for (let j = 0; j < b.n; j++) out.push(b.sum / b.n + off[out.length])
+  return out
+}
+
+/**
+ * 亲疏靶心：圆心是中心人物，按与他关系的硬 / 中 / 软 / 间接 / 无连线由内向外分档成环，越亲越近；
+ * 角度按势力分扇区，同一势力在每一环都朝同一方向；间接相关的人朝向与他相连的内环人物，连线短且少穿插。
+ */
 export function placeByAffinity(
   slice: GraphSlice,
   factions: GraphFaction[],
   centerId: string,
   egoId: string | null = null,
-): Placed {
+): Placed & { rings: SceneRing[] } {
   const neighbors = buildNeighborMap(slice.nodes, slice.edges)
+  const nodeById = new Map(slice.nodes.map((n) => [n.person_id, n]))
+  const foot = new Map(slice.nodes.map((n) => [n.person_id, placementNode(n, egoId)]))
   const tierOf = new Map<string, Tier>()
   for (const e of slice.edges) {
     const other = e.person_a === centerId ? e.person_b : e.person_b === centerId ? e.person_a : null
@@ -361,48 +395,91 @@ export function placeByAffinity(
     const prev = tierOf.get(other)
     if (!prev || HARDNESS_RANK[h] > HARDNESS_RANK[prev as Hardness]) tierOf.set(other, h)
   }
-  const orderOf = new Map(factions.map((f) => [f.faction_id, f.order]))
-  const buckets = TIERS.map((tier) => ({
-    id: tier,
-    ids: slice.nodes
-      .filter((n) => n.person_id !== centerId)
-      .filter((n) => {
-        const t = tierOf.get(n.person_id) ?? ((neighbors.get(n.person_id)?.size ?? 0) > 0 ? 'indirect' : 'isolate')
-        return t === tier
-      })
-      .sort(
-        (a, b) =>
-          (orderOf.get(a.primary_faction_id ?? '') ?? 99) - (orderOf.get(b.primary_faction_id ?? '') ?? 99) ||
-          a.name.localeCompare(b.name, 'zh'),
-      )
-      .map((n) => n.person_id),
-  }))
-  const packed = packWedges(buckets, {
-    cx: 0,
-    cy: 0,
-    minChord: 100,
-    ringGap: 86,
-    wedgeGap: 0.14,
-    innerRadius: TIER_RADIUS.hard,
-    minWedgeSpan: 0.3,
-    baseRadiusOf: (id) => TIER_RADIUS[id as Tier],
-  })
-  const initial = new Map(packed.pos)
-  initial.set(centerId, { x: 0, y: 0 })
-  const bounds = new Map<string, PlacementBounds>()
-  const groups = new Map<string, string>()
-  const nodeById = new Map(slice.nodes.map((n) => [n.person_id, n]))
-  for (const bucket of buckets) {
-    const wedge = packed.wedges.get(bucket.id)
-    if (!wedge) continue
-    for (const id of bucket.ids) {
-      const p = initial.get(id)!, radius = Math.hypot(p.x, p.y)
-      groups.set(id, `${bucket.id}:${nodeById.get(id)!.primary_faction_id ?? ''}`)
-      bounds.set(id, { origin: { x: 0, y: 0 }, minRadius: Math.max(wedge.baseRadius, radius - 24), maxRadius: radius + 24, minAngle: wedge.a0 + 0.03, maxAngle: wedge.a1 - 0.03 })
-    }
+  const others = slice.nodes.filter((n) => n.person_id !== centerId)
+  for (const n of others) {
+    if (!tierOf.has(n.person_id)) tierOf.set(n.person_id, (neighbors.get(n.person_id)?.size ?? 0) > 0 ? 'indirect' : 'isolate')
   }
-  const pos = refinePlacement({ positions: initial, nodes: slice.nodes.map((n) => placementNode(n, egoId)), edges: slice.edges, groups, fixedCenter: centerId, bounds })
-  return { pos, comboOf: new Map(), combos: [] }
+
+  // 1. 势力扇区：按势力顺序绕一圈，张角按人数分；未归属排最后
+  const orderOf = new Map(factions.map((f) => [f.faction_id, f.order]))
+  const factionKey = (id: string) => nodeById.get(id)!.primary_faction_id ?? ''
+  const sizes = new Map<string, number>()
+  for (const n of others) sizes.set(factionKey(n.person_id), (sizes.get(factionKey(n.person_id)) ?? 0) + 1)
+  const sectors = new Map<string, { a0: number; span: number }>()
+  let cursor = TOP
+  for (const [key, size] of [...sizes].sort(([a], [b]) => (orderOf.get(a) ?? 99) - (orderOf.get(b) ?? 99) || a.localeCompare(b))) {
+    const span = (Math.PI * 2 * size) / others.length
+    sectors.set(key, { a0: cursor, span })
+    cursor += span
+  }
+
+  // 2. 由内向外逐档落座：先定每人想去的角度，再按弧长分子环、保序排开
+  const angleOf = new Map<string, number>()
+  const radiusOf = new Map<string, number>()
+  const rings: SceneRing[] = []
+  const chord = (id: string) => { const f = foot.get(id)!; return Math.max(f.radius * 2, f.nameWidth) + TARGET.pad }
+  let start = nodeRadius(nodeById.get(centerId)?.importance ?? 'main', centerId === egoId) + TARGET.firstGap
+  for (const tier of TIERS) {
+    const ids = others.filter((n) => tierOf.get(n.person_id) === tier).map((n) => n.person_id)
+    if (!ids.length) continue
+    const want = new Map<string, number>()
+    const byFaction = new Map<string, string[]>()
+    for (const id of [...ids].sort((a, b) => nodeById.get(a)!.name.localeCompare(nodeById.get(b)!.name, 'zh'))) {
+      if (!byFaction.has(factionKey(id))) byFaction.set(factionKey(id), [])
+      byFaction.get(factionKey(id))!.push(id)
+    }
+    for (const [key, members] of byFaction) {
+      const s = sectors.get(key)!
+      members.forEach((id, i) => {
+        // 间接相关的人朝向已落座的邻居（圆周平均），没有才按势力扇区
+        let sx = 0
+        let sy = 0
+        for (const nb of neighbors.get(id) ?? []) {
+          const a = angleOf.get(nb)
+          if (tier === 'indirect' && a !== undefined) { sx += Math.cos(a); sy += Math.sin(a) }
+        }
+        const toward = sx || sy ? Math.atan2(sy, sx) : s.a0 + (s.span * (i + 0.5)) / members.length
+        want.set(id, ((toward - TOP) % (Math.PI * 2) + Math.PI * 2) % (Math.PI * 2) + TOP)
+      })
+    }
+    const sorted = [...ids].sort((a, b) => want.get(a)! - want.get(b)!)
+    const total = sorted.reduce((s, id) => s + chord(id), 0)
+    const cap = (j: number) => Math.PI * 2 * (start + j * TARGET.subGap) - TARGET.labelArc
+    let layers = 1
+    // 留一成余量，同环不至于挤得肩并肩
+    while (Array.from({ length: layers }, (_, j) => cap(j)).reduce((s, c) => s + c, 0) < total * 1.1) layers++
+    // 按角度顺序交替分层，每人进当前最空的那层（按容量归一），内环弧短就少坐人
+    const load = new Array<number>(layers).fill(0)
+    const layerOf = new Map<string, number>()
+    for (const id of sorted) {
+      let j = 0
+      for (let k = 1; k < layers; k++) if ((load[k] + chord(id)) / cap(k) < (load[j] + chord(id)) / cap(j)) j = k
+      load[j] += chord(id)
+      layerOf.set(id, j)
+    }
+    for (let j = 0; j < layers; j++) {
+      const radius = start + j * TARGET.subGap
+      const members = sorted.filter((id) => layerOf.get(id) === j)
+      if (!members.length) continue
+      const half = TARGET.labelArc / 2 / radius
+      const gaps = members.slice(1).map((id, i) => (chord(members[i]) + chord(id)) / 2 / radius)
+      const lo = TOP + half + chord(members[0]) / 2 / radius
+      const hi = TOP + Math.PI * 2 - half - chord(members[members.length - 1]) / 2 / radius
+      const angles = spreadInOrder(members.map((id) => want.get(id)!), gaps, lo, Math.max(lo, hi))
+      members.forEach((id, i) => {
+        angleOf.set(id, angles[i])
+        radiusOf.set(id, radius)
+      })
+    }
+    const outer = start + (layers - 1) * TARGET.subGap
+    rings.push({ id: `ring:${tier}`, r: (start + outer) / 2, label: TIER_LABEL[tier] })
+    start = outer + TARGET.bandGap
+  }
+
+  // 同环相邻至少隔一个足迹宽、子环间距容下名字，按构造不碰撞，不再走 refinePlacement（它的松弛会把人挤到一起）
+  const pos = new Map<string, Point>([[centerId, { x: 0, y: 0 }]])
+  angleOf.forEach((a, id) => pos.set(id, { x: radiusOf.get(id)! * Math.cos(a), y: radiusOf.get(id)! * Math.sin(a) }))
+  return { pos, comboOf: new Map(), combos: [], rings }
 }
 
 // ── 多势力分身 ──────────────────────────────────────────────
@@ -487,7 +564,7 @@ export function buildScene(opts: {
   const factionById = new Map(factions.map((f) => [f.faction_id, f]))
   // 分身只在势力分区里有意义；亲疏扇区没有势力块，每人只画一次
   const cast = useFactionLayout || !centerId ? castWithTwins(slice, factions, egoId) : null
-  const placed = cast
+  const placed: Placed & { rings?: SceneRing[] } = cast
     ? placeByFaction(cast.slice, cast.factions, centerId, egoId)
     : placeByAffinity(slice, factions, centerId!, egoId)
   const personById = new Map(slice.nodes.map((n) => [n.person_id, n]))
@@ -522,6 +599,7 @@ export function buildScene(opts: {
     hardness: edgeHardness(e),
     inFocus: e.tags.some((t) => t.in_focus_chapter),
     labelText: edgeLabelText(e, focusSingle),
+    spoke: !cast && (e.person_a === centerId || e.person_b === centerId),
   }))
   routeEdges(nodes, edges)
 
@@ -530,6 +608,7 @@ export function buildScene(opts: {
     edges,
     twins: [...(cast?.personOf ?? [])].map(([twin, person]) => ({ id: `twin:${twin}`, personId: person, source: person, target: twin })),
     combos: placed.combos,
+    rings: placed.rings ?? [],
     focusSingle,
     dense: nodes.length > 40 || edges.length > 70,
   }

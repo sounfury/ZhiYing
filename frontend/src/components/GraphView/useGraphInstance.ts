@@ -19,6 +19,7 @@ import { routeEdges } from './routing'
 import { beginPerfPan, endPerfPan, installPerfWatch, perfLog, perfOn, perfTime, recordPerfMove, recordPerfPaint } from './perfLog'
 import {
   comboStyle,
+  ringStyle,
   twinStyle,
   computeFocus,
   edgeStyle,
@@ -53,6 +54,8 @@ type Args = {
   onEnterEgo?: (personId: string) => void
   onSelectGroup?: (group: { id: string; x: number; y: number } | null) => void
   onHover?: (info: HoverInfo | null) => void
+  /** 新图画好并适应窗口之后（转场从这时开始播） */
+  onBuilt?: () => void
 }
 
 /** 适应窗口后最多放到这么大：两三个人的小图别被放成巨型气泡 */
@@ -74,6 +77,7 @@ export function useGraphInstance({
   onEnterEgo,
   onSelectGroup,
   onHover,
+  onBuilt,
 }: Args) {
   const graphRef = useRef<Graph | null>(null)
   const sceneRef = useRef<Scene | null>(null)
@@ -83,8 +87,8 @@ export function useGraphInstance({
   const dollyCancelRef = useRef<(() => void) | null>(null)
 
   // 回调存 ref：调用方常传内联箭头函数，放进建图依赖会让任何状态变化都重建图
-  const cb = useRef({ onSelectEdge, onSelectNode, onEnterEgo, onSelectGroup, onHover })
-  cb.current = { onSelectEdge, onSelectNode, onEnterEgo, onSelectGroup, onHover }
+  const cb = useRef({ onSelectEdge, onSelectNode, onEnterEgo, onSelectGroup, onHover, onBuilt })
+  cb.current = { onSelectEdge, onSelectNode, onEnterEgo, onSelectGroup, onHover, onBuilt }
 
   // 交互态存 ref：变化时只重算样式
   const paletteRef = useRef<Palette | null>(null)
@@ -137,6 +141,10 @@ export function useGraphInstance({
     for (const c of sc.combos) {
       const style = comboStyle(c, ctx, focus)
       changed(`combo:${c.id}`, style, combos, () => ({ id: c.id, style }))
+    }
+    for (const r of sc.rings) {
+      const style = ringStyle(r, ctx, focus)
+      changed(r.id, style, nodes, () => ({ id: r.id, style }))
     }
     if (!nodes.length && !edges.length && !combos.length) return
     try {
@@ -215,11 +223,15 @@ export function useGraphInstance({
       animation: false,
       zoomRange: [0.08, 4],
       data: {
-        nodes: scene.nodes.map((n) => ({
-          id: n.id,
-          combo: n.combo ?? null,
-          style: { x: n.x, y: n.y, ...nodeStyle(n, ctx, focus, labels) },
-        })),
+        nodes: [
+          // 档位环不在 scene.nodes 里，路由、避让、交互都不认它
+          ...scene.rings.map((r) => ({ id: r.id, style: ringStyle(r, ctx, focus) })),
+          ...scene.nodes.map((n) => ({
+            id: n.id,
+            combo: n.combo ?? null,
+            style: { x: n.x, y: n.y, ...nodeStyle(n, ctx, focus, labels) },
+          })),
+        ],
         edges: [
           ...scene.edges.map((e) => ({
             id: e.id,
@@ -241,7 +253,7 @@ export function useGraphInstance({
         {
           type: 'drag-element',
           key: 'drag-element',
-          enable: (e: IPointerEvent) => e.targetType === 'node',
+          enable: (e: IPointerEvent) => e.targetType === 'node' && nodeById.has((e.target as { id?: string }).id ?? ''),
           dropEffect: 'none',
           onFinish: (ids: string[]) => {
             requestAnimationFrame(() => {
@@ -319,8 +331,9 @@ export function useGraphInstance({
     }
     graph.on('canvas:pointerdown', startPan)
     graph.on('combo:pointerdown', startPan)
-    graph.on('node:pointerdown', () => {
-      press = 'node'
+    graph.on('node:pointerdown', (evt: unknown) => {
+      if (nodeById.has(idOf(evt) ?? '')) press = 'node'
+      else startPan(evt)
     })
     const onMove = (e: PointerEvent) => {
       if (press === 'pan') {
@@ -496,6 +509,7 @@ export function useGraphInstance({
       fitted()
       if (graphRef.current !== graph) return
       restyleRef.current(true)
+      cb.current.onBuilt?.()
       perfLog('建图完成')
     })().catch(() => {
       /* 图可能已被重建 / 销毁 */

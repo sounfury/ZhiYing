@@ -3,6 +3,8 @@ export type Point = { x: number; y: number }
 export type Box = { x1: number; y1: number; x2: number; y2: number }
 export const EDGE_LABEL_FONT = 11.5
 export const nameFontSize = (importance: string) => importance === 'main' ? 15 : importance === 'supporting' ? 13 : 11.5
+/** 亲疏档名字号：缩小时反向放大，画布与 PNG 导出（zoom=1）共用 */
+export const ringLabelFont = (zoom: number) => 12 * Math.min(2.6, Math.max(1, 0.8 / zoom))
 
 let context: CanvasRenderingContext2D | null = null
 export function textWidth(text: string, size: number, family = 'serif', weight = 400): number {

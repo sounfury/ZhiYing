@@ -1,0 +1,101 @@
+/* 看板小蜘蛛（Spider.tsx）的部件样式与逐帧动画；尺寸与位置由使用处决定 */
+.spider {
+  color: var(--ink);
+  overflow: visible;
+}
+
+.spider-silk {
+  stroke: currentColor;
+  stroke-width: 1.2;
+  transform-box: view-box;
+  transform-origin: 60px 0;
+  animation: spider-silk 2.2s steps(10) infinite alternate;
+}
+
+/* 动作一律 steps 逐帧，像定格动画，不用平滑缓动 */
+.spider-dangle {
+  transform-box: view-box;
+  transform-origin: 60px 0;
+  animation: spider-dangle 2.2s steps(10) infinite alternate;
+}
+
+.spider-leg {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 3;
+  transform-box: view-box;
+  animation: spider-leg 0.5s steps(2, jump-none) infinite alternate;
+}
+
+.spider-leg.alt {
+  animation-delay: -0.25s;
+}
+
+.spider-ink {
+  fill: currentColor;
+}
+
+.spider-eyes,
+.spider-fang {
+  fill: var(--panel);
+}
+
+.spider-eyes {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: spider-blink 3.2s infinite;
+}
+
+.spider-pupils {
+  transition: transform 0.2s steps(2);
+}
+
+/* 打盹：闭眼、腿不动、晃得更慢 */
+.spider.asleep .spider-eyes {
+  animation: none;
+  transform: scaleY(0.12);
+}
+
+.spider.asleep .spider-pupils {
+  display: none;
+}
+
+.spider.asleep .spider-leg {
+  animation: none;
+}
+
+.spider.asleep .spider-dangle,
+.spider.asleep .spider-silk {
+  animation-duration: 4.4s;
+}
+
+@keyframes spider-dangle {
+  from { transform: translateY(-6px) rotate(-4deg); }
+  to { transform: translateY(6px) rotate(4deg); }
+}
+
+@keyframes spider-silk {
+  from { transform: scaleY(0.8); }
+  to { transform: scaleY(1.2); }
+}
+
+@keyframes spider-leg {
+  from { transform: rotate(-7deg); }
+  to { transform: rotate(7deg); }
+}
+
+@keyframes spider-blink {
+  0%, 92%, 100% { transform: scaleY(1); }
+  95% { transform: scaleY(0.1); }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .spider * {
+    animation: none !important;
+    transition: none !important;
+  }
+
+  .spider-boil {
+    filter: none;
+  }
+}

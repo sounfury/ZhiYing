@@ -3,8 +3,7 @@
  *
  * - 同心环槽位（ringSlots + assignSlots）：块内「核心人物居中、其余按亲疏分环」，
  *   每环能站几人按弧长反推（slots = 2πr / minChord），相邻节点弦长恒 ≥ minChord，不重叠；
- * - 矩形贪心装箱（packRects）：把各势力块当成矩形摆开，优先贴近与它连边多的块，互不重叠；
- * - 极坐标楔形装填（fillWedge / packWedges）：亲疏扇区布局用，一档一楔形、档内分环。
+ * - 矩形贪心装箱（packRects）：把各势力块当成矩形摆开，优先贴近与它连边多的块，互不重叠。
  */
 
 export type Point = { x: number; y: number }
@@ -160,99 +159,4 @@ export function packRects(
     out.set(b.id, pos)
   }
   return out
-}
-
-// ── 极坐标楔形 ──────────────────────────────────────────────
-
-export type Wedge = {
-  a0: number
-  a1: number
-  mid: number
-  baseRadius: number
-  outerRadius: number
-}
-
-export type Bucket = {
-  id: string
-  /** 已按调用方语义排好序：越靠前越靠内环 */
-  ids: string[]
-}
-
-export type PackWedgeOpts = {
-  cx: number
-  cy: number
-  minChord: number
-  ringGap: number
-  /** 楔形之间的角度缝 */
-  wedgeGap: number
-  innerRadius: number
-  /** 每块起始半径；不给则统一用 innerRadius */
-  baseRadiusOf?: (bucketId: string) => number
-  /** 单块最小张角，避免只有 1-2 人的块被压成一条线 */
-  minWedgeSpan?: number
-}
-
-const MAX_RINGS = 40
-
-/** 在 [a0, a1] 楔形内从 baseRadius 起向外分环装填，节点落在格心，离楔形缝有半格距离 */
-export function fillWedge(
-  ids: string[],
-  a0: number,
-  a1: number,
-  baseRadius: number,
-  opts: Pick<PackWedgeOpts, 'cx' | 'cy' | 'minChord' | 'ringGap'>,
-): { pos: Map<string, Point>; outerRadius: number } {
-  const pos = new Map<string, Point>()
-  const span = Math.max(a1 - a0, 1e-3)
-  if (!ids.length) return { pos, outerRadius: baseRadius }
-
-  const rings: string[][] = []
-  let cursor = 0
-  while (cursor < ids.length && rings.length < MAX_RINGS) {
-    const r = baseRadius + rings.length * opts.ringGap
-    const slots = Math.max(1, Math.floor((span * r) / opts.minChord))
-    rings.push(ids.slice(cursor, cursor + slots))
-    cursor += slots
-  }
-  if (cursor < ids.length) rings[rings.length - 1].push(...ids.slice(cursor))
-
-  rings.forEach((ringIds, ringIdx) => {
-    const r = baseRadius + ringIdx * opts.ringGap
-    const m = ringIds.length
-    ringIds.forEach((id, i) => {
-      const angle = m === 1 ? a0 + span / 2 : a0 + (span * (i + 0.5)) / m
-      pos.set(id, { x: opts.cx + r * Math.cos(angle), y: opts.cy + r * Math.sin(angle) })
-    })
-  })
-  return { pos, outerRadius: baseRadius + (rings.length - 1) * opts.ringGap }
-}
-
-/** 把若干档摆成一圈楔形：张角按人数分配（带最小底角），档内交给 fillWedge */
-export function packWedges(
-  buckets: Bucket[],
-  opts: PackWedgeOpts,
-): { pos: Map<string, Point>; wedges: Map<string, Wedge> } {
-  const pos = new Map<string, Point>()
-  const wedges = new Map<string, Wedge>()
-  const active = buckets.filter((b) => b.ids.length > 0)
-  if (!active.length) return { pos, wedges }
-
-  const k = active.length
-  const usable = Math.max(Math.PI * 2 - opts.wedgeGap * k, Math.PI / 2)
-  const total = active.reduce((s, b) => s + b.ids.length, 0)
-  const base = Math.min(opts.minWedgeSpan ?? 0.22, usable / (2 * k))
-  const spare = Math.max(usable - base * k, 0)
-
-  let cursor = -Math.PI / 2
-  for (const b of active) {
-    const span = base + (spare * b.ids.length) / total
-    const a0 = cursor
-    const a1 = cursor + span
-    const baseRadius = opts.baseRadiusOf?.(b.id) ?? opts.innerRadius
-    const filled = fillWedge(b.ids, a0, a1, baseRadius, opts)
-    filled.pos.forEach((p, id) => pos.set(id, p))
-    wedges.set(b.id, { a0, a1, mid: a0 + span / 2, baseRadius, outerRadius: filled.outerRadius })
-    cursor = a1 + opts.wedgeGap
-  }
-  return { pos, wedges }
 }
