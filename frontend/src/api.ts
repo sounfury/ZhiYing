@@ -411,7 +411,8 @@ export function subscribeAnalysisProgress(
   handlers: {
     onProgress?: (data: ProgressEvent) => void
     onDone?: (data: DoneEvent) => void
-    onError?: (message: string) => void
+    /** fatal=true 表示连接已彻底断开、不会再重连，需提示用户刷新页面 */
+    onError?: (message: string, fatal?: boolean) => void
   },
 ): () => void {
   const es = new EventSource(apiUrl(`/api/books/${bookId}/progress`))
@@ -456,7 +457,7 @@ export function subscribeAnalysisProgress(
     if (es.readyState === EventSource.CLOSED) {
       // 服务端拒绝（如 404）时浏览器不再重连
       close()
-      handlers.onError?.('进度连接已断开，刷新页面可恢复')
+      handlers.onError?.('进度连接已断开，请刷新页面恢复进度显示', true)
       return
     }
     // 其余情况浏览器会自动重连，只提示一次

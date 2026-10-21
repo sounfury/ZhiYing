@@ -248,8 +248,10 @@ export function useAnalysis({ chapterLabel, onAnalysisDone, onBanner }: UseAnaly
         onDone: (d) => {
           if (gen === genRef.current) void handleDone(bookId, gen, d)
         },
-        onError: (m) => {
-          if (gen === genRef.current) pushLog('info', m)
+        onError: (m, fatal) => {
+          if (gen !== genRef.current) return
+          pushLog(fatal ? 'fail' : 'info', m)
+          if (fatal) onBannerRef.current(m, '')
         },
       })
     },
