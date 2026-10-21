@@ -43,15 +43,16 @@ function ModelForm({ initial, providers }: { initial: ModelSetting; providers: M
   const [error, setError] = useState('')
   const [notice, setNotice] = useState('')
   const [report, setReport] = useState<ProbeReport | null>(null)
+  const provider = providers.find((p) => p.id === setting.providerId)
   useEffect(() => {
     let active = true
-    setOptions([]); setListNote(setting.providerId ? '正在拉取模型列表…' : '')
-    if (!setting.providerId) return
-    getProviderModels(setting.providerId)
+    setOptions([]); setListNote(provider ? '正在拉取模型列表…' : '')
+    if (!provider) return
+    getProviderModels(provider.id)
       .then((list) => { if (active) { setOptions(list); setListNote(list.length ? `可选 ${list.length} 个模型，也可手动填写` : '服务商未返回模型列表，请手动填写') } })
-      .catch((e: unknown) => { if (active) setListNote(message(e)) })
+      .catch((e: unknown) => { if (active) setListNote(`模型列表拉取失败：${message(e)}；可手动填写模型名称`) })
     return () => { active = false }
-  }, [setting.providerId])
+  }, [provider])
   const dirty = setting.providerId !== saved.providerId || setting.model !== saved.model || setting.thinking !== saved.thinking
   const act = async (action: 'save' | 'probe') => {
     setBusy(true); setError(''); setNotice(''); setReport(null)
@@ -69,7 +70,6 @@ function ModelForm({ initial, providers }: { initial: ModelSetting; providers: M
     } finally { setBusy(false) }
   }
   const submit = (e: FormEvent<HTMLFormElement>) => { e.preventDefault(); void act('save') }
-  const listId = `models-${setting.callPoint}`
   return <form className="adm-card adm-form" onSubmit={submit}>
     <div className="adm-card-head" style={{ marginBottom: 0 }}>
       <h3>{LABELS[setting.callPoint]}</h3>
@@ -79,10 +79,13 @@ function ModelForm({ initial, providers }: { initial: ModelSetting; providers: M
       <option value="" disabled>请选择服务商</option>
       {providers.map((p) => <option key={p.id} value={p.id}>{p.name}</option>)}
     </select></label>
-    <label className="adm-field">模型<input list={listId} required value={setting.model} placeholder="从列表选择或手动填写" onChange={(e) => setSetting({ ...setting, model: e.target.value })} disabled={busy} />
-      {listNote && <span className="hint">{listNote}</span>}
+    <label className="adm-field">可用模型<select value={options.includes(setting.model) ? setting.model : ''} onChange={(e) => setSetting({ ...setting, model: e.target.value })} disabled={busy || !options.length}>
+      <option value="" disabled>{options.length ? '请选择模型，或在下方手动填写' : '暂无可选模型，请在下方手动填写'}</option>
+      {options.map((m) => <option key={m} value={m}>{m}</option>)}
+    </select>
+      {listNote && <span className="hint" role="status">{listNote}</span>}
     </label>
-    <datalist id={listId}>{options.map((m) => <option key={m} value={m} />)}</datalist>
+    <label className="adm-field">模型名称<input required value={setting.model} placeholder="选择模型后自动填入，也可手动修改" onChange={(e) => setSetting({ ...setting, model: e.target.value })} disabled={busy} /></label>
     <label className="adm-switch"><input type="checkbox" checked={setting.thinking} onChange={(e) => setSetting({ ...setting, thinking: e.target.checked })} disabled={busy} />思考模式</label>
     <div className="adm-actions">
       <button type="submit" className="btn primary" disabled={busy || !dirty}>保存</button>
@@ -123,7 +126,7 @@ function Providers({ providers, onChange }: { providers: ModelProvider[]; onChan
   const remove = (p: ModelProvider) => { if (window.confirm(`删除服务商「${p.name}」？`)) void run(() => deleteProvider(p.id)) }
   return <div className="adm-card">
     <div className="adm-card-head">
-      <div><h3>服务商</h3><p className="hint">支持 OpenAI 兼容协议的服务。API Key 加密保存，保存后只显示末尾 4 位。</p></div>
+      <div><h3>服务商</h3><p className="hint">支持 OpenAI 兼容协议的服务。API Key 加密保存，保存后只显示末尾 4 位。各分析环节使用的模型请在上方卡片选择或填写。</p></div>
       {editing === null && <button type="button" className="btn" onClick={() => setEditing('')}>＋ 新增服务商</button>}
     </div>
     {providers.length === 0 ? <p className="adm-empty">暂无服务商</p> : <div className="adm-table-wrap"><table className="adm-table">
